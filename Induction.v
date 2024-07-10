@@ -737,8 +737,8 @@ Fixpoint incr (m:bin) : bin :=
 Fixpoint bin_to_nat (m:bin) : nat :=
   match m with
   | Z => O 
-  | B0 m' => 2 * (bin_to_nat m')
-  | B1 m' => 1 + 2 * (bin_to_nat m')
+  | B0 m' => double (bin_to_nat m')
+  | B1 m' => 1 + double (bin_to_nat m')
   end.
 
 (** In [Basics], we did some unit testing of [bin_to_nat], but we
@@ -770,8 +770,7 @@ Proof.
   induction b as [| b' IHB0 | b' IHB1].
   * reflexivity.
   * reflexivity.
-  * simpl. rewrite IHB1. simpl. rewrite add_0_r.
-    rewrite add_comm. simpl. reflexivity.
+  * simpl. rewrite IHB1. simpl. reflexivity.
 Qed.
 
 (** [] *)
@@ -852,7 +851,7 @@ Example double_bin_zero : double_bin Z = Z.
 Proof. simpl. reflexivity. Qed.
 
 Example double_bin_zero' : double_bin (B0 Z) = Z.
-Proof. simpl. reflexivity. Abort.
+Proof. simpl. Abort.
 
 (** Prove this lemma, which corresponds to [double_incr]. *)
 
@@ -944,24 +943,24 @@ Proof. simpl. reflexivity. Qed.
 
 Theorem bin_nat_bin : forall b, nat_to_bin (bin_to_nat b) = normalize b.
 Proof.
+  assert (forall n : nat, nat_to_bin (double n) = double_bin (nat_to_bin n)) as double_bin_double.
+  { induction n as [| n' IHn'].
+    + reflexivity.
+    + simpl. rewrite IHn'. rewrite double_incr_bin. reflexivity.
+  }
   induction b as [| b' IHB0 | b' IHB1].
   * reflexivity.
-  * simpl.
-    assert (forall n : nat, nat_to_bin (2 * n) = double_bin (nat_to_bin n)) as times_two_is_double_bin.
-    { induction n as [| n' IHn'].
-      + reflexivity.
-      + replace (2 * S n') with (S (S (2 * n'))).
-        replace (nat_to_bin (S n')) with (incr (nat_to_bin n')).
-        replace (nat_to_bin (S (S (2 * n')))) with (incr (incr (nat_to_bin (2 * n')))).
-        rewrite IHn'. rewrite double_incr_bin. reflexivity.
-        { reflexivity. }
-        { reflexivity. }
-        { assert (forall n : nat, 2 * n = double n) as times_two_is_double.
-          Abort. (* no! use [double] instead of multiplication globablly! *)
-        }
-    
-    }  
-
+  * simpl. rewrite double_bin_double. rewrite IHB0. reflexivity.
+  * simpl. rewrite <- IHB1. rewrite double_bin_double.
+    assert (forall b : bin, incr (double_bin b) = B1 b) as incr_double_bin.
+    {
+      intros [].
+      - reflexivity.
+      - reflexivity.
+      - reflexivity.  
+    }
+    rewrite incr_double_bin. reflexivity.
+Qed.
 
 (** [] *)
 

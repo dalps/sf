@@ -117,6 +117,8 @@ Fixpoint repeat (X : Type) (x : X) (count : nat) : list X :=
   | S count' => cons X x (repeat X x count')
   end.
 
+Check repeat.
+
 (** As with [nil] and [cons], we can use [repeat] by applying it
     first to a type and then to an element of this type (and a number): *)
 
@@ -148,14 +150,17 @@ Inductive grumble (X:Type) : Type :=
 
 (** Which of the following are well-typed elements of [grumble X] for
     some type [X]?  (Add YES or NO to each line.)
-      - [d (b a 5)]
-      - [d mumble (b a 5)]
-      - [d bool (b a 5)]
-      - [e bool true]
-      - [e mumble (b c 0)]
-      - [e bool (b c 0)]
-      - [c]  *)
+      - [d (b a 5)]         NO
+      - [d mumble (b a 5)]  YES
+      - [d bool (b a 5)]    NO (wrong: m does not depend on X)
+      - [e bool true]       YES
+      - [e mumble (b c 0)]  YES
+      - [e bool (b c 0)]    NO
+      - [c]                 NO (it is well typed tho) *)
 (* FILL IN HERE *)
+
+Check c.
+
 End MumbleGrumble.
 (** [] *)
 
@@ -245,6 +250,8 @@ Definition list123 :=
 Definition list123' :=
   cons _ 1 (cons _ 2 (cons _ 3 (nil _))).
 
+Check list123'.
+
 (* ----------------------------------------------------------------- *)
 (** *** Implicit Arguments *)
 
@@ -263,6 +270,12 @@ Arguments repeat {X}.
 (** Now we don't have to supply any type arguments at all in the example: *)
 
 Definition list123'' := cons 1 (cons 2 (cons 3 nil)).
+
+Check list123''.
+
+Definition listttf := cons true (cons true (cons false nil)).
+
+Check listttf.
 
 (** Alternatively, we can declare an argument to be implicit
     when defining the function itself, by surrounding it in curly
@@ -355,6 +368,9 @@ Definition mynil : list nat := nil.
 (** Alternatively, we can force the implicit arguments to be explicit by
     prefixing the function name with [@]. *)
 
+(* recall that we made the type argument of [nil] and [cons] implicit
+   by calls to Argument on line 266 *)
+
 Check @nil : forall X : Type, list X.
 
 Definition mynil' := @nil nat.
@@ -374,6 +390,8 @@ Notation "x ++ y" := (app x y)
 (** Now lists can be written just the way we'd hope: *)
 
 Definition list123''' := [1; 2; 3].
+
+Check list123'''.
 
 (* ----------------------------------------------------------------- *)
 (** *** Exercises *)

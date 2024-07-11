@@ -661,26 +661,26 @@ Proof. reflexivity. Qed.
     and "filtering" the list, returning a new list containing just
     those elements for which the predicate returns [true]. *)
 
-Fixpoint filter {X:Type} (test: X->bool) (l:list X) : list X :=
+Fixpoint filter (X:Type) (test: X->bool) (l:list X) : list X :=
   match l with
   | [] => []
   | h :: t =>
-    if test h then h :: (filter test t)
-    else filter test t
+    if test h then h :: (filter X test t)
+    else filter X test t
   end.
 
 (** For example, if we apply [filter] to the predicate [even]
     and a list of numbers [l], it returns a list containing just the
     even members of [l]. *)
 
-Example test_filter1: filter even [1;2;3;4] = [2;4].
+Example test_filter1: filter nat even [1;2;3;4] = [2;4].
 Proof. reflexivity. Qed.
 
 Definition length_is_1 {X : Type} (l : list X) : bool :=
   (length l) =? 1.
 
 Example test_filter2:
-    filter length_is_1
+    filter (list nat) length_is_1
            [ [1; 2]; [3]; [4]; [5;6;7]; []; [8] ]
   = [ [3]; [4]; [8] ].
 Proof. reflexivity. Qed.
@@ -689,7 +689,7 @@ Proof. reflexivity. Qed.
     [countoddmembers] function from the [Lists] chapter. *)
 
 Definition countoddmembers' (l:list nat) : nat :=
-  length (filter odd l).
+  length (filter nat odd l).
 
 Example test_countoddmembers'1:   countoddmembers' [1;0;3;1;4;5] = 4.
 Proof. reflexivity. Qed.
@@ -725,7 +725,7 @@ Proof. reflexivity. Qed.
     function. *)
 
 Example test_filter2':
-    filter (fun l => (length l) =? 1)
+    filter (list nat) (fun l => (length l) =? 1)
            [ [1; 2]; [3]; [4]; [5;6;7]; []; [8] ]
   = [ [3]; [4]; [8] ].
 Proof. reflexivity. Qed.
@@ -738,7 +738,7 @@ Proof. reflexivity. Qed.
     7. *)
 
 Definition filter_even_gt7 (l : list nat) : list nat :=
-  filter (fun n => even n && (8 <=? n)) l.
+  filter nat (fun n => even n && (8 <=? n)) l.
 
 Example test_filter_even_gt7_1 :
   filter_even_gt7 [1;2;6;9;10;3;12;8] = [10;12;8].
@@ -767,7 +767,7 @@ Definition partition {X : Type}
                      (test : X -> bool)
                      (l : list X)
                    : list X * list X :=
-  (filter test l, filter (fun x => negb (test x)) l).
+  (filter X test l, filter X (fun x => negb (test x)) l).
 
 Example test_partition1: partition odd [1;2;3;4;5] = ([1;3;5], [2;4]).
   Proof. reflexivity. Qed.
@@ -780,17 +780,17 @@ Example test_partition2: partition (fun x => false) [5;9;0] = ([], [5;9;0]).
 
 (** Another handy higher-order function is called [map]. *)
 
-Fixpoint map {X Y : Type} (f : X->Y) (l : list X) : list Y :=
+Fixpoint map (X Y : Type) (f : X->Y) (l : list X) : list Y :=
   match l with
   | []     => []
-  | h :: t => (f h) :: (map f t)
+  | h :: t => (f h) :: (map X Y f t)
   end.
 
 (** It takes a function [f] and a list [ l = [n1, n2, n3, ...] ]
     and returns the list [ [f n1, f n2, f n3,...] ], where [f] has
     been applied to each element of [l] in turn.  For example: *)
 
-Example test_map1: map (fun x => plus 3 x) [2;0;2] = [5;3;5].
+Example test_map1: map nat nat (fun x => plus 3 x) [2;0;2] = [5;3;5].
 Proof. reflexivity. Qed.
 
 (** The element types of the input and output lists need not be
@@ -799,7 +799,7 @@ Proof. reflexivity. Qed.
     numbers to booleans to yield a list of booleans: *)
 
 Example test_map2:
-  map odd [2;1;2;5] = [false;true;false;true].
+  map nat bool odd [2;1;2;5] = [false;true;false;true].
 Proof. reflexivity. Qed.
 
 (** It can even be applied to a list of numbers and
@@ -807,7 +807,7 @@ Proof. reflexivity. Qed.
     yield a _list of lists_ of booleans: *)
 
 Example test_map3:
-    map (fun n => [even n;odd n]) [2;1;2;5]
+    map nat (list bool) (fun n => [even n;odd n]) [2;1;2;5]
   = [[true;false];[false;true];[true;false];[false;true]].
 Proof. reflexivity. Qed.
 
@@ -822,13 +822,13 @@ Proof. reflexivity. Qed.
     auxiliary lemma. *)
 
 Theorem map_rev : forall (X Y : Type) (f : X -> Y) (l : list X),
-  map f (rev l) = rev (map f l).
+  map X Y f (rev l) = rev (map X Y f l).
 Proof.
   intros. induction l as [| h l' IH].
   * reflexivity.
   * simpl. rewrite <- IH.
     assert (forall (l1 l2 : list X), 
-      map f (l1 ++ l2) = map f l1 ++ map f l2
+      map X Y f (l1 ++ l2) = map X Y f l1 ++ map X Y f l2
     ) as map_distr_app.
     {
       intros. induction l1 as [| i l1' IHl1'].

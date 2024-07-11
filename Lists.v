@@ -938,7 +938,8 @@ Proof.
 Theorem count_member_nonzero : forall (s : bag),
   1 <=? (count 1 (1 :: s)) = true.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  simpl. reflexivity. Qed.
+  
 (** [] *)
 
 (** The following lemma about [leb] might help you in the next
@@ -959,7 +960,13 @@ Proof.
 Theorem remove_does_not_increase_count: forall (s : bag),
   (count 0 (remove_one 0 s)) <=? (count 0 s) = true.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  induction s as [| n s' IH].
+  * reflexivity.
+  * destruct n as [| n'].
+    + simpl. rewrite leb_n_Sn. reflexivity.
+    + simpl. rewrite IH. reflexivity.
+  Qed.
+ 
 (** [] *)
 
 (** **** Exercise: 3 stars, standard, optional (bag_count_sum)
@@ -971,11 +978,24 @@ Proof.
     [=?] you may find it useful to know that [destruct] works on
     arbitrary expressions, not just simple identifiers.)
 *)
-(* FILL IN HERE
+(* FILL IN HERE *)
+Search count.
 
-    [] *)
+Theorem bag_count_sum: forall (v : nat) (s1 s2 : bag),
+  count v (sum s1 s2) = count v s1 + count v s2.
+Proof.
+  intros v s1 s2. induction s1 as [| u s1' IH].
+  * simpl. reflexivity.
+  * simpl. destruct (u =? v).
+    + simpl. rewrite IH. reflexivity.
+    + simpl. rewrite IH. reflexivity.
+Qed.
+
+(** [] *)
 
 (** **** Exercise: 3 stars, advanced (involution_injective) *)
+
+(* ~20 mins *)
 
 (** Prove that every involution is injective.
 
@@ -986,7 +1006,9 @@ Proof.
 Theorem involution_injective : forall (f : nat -> nat),
     (forall n : nat, n = f (f n)) -> (forall n1 n2 : nat, f n1 = f n2 -> n1 = n2).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros f Hinv n1 n2. intros Hinj.
+  rewrite Hinv. rewrite <- Hinj. rewrite <- Hinv. reflexivity.
+Qed.  
 
 (** [] *)
 
@@ -997,10 +1019,16 @@ Proof.
     you used for [involution_injective]. (But: Don't try to use that
     exercise directly as a lemma: the types are not the same!) *)
 
+(* 5 min *)
+Search rev.
+
 Theorem rev_injective : forall (l1 l2 : natlist),
   rev l1 = rev l2 -> l1 = l2.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros l1 l2 Hinj. rewrite <- rev_involutive. rewrite <- Hinj.
+  rewrite rev_involutive. reflexivity.
+Qed.
+  
 (** [] *)
 
 (* ################################################################# *)
@@ -1076,17 +1104,20 @@ Definition option_elim (d : nat) (o : natoption) : nat :=
     Using the same idea, fix the [hd] function from earlier so we don't
     have to pass a default element for the [nil] case.  *)
 
-Definition hd_error (l : natlist) : natoption
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Definition hd_error (l : natlist) : natoption :=
+  match l with
+  | nil => None
+  | h :: _ => Some h
+  end.
 
 Example test_hd_error1 : hd_error [] = None.
- (* FILL IN HERE *) Admitted.
+  Proof. reflexivity. Qed.
 
 Example test_hd_error2 : hd_error [1] = Some 1.
- (* FILL IN HERE *) Admitted.
+  Proof. reflexivity. Qed.
 
 Example test_hd_error3 : hd_error [5;6] = Some 5.
- (* FILL IN HERE *) Admitted.
+  Proof. reflexivity. Qed.
 
 (** [] *)
 
@@ -1097,7 +1128,11 @@ Example test_hd_error3 : hd_error [5;6] = Some 5.
 Theorem option_elim_hd : forall (l:natlist) (default:nat),
   hd default l = option_elim default (hd_error l).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros [].
+  * reflexivity.
+  * reflexivity.
+Qed.
+
 (** [] *)
 
 End NatList.
@@ -1128,10 +1163,12 @@ Definition eqb_id (x1 x2 : id) :=
   | Id n1, Id n2 => n1 =? n2
   end.
 
+Search eqb.
+
 (** **** Exercise: 1 star, standard (eqb_id_refl) *)
 Theorem eqb_id_refl : forall x, eqb_id x x = true.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros []. simpl. rewrite eqb_refl. reflexivity. Qed.
 (** [] *)
 
 (** Now we define the type of partial maps: *)
@@ -1177,7 +1214,14 @@ Theorem update_eq :
   forall (d : partial_map) (x : id) (v: nat),
     find x (update d x v) = Some v.
 Proof.
- (* FILL IN HERE *) Admitted.
+  intros d x v. simpl. rewrite eqb_id_refl. reflexivity. Qed.
+  
+  (* destruct d as [| x' v' d'].
+  * simpl. rewrite eqb_id_refl. reflexivity.
+  * simpl. rewrite eqb_id_refl. reflexivity.
+  
+   ### if the proofs of the subgoals are the same, 
+     most likely you don't need to generate subgoals *)
 (** [] *)
 
 (** **** Exercise: 1 star, standard (update_neq) *)
@@ -1185,7 +1229,8 @@ Theorem update_neq :
   forall (d : partial_map) (x y : id) (o: nat),
     eqb_id x y = false -> find x (update d y o) = find x d.
 Proof.
- (* FILL IN HERE *) Admitted.
+  intros d x y o Hneq. simpl. rewrite Hneq. reflexivity. Qed.
+
 (** [] *)
 End PartialMap.
 

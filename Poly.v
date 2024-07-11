@@ -396,6 +396,8 @@ Check list123'''.
 (* ----------------------------------------------------------------- *)
 (** *** Exercises *)
 
+(* 18 min in total *)
+
 (** **** Exercise: 2 stars, standard (poly_exercises)
 
     Here are a few simple exercises, just like ones in the [Lists]
@@ -405,17 +407,27 @@ Check list123'''.
 Theorem app_nil_r : forall (X:Type), forall l:list X,
   l ++ [] = l.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros. induction l as [| h t].
+  * reflexivity.
+  * simpl. rewrite IHt. reflexivity.
+Qed.
 
 Theorem app_assoc : forall A (l m n:list A),
   l ++ m ++ n = (l ++ m) ++ n.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros. induction l as [| h l'].
+  * reflexivity.
+  * simpl. rewrite IHl'. reflexivity.
+Qed. 
 
 Lemma app_length : forall (X:Type) (l1 l2 : list X),
   length (l1 ++ l2) = length l1 + length l2.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros. induction l1 as [| h l1'].
+  * reflexivity.
+  * simpl. rewrite IHl1'. reflexivity.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 2 stars, standard (more_poly_exercises)
@@ -425,12 +437,19 @@ Proof.
 Theorem rev_app_distr: forall X (l1 l2 : list X),
   rev (l1 ++ l2) = rev l2 ++ rev l1.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros. induction l1 as [| h l1' IH].
+  * simpl. rewrite app_nil_r. reflexivity.
+  * simpl. rewrite IH. rewrite <- app_assoc. reflexivity.
+Qed. 
 
 Theorem rev_involutive : forall X : Type, forall l : list X,
   rev (rev l) = l.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  induction l as [| h l1' IH].
+  * reflexivity.
+  * simpl. rewrite rev_app_distr. rewrite IH. reflexivity.
+Qed.
+
 (** [] *)
 
 (* ================================================================= *)
@@ -450,10 +469,16 @@ Arguments pair {X} {Y}.
 
 Notation "( x , y )" := (pair x y).
 
+Check (false, 1).
+Check (1, [2]).
+
 (** We can also use the [Notation] mechanism to define the standard
     notation for _product types_ (i.e., the types of pairs): *)
 
 Notation "X * Y" := (prod X Y) : type_scope.
+
+Fail Check nat * bool.
+Fail Check bool * list nat * nat. (* Huh?!? *)
 
 (** (The annotation [: type_scope] tells Coq that this abbreviation
     should only be used when parsing types, not when parsing
@@ -497,13 +522,19 @@ Fixpoint combine {X Y : Type} (lx : list X) (ly : list Y)
     checking your answers in Coq:
     - What is the type of [combine] (i.e., what does [Check
       @combine] print?)
+    + forall (X Y : Type), list X -> list Y -> list (X*Y)
+
     - What does
 
         Compute (combine [1;2] [false;false;true;true]).
 
       print?
+    + [(1,false); (2,false)]
 
     [] *)
+
+Check @combine.
+Compute combine [1;2] [false;false;true;true].
 
 (** **** Exercise: 2 stars, standard, especially useful (split)
 
@@ -514,13 +545,18 @@ Fixpoint combine {X Y : Type} (lx : list X) (ly : list Y)
     Fill in the definition of [split] below.  Make sure it passes the
     given unit test. *)
 
-Fixpoint split {X Y : Type} (l : list (X*Y)) : (list X) * (list Y)
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Fixpoint split {X Y : Type} (l : list (X*Y)) : (list X) * (list Y) :=
+  match l with
+  | [] => ([], [])
+  | (x, y) :: l' => match split l' with
+                    | (l1, l2) => (x :: l1, y :: l2)
+                    end
+  end.
 
 Example test_split:
   split [(1,false);(2,false)] = ([1;2],[false;false]).
 Proof.
-(* FILL IN HERE *) Admitted.
+  simpl. reflexivity. Qed.
 (** [] *)
 
 (* ================================================================= *)
@@ -569,8 +605,11 @@ Proof. reflexivity. Qed.
     [hd_error] function from the last chapter. Be sure that it
     passes the unit tests below. *)
 
-Definition hd_error {X : Type} (l : list X) : option X
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Definition hd_error {X : Type} (l : list X) : option X :=
+  match l with
+  | [] => None
+  | h :: _ => Some h
+  end.
 
 (** Once again, to force the implicit arguments to be explicit,
     we can use [@] before the name of the function. *)
@@ -578,9 +617,10 @@ Definition hd_error {X : Type} (l : list X) : option X
 Check @hd_error : forall X : Type, list X -> option X.
 
 Example test_hd_error1 : hd_error [1;2] = Some 1.
- (* FILL IN HERE *) Admitted.
+ Proof. reflexivity. Qed.
 Example test_hd_error2 : hd_error  [[1];[2]]  = Some [1].
- (* FILL IN HERE *) Admitted.
+ Proof. reflexivity. Qed.
+
 (** [] *)
 
 (* ################################################################# *)

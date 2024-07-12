@@ -1148,58 +1148,38 @@ Proof.
 (* This should be at least 3 starts wtf! *)
 
 (*
-  Proof: by case analysis on [l].
+  Proof: first, we show a simpler lemma, that doesn't involve [n], i.e.
 
-  * First, suppose [l = nil]. We then have to prove:
+  L: forall X l, @nth_error X l (length l) = None.
 
-    length nil = n -> @nth_error X nil n = None
+  It can be proven easily by induction. The case [l = nil] is immediate.
+  In the inductive case [l = h :: l'], we have as the inductive hypothesis:
+  
+  @nth_error X l' (length l') = None.
 
-    Whether or not [n = O], the thesis always follows by definitioin of [@nth_error] in the case [l = nil].
+  We must show:
 
-  * Then, suppose [l = h :: l']. We must show:
+  @nth_error X (h :: l') (length (h :: l')) = None,
 
-    length (h :: l') = n -> @nth_error X (h :: l') n = None.
+  but this follows from the definions of [nth_error] and [length] and the
+  induction hypothesis.
 
-    We proceed by induction on [n]:
-
-    + Suppose [n = 0]. 
-      Then the hypothesis doesn't hold and the theorem is proved.
-
-    + Now suppose [n = S n'] for some [n' : nat], with
-
-      length (h :: l') = n' -> @nth_error X (h :: l') n' = None.
-
-      We must show
-
-      length (h :: l') = S n' -> @nth_error X (h :: l') (S n') = None.
-
-      By applying the definitions of [length] and [nth_error] we get
-
-      length l' = n' -> @nth_error l' n' = None.
-
-      ???
+  It remains to show the original theorem. The hypothesis lets us rewrite [n] to [length l] and apply the previous lemma. We end up with the equality [None = None]. Qed.
 *)
 
-(* I tried -_- *)
-
 Search nth_error.
-
-Lemma nth_length_error: forall X l, @nth_error X l (length l) = None.
-Proof.
-    induction l as [| h l' HH].
-    * reflexivity.
-    * simpl. rewrite HH. reflexivity.
-Qed. 
 
 Theorem nth_error_last: 
   forall X l n, length l = n -> @nth_error X l n = None.
 Proof.
-  (* assume the hypothesis before doing induction! *)
-  intros X l n H. destruct l as [| h l'].
-  * reflexivity.
-  * rewrite <- H. rewrite nth_length_error. reflexivity.
+  assert (forall X l, @nth_error X l (length l) = None) as length_arg.
+  {
+    induction l as [| h l' IH].
+    * reflexivity.
+    * simpl. rewrite IH. reflexivity.
+  }
+  intros. rewrite <- H. rewrite length_arg. reflexivity.
 Qed. 
-
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_informal_proof : option (nat*string) := None.

@@ -927,6 +927,8 @@ Example fold_example2 :
   fold mult [1;2;3;4] 1 = 24.
 Proof. reflexivity. Qed.
 
+Check fold app.
+
 Example fold_example3 :
   fold app  [[1];[];[2;3];[4]] [] = [1;2;3;4].
 Proof. reflexivity. Qed.
@@ -941,7 +943,15 @@ Proof. reflexivity. Qed.
 
 (* FILL IN HERE
 
+  Checking if a list of [nat]s has a number greater than 7.
+
     [] *)
+
+Example fold_example_gt7:
+  fold (fun x acc => (8 <=? x) || acc) [1;2;10;3;4] false = true.
+Proof. reflexivity. Qed.
+
+Check fold (fun x acc => (8 <=? x) || acc).
 
 (* ================================================================= *)
 (** ** Functions That Construct Functions *)
@@ -1015,7 +1025,11 @@ Proof. reflexivity. Qed.
 Theorem fold_length_correct : forall X (l : list X),
   fold_length l = length l.
 Proof.
-(* FILL IN HERE *) Admitted.
+  intros. induction l as [| h l' IH].
+  * simpl. reflexivity.
+  * simpl. rewrite <- IH. reflexivity.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 3 stars, standard (fold_map)
@@ -1023,8 +1037,10 @@ Proof.
     We can also define [map] in terms of [fold].  Finish [fold_map]
     below. *)
 
-Definition fold_map {X Y: Type} (f: X -> Y) (l: list X) : list Y
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+(* 10 min *)
+
+Definition fold_map {X Y: Type} (f: X -> Y) (l: list X) : list Y :=
+  fold (fun x => cons (f x)) l [].
 
 (** Write down a theorem [fold_map_correct] stating that [fold_map] is
     correct, and prove it in Coq.  (Hint: again, remember that
@@ -1032,6 +1048,14 @@ Definition fold_map {X Y: Type} (f: X -> Y) (l: list X) : list Y
     [simpl].) *)
 
 (* FILL IN HERE *)
+
+Theorem fold_map_correct: forall (X Y : Type) (f : X -> Y) (l : list X),
+  fold_map f l = map f l.
+Proof.
+  intros. induction l as [| h l' IH].
+  * reflexivity.
+  * simpl. rewrite <- IH. reflexivity.
+Qed.
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_fold_map : option (nat*string) := None.
@@ -1069,8 +1093,10 @@ Definition prod_curry {X Y Z : Type}
     the theorems below to show that the two are inverses. *)
 
 Definition prod_uncurry {X Y Z : Type}
-  (f : X -> Y -> Z) (p : X * Y) : Z
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+  (f : X -> Y -> Z) (p : X * Y) : Z :=
+  match p with
+  | (x, y) => f x y
+  end.
 
 (** As a (trivial) example of the usefulness of currying, we can use it
     to shorten one of the examples that we saw above: *)
@@ -1081,21 +1107,24 @@ Proof. reflexivity. Qed.
 (** Thought exercise: before running the following commands, can you
     calculate the types of [prod_curry] and [prod_uncurry]? *)
 
-Check @prod_curry.
-Check @prod_uncurry.
+Check @prod_curry :
+  forall (X Y Z : Type), (X * Y -> Z) -> X -> Y -> Z.
+Check @prod_uncurry :
+  forall (X Y Z : Type), (X -> Y -> Z) -> (X * Y) -> Z.
 
 Theorem uncurry_curry : forall (X Y Z : Type)
                         (f : X -> Y -> Z)
                         x y,
   prod_curry (prod_uncurry f) x y = f x y.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  reflexivity. Qed.
+  
 
 Theorem curry_uncurry : forall (X Y Z : Type)
                         (f : (X * Y) -> Z) (p : X * Y),
   prod_uncurry (prod_curry f) p = f p.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros. destruct p as [x y]. reflexivity. Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, advanced (nth_error_informal)
@@ -1115,6 +1144,62 @@ Proof.
    Make sure to state the induction hypothesis _explicitly_.
 *)
 (* FILL IN HERE *)
+
+(* This should be at least 3 starts wtf! *)
+
+(*
+  Proof: by case analysis on [l].
+
+  * First, suppose [l = nil]. We then have to prove:
+
+    length nil = n -> @nth_error X nil n = None
+
+    Whether or not [n = O], the thesis always follows by definitioin of [@nth_error] in the case [l = nil].
+
+  * Then, suppose [l = h :: l']. We must show:
+
+    length (h :: l') = n -> @nth_error X (h :: l') n = None.
+
+    We proceed by induction on [n]:
+
+    + Suppose [n = 0]. 
+      Then the hypothesis doesn't hold and the theorem is proved.
+
+    + Now suppose [n = S n'] for some [n' : nat], with
+
+      length (h :: l') = n' -> @nth_error X (h :: l') n' = None.
+
+      We must show
+
+      length (h :: l') = S n' -> @nth_error X (h :: l') (S n') = None.
+
+      By applying the definitions of [length] and [nth_error] we get
+
+      length l' = n' -> @nth_error l' n' = None.
+
+      ???
+*)
+
+(* I tried -_- *)
+
+Search nth_error.
+
+Lemma nth_length_error: forall X l, @nth_error X l (length l) = None.
+Proof.
+    induction l as [| h l' HH].
+    * reflexivity.
+    * simpl. rewrite HH. reflexivity.
+Qed. 
+
+Theorem nth_error_last: 
+  forall X l n, length l = n -> @nth_error X l n = None.
+Proof.
+  (* assume the hypothesis before doing induction! *)
+  intros X l n H. destruct l as [| h l'].
+  * reflexivity.
+  * rewrite <- H. rewrite nth_length_error. reflexivity.
+Qed. 
+
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_informal_proof : option (nat*string) := None.

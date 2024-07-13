@@ -280,8 +280,10 @@ Qed.
 (** Here's a more interesting example that shows how [injection] can
     derive multiple equations at once. *)
 
+(* cons h1 l1 = cons h2 l2 -> h1 = h2 *)
+
 Theorem injection_ex1 : forall (n m o : nat),
-  [n;m] = [o;o] ->
+  [n;m] = [o;o] -> (* cons n (cons m nil) = cons o (cons o nil)*)
   n = m.
 Proof.
   intros n m o H.
@@ -291,12 +293,19 @@ Proof.
 Qed.
 
 (** **** Exercise: 3 stars, standard (injection_ex3) *)
+
+(* 1+h due to transitivity type mismatch and alternative search *)
+
 Example injection_ex3 : forall (X : Type) (x y z : X) (l j : list X),
   x :: y :: l = z :: j ->
   j = z :: l ->
   x = y.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros X x y z l j eq1 eq2. injection eq1 as eq3 eq4.
+  assert (y :: l = j -> j = z :: l -> y :: l = z :: l) as trans. 
+  { intros eqA eqB. transitivity j. apply eqA. apply eqB. }
+  injection trans. intros yz. rewrite yz. rewrite eq3. reflexivity.
+  apply eq4. apply eq2. Qed.
 (** [] *)
 
 (** So much for injectivity of constructors.  What about disjointness? *)
@@ -346,7 +355,7 @@ Example discriminate_ex3 :
     x :: y :: l = [] ->
     x = z.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros. discriminate H. Qed.
 (** [] *)
 
 (** For a more useful example, we can use [discriminate] to make a

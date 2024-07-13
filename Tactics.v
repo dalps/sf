@@ -983,6 +983,7 @@ Fact silly_fact_2_FAILED : forall m, bar m + 1 = bar (m + 1) + 1.
 Proof.
   intros m.
   simpl. (* Does nothing! *)
+  destruct m as [| m'].
 Abort.
 
 (** The reason that [simpl] doesn't make progress here is that it
@@ -1087,11 +1088,26 @@ Fixpoint split {X Y : Type} (l : list (X*Y))
 (** Prove that [split] and [combine] are inverses in the following
     sense: *)
 
+(* ~40 min *)
+
 Theorem combine_split : forall X Y (l : list (X * Y)) l1 l2,
   split l = (l1, l2) ->
   combine l1 l2 = l.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros X Y l.
+  induction l as [| h l' IHl'].
+  * intros l1 l2 nil_p. injection nil_p as eq1 eq2.
+    rewrite <- eq1. rewrite <- eq2. reflexivity.
+  * intros l1 l2 cons_p.
+    simpl split in cons_p. 
+    destruct h as [h1 h2]. 
+    destruct (split l') as [l1' l2']. 
+    injection cons_p as eq1 eq2. 
+    rewrite <- eq1. rewrite <- eq2.
+    simpl. rewrite IHl'. (* finally, I can instantiate IHl' with l1=l1' and l2=l2' (_not_ the same l1 and l2 in the context!) *)
+    reflexivity. reflexivity.
+Qed. 
+
 (** [] *)
 
 (** The [eqn:] part of the [destruct] tactic is optional; although
@@ -1112,7 +1128,7 @@ Definition sillyfun1 (n : nat) : bool :=
   else false.
 
 (** Now suppose that we want to convince Coq that [sillyfun1 n]
-    yields [true] only when [n] is odd.  If we start the proof like
+    yields [true] only when [n] is odd. (note: a sound statement indeed)  If we start the proof like
     this (with no [eqn:] on the [destruct])... *)
 
 Theorem sillyfun1_odd_FAILED : forall (n : nat),
@@ -1162,11 +1178,27 @@ Proof.
         + (* e5 = false *) discriminate eq.  Qed.
 
 (** **** Exercise: 2 stars, standard (destruct_eqn_practice) *)
+
+(* ~1h cuz im Rworded lol *)
+
 Theorem bool_fn_applied_thrice :
   forall (f : bool -> bool) (b : bool),
-  f (f (f b)) = f b.
+  f (f (f b)) = f b. (* [bool -> bool] is characterized by four total behaviors, all of which have this property *)
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros f b. (* f_equal is not the right way... *)
+  destruct b eqn:Eb.
+  * destruct (f true) eqn:Eft.
+    - rewrite Eft. rewrite Eft. reflexivity. (* [f false] is not relevant here *)
+    - destruct (f false) eqn:Eff.
+      + rewrite Eft. reflexivity. (* [f b] is [negb b] *)
+      + rewrite Eff. reflexivity. (* [f b] is always [false] *)
+  * destruct (f false) eqn:Eff.
+    - destruct (f true) eqn:Eft.
+      + rewrite Eft. reflexivity. (* [f b] is always [true] *)
+      + rewrite Eff. reflexivity. (* [f b] is [negb b] *)
+    - rewrite Eff. rewrite Eff. reflexivity.
+Qed.
+
 (** [] *)
 
 (* ################################################################# *)

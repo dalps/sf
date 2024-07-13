@@ -486,7 +486,21 @@ Theorem specialize_example: forall n,
   -> n = 0.
 Proof.
   intros n H.
+  specialize H with (m := 1). (* aren't we proving a less general version of the theorem now? *)
+  simpl in H.
+  rewrite add_comm in H.
+  simpl in H.
+  apply H. Qed.
+
+
+Theorem specialize_example': forall n,
+     (forall m, n*m = 0)
+  -> n = 0.
+Proof.
+  intros n H.
   specialize H with (m := 1).
+  Search mult.
+  rewrite mul_comm in H.
   simpl in H.
   rewrite add_comm in H.
   simpl in H.
@@ -537,6 +551,9 @@ Proof.
 
     we get stuck in the middle of the inductive case... *)
 
+(* I've already encountered this problem when proving [nth_error_last] *)
+
+Search nth_error.
 Theorem double_injective_FAILED : forall n m,
   double n = double m ->
   n = m.
@@ -669,7 +686,11 @@ Proof.
 Theorem eqb_true : forall n m,
   n =? m = true -> n = m.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n. induction n as [| n' IHn'].
+  * Search eqb. intros m eq. symmetry. apply eqb_0_l. apply eq.
+  * intros m eq. destruct m as [| m'].
+    + discriminate eq.
+    + f_equal. apply IHn'. simpl in eq. apply eq. Qed.  
 (** [] *)
 
 (** **** Exercise: 2 stars, advanced (eqb_true_informal)
@@ -680,6 +701,55 @@ Proof.
 
 (* FILL IN HERE *)
 
+(* 20 min *)
+
+(*
+  Theorem: forall (n m : nat), (n =? m) = true -> n = m.
+
+  Proof: By induction on [n], keeping in mind that [m] is universally quantified and can take on any value in each case.
+
+  First, we have [n = 0], and we must prove:
+
+  forall (m : nat), (0 =? m) = true -> 0 = m,
+
+  which easily follows from the [eqb_0_l] lemma.
+
+  Second, we have [n = S n'] under the induction hypothesis:
+
+  forall (m : nat), (n' =? m) = true -> n' = m.
+
+  We must prove:
+
+  forall (m : nat), (S n' =? m) = true -> S n' = m.
+
+  We do so by case analysis on [m]:
+
+  - By fixing [m] to [0] we reach a contradiction in the goal:
+
+    S n' = 0,
+
+    hence this case does not affect our proof.
+
+  - Now [m = S m'] where [m'] is the predecessor of [m].
+    Let us label the assumption [(S n' =? S m') = true] as H. We have to show:
+
+    S n' = S m',
+
+    which can be simplified to:
+
+    n' = m'.
+
+    This is implied by instantiating the inductive hypothesis on [m']:
+
+    (n' =? m') = true -> n' = m'
+
+    It remains to prove:
+
+    (n' =? m') = true
+
+    which is immediate since H holds. Qed.
+*)
+
 (* Do not modify the following line: *)
 Definition manual_grade_for_informal_proof : option (nat*string) := None.
 (** [] *)
@@ -688,11 +758,35 @@ Definition manual_grade_for_informal_proof : option (nat*string) := None.
 
     In addition to being careful about how you use [intros], practice
     using "in" variants in this proof.  (Hint: use [plus_n_Sm].) *)
+
+Search double.
+
+(* ~20 min *)
+
 Theorem plus_n_n_injective : forall n m,
   n + n = m + m ->
   n = m.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n. induction n as [| n' IHn'].
+  * simpl. intros [| m'] eq.
+    + reflexivity.
+    + discriminate eq.
+  * intros [| m'] eq.
+    + discriminate.
+    + f_equal. simpl in eq.
+      injection eq as eq_pred. 
+      rewrite <- plus_n_Sm in eq_pred.
+      rewrite <- plus_n_Sm in eq_pred.
+      injection eq_pred.
+      apply IHn'.
+Qed. 
+
+  (* First version, probably cheating:
+
+  intros n m eq. 
+  rewrite <- double_plus in eq. 
+  rewrite <- double_plus in eq. 
+  apply double_injective. apply eq. Qed. *)
 (** [] *)
 
 (** The strategy of doing fewer [intros] before an [induction] to
@@ -799,7 +893,17 @@ Theorem nth_error_after_last: forall (n : nat) (X : Type) (l : list X),
   length l = n ->
   nth_error l n = None.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n X l.
+  generalize dependent n. induction l as [| h l' IHl'].
+  * intros [| n'] eq.
+    + reflexivity.
+    + discriminate eq.
+  * intros [| n'] eq.
+    + discriminate eq.
+    + simpl in eq. injection eq as eq'. 
+      apply IHl' in eq'. simpl. apply eq'. (* [apply] also works forward! *)
+Qed.      
+  
 (** [] *)
 
 (* ################################################################# *)

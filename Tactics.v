@@ -70,6 +70,8 @@ Proof.
 
 (** **** Exercise: 2 stars, standard, optional (silly_ex)
 
+(* 5 min *)
+
     Complete the following proof using only [intros] and [apply]. *)
 Theorem silly_ex : forall p,
   (forall n, even n = true -> even (S n) = false) ->
@@ -77,7 +79,8 @@ Theorem silly_ex : forall p,
   even p = true ->
   odd (S p) = true.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros p eq1 eq2 eq3.
+  apply eq2. apply eq1. apply eq3. Qed.
 (** [] *)
 
 (** To use the [apply] tactic, the (conclusion of the) fact
@@ -102,17 +105,22 @@ Proof.
 
 (** **** Exercise: 2 stars, standard (apply_exercise1)
 
+(* 5 min *)
+
     You can use [apply] with previously defined theorems, not
     just hypotheses in the context.  Use [Search] to find a
     previously-defined theorem about [rev] from [Lists].  Use
     that theorem as part of your (relatively short) solution to this
     exercise. You do not need [induction]. *)
 
+Search rev.
+
 Theorem rev_exercise1 : forall (l l' : list nat),
   l = rev l' ->
   l' = rev l.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros l l' eq.
+  rewrite eq. symmetry. apply rev_involutive. Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (apply_rewrite)
@@ -122,6 +130,10 @@ Proof.
     applied? *)
 
 (* FILL IN HERE
+
+  [rewrite] lets you rewrite the instances of the lhs of an equation to the rhs within a goal (or viceversa), whereas apply lets you rewrite the conclusion of an implication with its premise. [rewrite] is more "atomic" than [apply]. [apply] also completes a proof once the subgoals are proved.
+
+  [rev_exercise1] is an example where both can be useful in conjuction. We use [rewrite] and [symmetry] to transform the goal to make it match exactly the conclusion of the fact or theorem being applied, then we make progress with [apply]. 
 
     [] *)
 
@@ -167,6 +179,7 @@ Proof.
     an instantiation for [m]: we have to supply one explicitly by
     adding "[with (m:=[c,d])]" to the invocation of [apply]. *)
 
+(* [apply] instantiates as many variables as there are in the conclusion of the theorem *)
   apply trans_eq with (m:=[c;d]).
   apply eq1. apply eq2.   Qed.
 
@@ -195,7 +208,8 @@ Example trans_eq_exercise : forall (n m o p : nat),
      (n + p) = m ->
      (n + p) = (minustwo o).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* always provide to [transitivity] a name for the middleman *)
+  intros n m o p eq1 eq2. transitivity m. apply eq2. apply eq1. Qed.
 (** [] *)
 
 (* ################################################################# *)

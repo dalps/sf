@@ -1275,11 +1275,20 @@ Qed.
 (* ################################################################# *)
 (** * Additional Exercises *)
 
+(* 20 min *)
+
 (** **** Exercise: 3 stars, standard (eqb_sym) *)
 Theorem eqb_sym : forall (n m : nat),
   (n =? m) = (m =? n).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n. induction n as [| n' IHn'].
+  * intros [| m'].
+    + reflexivity.
+    + reflexivity.
+  * intros m. destruct m as [| m'] eqn:Em'.
+    + reflexivity.
+    + simpl. rewrite IHn'. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, advanced, optional (eqb_sym_informal)
@@ -1291,16 +1300,41 @@ Proof.
 
    Proof: *)
    (* FILL IN HERE
+    Let [n] be a [nat]. We prove by induction on [n] that, for any [m], [(n =? m) = (m =? n)].
 
+    - First, suppose [n = 0]. There are two cases to consider for [m]. If [m = 0] we have two equalities on both sides and we're done. Otherwise, [m = S m'] for some [m'] and, by disjointness of constructors, we have [false = false] and therefore an equality.
+
+    - Second, suppose [n = S n'], with the induction hypothesis stating that, for any [m], [(n' =? m) = (m =? n')]. Once again, there are two cases to consider for [m]. The case [m = 0] is obvious. In the other case [m = S m'] we have to show:
+
+    [(S n' =? S m') = (S m' =? S n')]
+
+    Notice that both equalities can be simplified by applying the definition of [eqb]:
+
+    [(n' =? m') = (m' =? n')]
+
+    which is immediate by the induction hypothesis. We're done.
     [] *)
 
 (** **** Exercise: 3 stars, standard, optional (eqb_trans) *)
+
+(* 20+ min *)
+
 Theorem eqb_trans : forall n m p,
   n =? m = true ->
   m =? p = true ->
   n =? p = true.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m p eq1 eq2.
+  apply eqb_true in eq1.
+  apply eqb_true in eq2.
+
+  (* I dont' undestand why [apply eqb_true] fails on the goal. Even with [with (...)]. I can't use [transitivity]. *)
+  Fail apply eqb_true. Fail transitivity m. Fail apply eq1. Fail apply eq2.
+
+  (* Let's take a less elegant route then.. *)
+  rewrite <- eq1 in eq2.
+  rewrite eq2. apply eqb_refl.
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, advanced (split_combine)
@@ -1314,14 +1348,50 @@ Proof.
     Your property will need to account for the behavior of [combine]
     in its base cases, which possibly drop some list elements. *)
 
+Search split.
+
 Definition split_combine_statement : Prop
   (* ("[: Prop]" means that we are giving a name to a
      logical proposition here.) *)
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+  := forall X Y (l : list (X * Y)) (l1 : list X) (l2 : list Y),
+  length l1 = length l2 ->
+  (combine l1 l2 = l -> split l = (l1, l2)).
 
+Search combine.
 Theorem split_combine : split_combine_statement.
 Proof.
-(* FILL IN HERE *) Admitted.
+  intros X Y l l1. 
+  generalize dependent l.
+  induction l1 as [| h1 l1' IHl1'].
+  * intros l l2 eqlen eqcomb.
+    simpl in eqlen. Search length.
+    assert (length_0_l: forall A (w : list A), 0 = length w -> w = nil).
+    {
+      intros A [| w'].
+      * reflexivity.
+      * intros contra. simpl in contra. discriminate contra.
+    }
+    apply length_0_l in eqlen. rewrite eqlen in eqcomb. simpl in eqcomb.
+    rewrite <- eqcomb. rewrite eqlen. reflexivity.
+  * intros l l2 eqlen eqcomb. simpl in eqlen.
+    destruct l2 as [| h2 l2'] eqn:El2.
+    + discriminate eqlen.
+    + simpl in eqlen. simpl in eqcomb. injection eqlen. intros eqlen'.
+      destruct l as [| i l'] eqn:El.
+      - discriminate eqcomb.
+      - simpl. injection eqcomb as eqi eqcomb'.
+        destruct i as [h1' h2']. destruct (split l') as [la' lb'] eqn:esplit.
+        injection eqi as eqh1 eqh2. rewrite <- eqh1. rewrite <- eqh2.
+        assert (pair_cons_inj: 
+          forall A B (a : A) (b : B) (la lc : list A) (lb ld : list B), 
+          (la, lb) = (lc, ld) -> (a :: la, b :: lb) = (a :: lc, b :: ld)).
+        {
+          intros A B a b la lc lb ld H.
+          injection H as eq1 eq2. rewrite eq1. rewrite eq2. reflexivity.
+        }
+        apply pair_cons_inj with (a:=h1) (b:=h2).
+        rewrite <- IHl1' with (l:=l'). symmetry. apply esplit. apply eqlen'. apply eqcomb'.
+Qed.
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_split_combine : option (nat*string) := None.

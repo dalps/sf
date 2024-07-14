@@ -339,7 +339,7 @@ Theorem or_commut : forall P Q : Prop,
 Proof.
   intros P Q [HP | HQ].
   * right. apply HP.
-  * left. apply HQ.  Qed.
+  * left. apply HQ.  Qed. 
 (** [] *)
 
 (* ================================================================= *)
@@ -356,7 +356,7 @@ Proof.
     contradiction, then any other proposition can be derived.
 
     Following this intuition, we could define [~ P] ("not [P]") as
-    [forall Q, P -> Q].
+    [forall Q, P -> Q]. (note: still need to wrap my mind around this)
 
     Coq actually makes a slightly different but equivalent choice,
     defining [~ P] as [P -> False], where [False] is a specific
@@ -398,7 +398,8 @@ Proof.
 Theorem not_implies_our_not : forall (P:Prop),
   ~ P -> (forall (Q:Prop), P -> Q).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros P.
+  unfold not. intros Hnot Q P'. apply Hnot in P'. destruct P'.  Qed.
 (** [] *)
 
 (** Inequality is a very common form of negated statement, so there is a
@@ -457,7 +458,12 @@ Proof.
 
    _Theorem_: [P] implies [~~P], for any proposition [P]. *)
 
-(* FILL IN HERE *)
+(* _Proof_: First, consider [~P = P -> False]. Then our job is to prove, given P:
+
+  (P -> False) -> False
+  
+  Reasoning backwards, the first assumption lets us rewrite the [False] in the conclusion to [P], leaving us with [P] to prove. But [P] was the initial assumption, so we're done.  []
+*)
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_double_neg_inf : option (nat*string) := None.
@@ -467,28 +473,43 @@ Definition manual_grade_for_double_neg_inf : option (nat*string) := None.
 Theorem contrapositive : forall (P Q : Prop),
   (P -> Q) -> (~Q -> ~P).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros P Q H.
+  unfold not. intros HQ P'. apply HQ. apply H. apply P'.  Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard (not_both_true_and_false) *)
 Theorem not_both_true_and_false : forall P : Prop,
   ~ (P /\ ~P).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros P. unfold not. intros [PT PF]. apply PF. apply PT.  Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, advanced (informal_not_PNP)
 
+    7 min, but unsure of the soundness
+
     Write an informal proof (in English) of the proposition [forall P
     : Prop, ~(P /\ ~P)]. *)
 
-(* FILL IN HERE *)
+(*  _Theorem_: [~(P /\ ~P)], for any proposition [P].
+
+    _Proof_: We exploit the fact that [~Q] is a shorthand for [Q -> False] for any proposition [Q]. So our thesis becomes:
+
+    (P /\ (P -> False)) -> False
+
+    Here we can isolate the hypothesis and split the conjunction in two statements, namely [P] and [P -> False] hold. The latter lets us derive [P] from our goal, which is the first conjunct we assumed in the previous step, and we're done.  []
+ *)
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_informal_not_PNP : option (nat*string) := None.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard (de_morgan_not_or)
+
+  7 min
+
+  Remember: [and] generates subgoals (with [split] or [apply conj]) when in the goal,
+  [or] generates subgoals (with [destruct]) when in a hypothesis
 
     _De Morgan's Laws_, named for Augustus De Morgan, describe how
     negation interacts with conjunction and disjunction.  The
@@ -499,7 +520,9 @@ Definition manual_grade_for_informal_not_PNP : option (nat*string) := None.
 Theorem de_morgan_not_or : forall (P Q : Prop),
     ~ (P \/ Q) -> ~P /\ ~Q.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros P Q. unfold not. intros not_or. split.
+  * intros HP. apply not_or. left. apply HP.
+  * intros HQ. apply not_or. right. apply HQ.  Qed.
 (** [] *)
 
 (** Since inequality involves a negation, it also requires a little
@@ -580,6 +603,7 @@ Definition disc_fn (n: nat) : Prop :=
 Theorem disc_example : forall n, ~ (O = S n).
 Proof.
   intros n H1.
+  (* discriminate H1. - accomplishes the steps below *)
   assert (H2 : disc_fn O). { simpl. apply I. }
   rewrite H1 in H2. simpl in H2. apply H2.
 Qed.

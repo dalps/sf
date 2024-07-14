@@ -408,6 +408,14 @@ Proof.
       Notation "x <> y" := (~(x = y)).
 *)
 
+Theorem our_not_implies_not : forall (P:Prop),
+  (forall (Q:Prop), P -> Q) -> ~ P.
+Proof.
+  intros P H.
+  unfold not.
+  intros HP. apply H. (* [Q] is instantiated with [False] *)
+  apply HP.  Qed.
+
 (** For example: *)
 
 Theorem zero_not_one : 0 <> 1.
@@ -650,21 +658,25 @@ Proof.
     intros H. rewrite H. intros H'. discriminate H'.
 Qed.
 
+(* [neq] is not reflexive! That means you can't apply [refelxivity] to it. *)
+
 (** The [apply] tactic can also be used with [<->]. We can use
     [apply] on an [<->] in either direction, without explicitly thinking
     about the fact that it is really an [and] underneath. *)
 
 Lemma apply_iff_example1:
   forall P Q R : Prop, (P <-> Q) -> (Q -> R) -> (P -> R).
-  intros P Q R Hiff H HP. apply H.  apply Hiff. apply HP.
+  intros P Q R Hiff H HP. apply H.  apply Hiff. (* right to left *) apply HP.
 Qed.
 
 Lemma apply_iff_example2:
   forall P Q R : Prop, (P <-> Q) -> (P -> R) -> (Q -> R).
-  intros P Q R Hiff H HQ. apply H.  apply Hiff. apply HQ.
+  intros P Q R Hiff H HQ. apply H.  apply Hiff. (* left to right *) apply HQ.
 Qed.
 
 (** **** Exercise: 1 star, standard, optional (iff_properties)
+
+(* 10 min *)
 
     Using the above proof that [<->] is symmetric ([iff_sym]) as
     a guide, prove that it is also reflexive and transitive. *)
@@ -672,19 +684,38 @@ Qed.
 Theorem iff_refl : forall P : Prop,
   P <-> P.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros P. split. intros HP. apply HP. intros HP. apply HP.  Qed.
 
 Theorem iff_trans : forall P Q R : Prop,
   (P <-> Q) -> (Q <-> R) -> (P <-> R).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros P Q R HPQ HQR. split.
+  * intros HP. apply HQR. apply HPQ. apply HP.
+  * intros HR. apply HPQ. apply HQR. apply HR.
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard (or_distributes_over_and) *)
+
+(* ~30 min *)
+
 Theorem or_distributes_over_and : forall P Q R : Prop,
   P \/ (Q /\ R) <-> (P \/ Q) /\ (P \/ R).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros P Q R. split.
+  * intros [HP | HQR]. (* [or] turns hyp. into two subgoals *)
+    + split. left. apply HP. left. apply HP.
+    + split. 
+      - apply proj1 in HQR. right. apply HQR.
+      - apply proj2 in HQR. right. apply HQR.
+  * intros [HPQ HPR]. (* [and] turns hyp. into two hypotheses *)
+    destruct HPQ as [IP | IQ]. 
+    + left. apply IP.
+    + destruct HPR as [IP | IR].
+      - left. apply IP.
+      - right. split. apply IQ. apply IR.
+Qed.
+
 (** [] *)
 
 (* ================================================================= *)
@@ -727,6 +758,7 @@ Theorem or_assoc :
   forall P Q R : Prop, P \/ (Q \/ R) <-> (P \/ Q) \/ R.
 Proof.
   intros P Q R. split.
+  (* [or] and [and] are right associative *)
   - intros [H | [H | H]].
     + left. left. apply H.
     + left. right. apply H.
@@ -787,14 +819,17 @@ Proof.
 
 (** **** Exercise: 1 star, standard, especially useful (dist_not_exists)
 
+  (* 5 min *)
+
     Prove that "[P] holds for all [x]" implies "there is no [x] for
     which [P] does not hold."  (Hint: [destruct H as [x E]] works on
     existential assumptions!)  *)
 
 Theorem dist_not_exists : forall (X:Type) (P : X -> Prop),
   (forall x, P x) -> ~ (exists x, ~ P x).
+  (* In English: saying a predicate [P] holds for all elements of a set [X] is equal to saying that there is no element of [X] for which [P] does not hold. *)
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros X P HU. unfold not. intros [y HE]. apply HE. apply HU.  Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard (dist_exists_or)
@@ -802,20 +837,50 @@ Proof.
     Prove that existential quantification distributes over
     disjunction. *)
 
+(* 6 min *)
+
 Theorem dist_exists_or : forall (X:Type) (P Q : X -> Prop),
   (exists x, P x \/ Q x) <-> (exists x, P x) \/ (exists x, Q x).
 Proof.
-   (* FILL IN HERE *) Admitted.
+  split.
+  * intros [x [HP | HQ]].
+    + left. exists x. apply HP.
+    + right. exists x. apply HQ.
+  * intros [[x HP] | [x HQ]].
+    + exists x. left. apply HP.
+    + exists x. right. apply HQ.
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard, optional (leb_plus_exists) *)
+
+(* 20 min + 20 min *)
+
 Theorem leb_plus_exists : forall n m, n <=? m = true -> exists x, m = n+x.
 Proof.
-(* FILL IN HERE *) Admitted.
+  intros n. induction n as [| n' IHn].
+  * intros m _. exists m. reflexivity.
+  * intros m Hleb. destruct m as [| m'] eqn:Em.
+    + discriminate Hleb.
+    + simpl in Hleb. apply IHn in Hleb. destruct Hleb as [x Ex].
+      exists x. (* x = S n' - S m' = n' - m'  *)
+      simpl. f_equal. apply Ex.
+Qed.
 
+(* immediate *)
 Theorem plus_exists_leb : forall n m, (exists x, m = n+x) -> n <=? m = true.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m [[| x'] Ex].
+  * rewrite add_comm in Ex. simpl in Ex. rewrite Ex. apply leb_refl.
+  * rewrite add_comm in Ex. rewrite Ex.
+  assert (leb_n_m_plus_n: forall n m, n <=? m + n = true).
+  { 
+    intros a. induction a as [| a'].
+    * intros b. reflexivity.
+    * intros b. rewrite add_comm. simpl. rewrite add_comm. apply IHa'.
+  }
+  apply leb_n_m_plus_n.
+Qed.
 
 (** [] *)
 
@@ -841,7 +906,7 @@ Proof.
 Fixpoint In {A : Type} (x : A) (l : list A) : Prop :=
   match l with
   | [] => False
-  | x' :: l' => x' = x \/ In x l'
+  | x' :: l' => x' = x \/ In x l' (* use of connectives over Prop *)
   end.
 
 (** When [In] is applied to a concrete list, it expands into a
@@ -851,6 +916,8 @@ Example In_example_1 : In 4 [1; 2; 3; 4; 5].
 Proof.
   (* WORKED IN CLASS *)
   simpl. right. right. right. left. reflexivity.
+
+  (* If disjunction was left associative, the first [right] would produce [False], and you'd have to trave the sequence right-to-left. So it makes sense why [or] and [and] in Coq are right associative. (see a connection with [fold]?)*)
 Qed.
 
 Example In_example_2 :
@@ -859,7 +926,7 @@ Example In_example_2 :
 Proof.
   (* WORKED IN CLASS *)
   simpl.
-  intros n [H | [H | []]].
+  intros n [H | [H | []]]. (* [] rules out [False] *)
   - exists 1. rewrite <- H. reflexivity.
   - exists 2. rewrite <- H. reflexivity.
 Qed.
@@ -896,6 +963,9 @@ Qed.
     limitations. *)
 
 (** **** Exercise: 3 stars, standard (In_map_iff) *)
+
+(* ~30 min *)
+
 Theorem In_map_iff :
   forall (A B : Type) (f : A -> B) (l : list A) (y : B),
          In y (map f l) <->
@@ -903,15 +973,44 @@ Theorem In_map_iff :
 Proof.
   intros A B f l y. split.
   { induction l as [|x l' IHl'].
-  (* FILL IN HERE *) Admitted.
+    * intros [].
+    * intros [Hx | Hl']. 
+      (* witness is head *)
+      + exists x. split. apply Hx. left. reflexivity.
+      (* witness is somewhere in tail *)
+      + apply IHl' in Hl'. destruct Hl' as [z [Ef EIn]]. exists z.
+        (* witness found in [z], now prove [f z = y] and [In z] *)
+        split.
+        - apply Ef.
+        - simpl. right. apply EIn. }
+  { intros [x [Hf HIn]]. rewrite <- Hf. apply In_map. apply HIn. }
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 2 stars, standard (In_app_iff) *)
+
+(* 30 min *)
+
 Theorem In_app_iff : forall A l l' (a:A),
   In a (l++l') <-> In a l \/ In a l'.
 Proof.
   intros A l. induction l as [|a' l' IH].
-  (* FILL IN HERE *) Admitted.
+  * intros. simpl. split.
+    - intros H. right. apply H.
+    - intros [[] | H]. apply H.
+  * intros l2. simpl. split.
+    - intros [Ha | HIn].
+      (* [a] is the head of [l] *)
+      + apply or_assoc. left. apply Ha.
+      (* [a] is somewhere else *)
+      + apply or_assoc. right. apply IH. apply HIn.
+    - intros [[Ha | HInl'] | HInl2].
+      + left. apply Ha.
+      + right. apply IH. left. apply HInl'.
+      + right. apply IH. right. apply HInl2.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 3 stars, standard, especially useful (All)

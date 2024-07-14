@@ -1350,6 +1350,13 @@ Qed.
 
 Search split.
 
+(* 2h 12m
+  takeaways: 
+  1. I can specify multiple bindings in [apply] like this
+    [apply ... with (x:=a) (y:=b) ...]
+  2. [rewrite] also accepts bindings specified just like [apply]
+*)
+
 Definition split_combine_statement : Prop
   (* ("[: Prop]" means that we are giving a name to a
      logical proposition here.) *)
@@ -1380,6 +1387,7 @@ Proof.
       destruct l as [| i l'] eqn:El.
       - discriminate eqcomb.
       - simpl. injection eqcomb as eqi eqcomb'.
+        (* to rewrite IH, I need to extract [split l'] from [split (i :: l')] *)
         destruct i as [h1' h2']. destruct (split l') as [la' lb'] eqn:esplit.
         injection eqi as eqh1 eqh2. rewrite <- eqh1. rewrite <- eqh2.
         assert (pair_cons_inj: 
@@ -1398,15 +1406,29 @@ Definition manual_grade_for_split_combine : option (nat*string) := None.
 (** [] *)
 
 (** **** Exercise: 3 stars, advanced (filter_exercise) *)
+
+(* ~40min *)
 Theorem filter_exercise : forall (X : Type) (test : X -> bool)
                                  (x : X) (l lf : list X),
   filter test l = x :: lf ->
   test x = true.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros X test x l. (* keep [lf] universally quantified - so a case doesn't fix it *)
+  induction l as [| h t].
+  * simpl. intros lf contra. discriminate contra.
+  * simpl. destruct (test h) eqn:Etesth. 
+    + (* [x] must be the head of [l]. *)
+      intros lf H. injection H as eqh eqt.
+      rewrite <- eqh. apply Etesth. 
+    + (* [x] must be the head of the tail [t] of [l]! *)
+      apply IHt.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 4 stars, advanced, especially useful (forall_exists_challenge)
+
+(* 20 min *)
 
     Define two recursive [Fixpoints], [forallb] and [existsb].  The
     first checks whether every element in a list satisfies a given
@@ -1432,42 +1454,59 @@ Proof.
     [existsb'] and [existsb] have the same behavior.
 *)
 
-Fixpoint forallb {X : Type} (test : X -> bool) (l : list X) : bool
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Fixpoint forallb {X : Type} (test : X -> bool) (l : list X) : bool :=
+  match l with
+  | [] => true
+  | h :: t => test h && forallb test t
+  end.
 
 Example test_forallb_1 : forallb odd [1;3;5;7;9] = true.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
 Example test_forallb_2 : forallb negb [false;false] = true.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
 Example test_forallb_3 : forallb even [0;2;4;5] = false.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
 Example test_forallb_4 : forallb (eqb 5) [] = true.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
-Fixpoint existsb {X : Type} (test : X -> bool) (l : list X) : bool
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Fixpoint existsb {X : Type} (test : X -> bool) (l : list X) : bool :=
+  match l with
+  | [] => false
+  | h :: t => test h || existsb test t
+  end.
 
 Example test_existsb_1 : existsb (eqb 5) [0;2;3;6] = false.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
 Example test_existsb_2 : existsb (andb true) [true;true;false] = true.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
 Example test_existsb_3 : existsb odd [1;0;0;0;0;3] = true.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
 Example test_existsb_4 : existsb even [] = false.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
-Definition existsb' {X : Type} (test : X -> bool) (l : list X) : bool
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Definition existsb' {X : Type} (test : X -> bool) (l : list X) : bool :=
+  negb (forallb (fun x => negb (test x)) l).
 
 Theorem existsb_existsb' : forall (X : Type) (test : X -> bool) (l : list X),
   existsb test l = existsb' test l.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  intros X test l. induction l as [| h t IH].
+  * reflexivity.
+  * simpl. unfold existsb'. simpl.
+    (* useless lemma *)
+    assert (de_Morgan: forall (b c : bool), 
+    negb (b || c) = (negb b) && (negb c)).
+    { intros [] []. reflexivity. reflexivity. reflexivity. reflexivity. }
+    destruct (test h) eqn:Etesth.
+    + simpl. reflexivity.
+    + simpl. apply IH.
+Qed.
 
 (** [] *)
 

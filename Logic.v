@@ -140,10 +140,21 @@ Proof.
 Qed.
 
 (** **** Exercise: 2 stars, standard (and_exercise) *)
+
+(* ~10 min *)
+
 Example and_exercise :
   forall n m : nat, n + m = 0 -> n = 0 /\ m = 0.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m H. split.
+  * destruct n eqn:En.
+    + reflexivity.
+    + discriminate H.
+  * destruct m eqn:Em.
+    + reflexivity.
+    + rewrite <- plus_n_Sm in H. discriminate H.
+Qed.
+
 (** [] *)
 
 (** So much for proving conjunctive statements.  To go in the other
@@ -222,7 +233,9 @@ Proof.
 Lemma proj2 : forall P Q : Prop,
   P /\ Q -> Q.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros P Q HPQ.
+  destruct HPQ as [_ HQ].
+  apply HQ.  Qed.
 (** [] *)
 
 (** Finally, we sometimes need to rearrange the order of conjunctions
@@ -248,7 +261,7 @@ Theorem and_assoc : forall P Q R : Prop,
   P /\ (Q /\ R) -> (P /\ Q) /\ R.
 Proof.
   intros P Q R [HP [HQ HR]].
-  (* FILL IN HERE *) Admitted.
+  split. split. apply HP. apply HQ. apply HR.  Qed.
 (** [] *)
 
 (** Finally, the infix notation [/\] is actually just syntactic sugar for
@@ -312,14 +325,21 @@ Qed.
 Lemma mult_is_O :
   forall n m, n * m = 0 -> n = 0 \/ m = 0.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros [| n'] [| m'] H.
+  * left. reflexivity.
+  * left. reflexivity.
+  * right. reflexivity.
+  * discriminate H.  Qed.
+
 (** [] *)
 
 (** **** Exercise: 1 star, standard (or_commut) *)
 Theorem or_commut : forall P Q : Prop,
   P \/ Q  -> Q \/ P.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros P Q [HP | HQ].
+  * right. apply HP.
+  * left. apply HQ.  Qed.
 (** [] *)
 
 (* ================================================================= *)

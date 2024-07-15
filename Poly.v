@@ -1354,7 +1354,7 @@ Proof. reflexivity. Qed.
 
 Definition exp (n m : cnat) : cnat :=
   fun (X : Type) (f : X -> X) (x : X) => 
-  m (X -> X) (fun c acc => n X c acc) f x.
+  m (X -> X) (fun f' acc => n X f' acc) f x. (* left uncurried for clarity *)
 
 Example exp_0 : exp three zero nat S O = 1.
 Proof. reflexivity. Qed.
@@ -1369,6 +1369,9 @@ Proof. simpl. reflexivity. Qed.
 
 Example exp_3 : exp three two = plus (mult two (mult two two)) one.
 Proof. simpl. reflexivity. Qed.
+
+Example exp_4 : exp (exp two two) three nat S O = 64.
+Proof. reflexivity. Qed.
 
 (** [] *)
 

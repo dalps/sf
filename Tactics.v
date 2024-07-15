@@ -1272,6 +1272,8 @@ Qed.
 
       - [f_equal]: change a goal of the form [f x = f y] into [x = y] *)
 
+(* The authors forgot to mention [replace]! *)
+
 (* ################################################################# *)
 (** * Additional Exercises *)
 

@@ -1716,20 +1716,15 @@ Proof.
       (* [x] is in the tail [l'] of [l], but the inductive hypothesis says that [test] holds for all elements of [l'] *)
       + apply IHl' in Hall. unfold not in Hall. apply Hall.
         exists x. split. apply HIn. apply Htest.
-    - intros H. apply andb_true_iff. split.
-      + assert (eq_neq: forall A (a b : A), a = b <-> ~ (a <> b)).
-      {
-        intros A a b. unfold not. split.
-        intros G. apply double_neg. apply G.
-        intros G.
-      } Abort.
-          (* extracting the information needed to complete the proof from H requires many auxiliary lemmas: and_distributes_over_or; exists_distributes_over_or *)
+    - intros H. apply andb_true_iff. destruct IHl' as [IHl IHr].
+      split. unfold not in IHl.
+      destruct H. exists h. apply and_dist_or.
+      Abort.
 
 Lemma forallb_false_nonempty :
   forall X test (l : list X),
     forallb test l = false -> l <> nil.
 Proof.
-  Search eq.
   intros X test [| h l'].
   * simpl. intros H. discriminate H.
   * discriminate.
@@ -1855,6 +1850,10 @@ Fixpoint rev_append {X} (l1 l2 : list X) : list X :=
   | x :: l1' => rev_append l1' (x :: l2)
   end.
 
+Compute rev_append [1;2;3] [4;5;6].
+Compute rev_append [4;5;6] [1;2;3].
+Compute rev (rev_append [1;2;3] [4;5;6]).
+
 Definition tr_rev {X} (l : list X) : list X :=
   rev_append l [].
 
@@ -1863,12 +1862,65 @@ Definition tr_rev {X} (l : list X) : list X :=
     performed (i.e., we don't have to execute [++] after the recursive
     call); a decent compiler will generate very efficient code in this
     case.
-
+(*  *)
     Prove that the two definitions are indeed equivalent. *)
+
+(* 1h10m + 1h20m ~= almost 3 hours phew! *)
+
+(* a bunch of useless lemmas for the reader to ignore *)
+
+Lemma app_neq_nil : forall B (v : list B) (b : B), nil <> v ++ [b]. 
+Proof. intros B [| c v'] b. discriminate. discriminate. Qed.
+
+Lemma app_neq_nil_if : forall B (v : list B) (b : B), nil = v ++ [b] -> False. 
+Proof. intros B [| c v'] b. discriminate. discriminate. Qed.
+
+Lemma nil_eq_cons : forall X (l : list X) (x : X), nil <> x :: l.
+Proof. discriminate. Qed.
+
+Lemma nil_eq_cons_if : forall X (l : list X) (x : X), nil = x :: l -> False.
+Proof. discriminate. Qed.
+
+Lemma rev_nil : forall A (w : list A), nil = rev w <-> nil = w.
+Proof.
+  intros A [| a w']. reflexivity.
+  split. intros H. simpl in H. destruct (rev w'). discriminate H.
+  discriminate H. intros H. discriminate H.  Qed.
+
+  (* alternative, longer proof: *)
+  (* assert (G: forall B (l : list B) (b : B), [] <> l ++ [b]).
+  { intros B l b. unfold not. destruct l.
+    intro G. discriminate G.
+    intro G. discriminate G. }
+  (* when [False] pops up in the context, [destruct] it! *)
+  apply G in H. destruct H. intros H. destruct H. reflexivity. Qed. *)
+
+Search app.
+Search rev.
+
+Lemma rev_append_app : forall X (l1 l2 : list X),
+  rev_append l1 l2 = rev_append l1 [] ++ l2.
+Proof.
+  intros X l1. induction l1 as [| x l1' IH].
+  * reflexivity.
+  * intros l2. simpl. rewrite IH with (l2:=x::l2).
+    rewrite IH with (l2:=[x]). rewrite <- app_assoc. simpl. reflexivity.
+Qed.
 
 Theorem tr_rev_correct : forall X, @tr_rev X = @rev X.
 Proof.
-(* FILL IN HERE *) Admitted.
+  intros. apply functional_extensionality.
+  intros l. induction l as [| x l' IH].
+  * reflexivity.
+  * simpl. unfold tr_rev. simpl. unfold tr_rev in IH.
+    (* intuition: reverse the order of [rev_append] to bring [x] in front *)
+    rewrite <- rev_involutive with (l:= rev_append l' [x]).
+    rewrite <- rev_involutive with (l:= rev l' ++ [x]).
+    rewrite rev_app_distr. f_equal. simpl. rewrite rev_involutive.
+    rewrite rev_append_app. rewrite rev_app_distr. simpl. rewrite IH.
+    rewrite rev_involutive. reflexivity.
+Qed.
+
 (** [] *)
 
 (* ================================================================= *)
@@ -1902,7 +1954,7 @@ Theorem restricted_excluded_middle : forall P b,
 Proof.
   intros P [] H.
   - left. rewrite H. reflexivity.
-  - right. rewrite H. intros contra. discriminate contra.
+  - right. (* P -> False *) rewrite H. (* false = true -> False *) intros contra. discriminate contra.
 Qed.
 
 (** In particular, the excluded middle is valid for equations [n = m],

@@ -1903,8 +1903,8 @@ Lemma rev_append_app : forall X (l1 l2 : list X),
 Proof.
   intros X l1. induction l1 as [| x l1' IH].
   * reflexivity.
-  * intros l2. simpl. rewrite IH with (l2:=x::l2).
-    rewrite IH with (l2:=[x]). rewrite <- app_assoc. simpl. reflexivity.
+  * intros l2. simpl. rewrite (IH (x::l2)).
+    rewrite (IH [x]). rewrite <- app_assoc. simpl. reflexivity.
 Qed.
 
 Theorem tr_rev_correct : forall X, @tr_rev X = @rev X.
@@ -1914,8 +1914,8 @@ Proof.
   * reflexivity.
   * simpl. unfold tr_rev. simpl. unfold tr_rev in IH.
     (* intuition: reverse the order of [rev_append] to bring [x] in front *)
-    rewrite <- rev_involutive with (l:= rev_append l' [x]).
-    rewrite <- rev_involutive with (l:= rev l' ++ [x]).
+    rewrite <- (rev_involutive X (rev_append l' [x])).
+    rewrite <- (rev_involutive X (rev l' ++ [x])).
     rewrite rev_app_distr. f_equal. simpl. rewrite rev_involutive.
     rewrite rev_append_app. rewrite rev_app_distr. simpl. rewrite IH.
     rewrite rev_involutive. reflexivity.
@@ -1934,6 +1934,7 @@ Qed.
 
 Definition excluded_middle := forall P : Prop,
   P \/ ~ P.
+  (* note: Why is it called excluded middle? Well, the law states that for every proposition, either this proposition or its negation is true. The "middle" would be that neither are true, in which case the [or] would fail. *)
 
 (** To understand operationally why this is the case, recall
     that, to prove a statement of the form [P \/ Q], we use the [left]
@@ -2048,10 +2049,12 @@ Qed.
     Succinctly: for any proposition P,
         [Coq is consistent ==> (Coq + P \/ ~P) is consistent]. *)
 
+(* 8 min*)
+
 Theorem excluded_middle_irrefutable: forall (P : Prop),
   ~ ~ (P \/ ~ P).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros P. unfold not. intros contra. apply de_morgan_not_or in contra. unfold not in contra. destruct contra as [PF PFF]. apply PFF. apply PF.  Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, advanced (not_exists_dist)
@@ -2063,16 +2066,39 @@ Proof.
     forall x, P x
 
     The [dist_not_exists] theorem above proves one side of this
-    equivalence. Interestingly, the other direction cannot be proved
+    equivalence. (note: namely the right <- side) Interestingly, the other direction cannot be proved
     in constructive logic. Your job is to show that it is implied by
     the excluded middle. *)
+
+    (* in other words, having the excluded middle we can prove the other direction *)
+
+(* more than 2 hours (+sanity break):
+    - I did not know what to do with excluded_middle: [unfold] it!
+    - I did not remember that you can [destruct] on a [~ P = P -> False] in the context and have [P] as a goal *)
+
+Lemma impl_is_or : (* useless *)
+  forall (P Q : Prop), (~ P \/ Q) -> (P -> Q).
+Proof.
+  intros P Q [contra | HQ].
+  * intro HP. apply contra in HP. destruct HP.
+  * intro HP. apply HQ.
+Qed.
+
+(* 
+Definition excluded_middle := forall P : Prop,
+  P \/ ~ P. *)
 
 Theorem not_exists_dist :
   excluded_middle ->
   forall (X:Type) (P : X -> Prop),
     ~ (exists x, ~ P x) -> (forall x, P x).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold excluded_middle. intros M X P HE x. Check (P x). 
+  destruct (M (P x)) as [HP | HNP]. Check x.
+  * apply HP.
+  * destruct HE. exists x. apply HNP.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 5 stars, standard, optional (classical_axioms)

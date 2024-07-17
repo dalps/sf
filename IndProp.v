@@ -31,9 +31,19 @@ Fixpoint div2 (n : nat) :=
   | S (S n) => S (div2 n)
   end.
 
+Compute div2 7.
+Compute div2 8.
+
 Definition f (n : nat) :=
   if even n then div2 n
   else (3 * n) + 1.
+
+Compute map f [0;1;2;3;4;5].
+Compute fold (fun _ acc => match acc with
+| [] => []
+| h :: t => f h :: acc
+end
+) (repeat 0 100) [12].
 
 (** Next, we look at what happens when we repeatedly apply [f] to
     some given starting number.  For example, [f 12] is [6], and [f
@@ -74,6 +84,7 @@ Fail Fixpoint reaches_1_in (n : nat) :=
 Inductive Collatz_holds_for : nat -> Prop :=
   | Chf_done : Collatz_holds_for 1
   | Chf_more (n : nat) : Collatz_holds_for (f n) -> Collatz_holds_for n.
+(* Collatz_holds_for n <===> the sequence starting from n eventually reaches 1 *)
 
 (** What we've done here is to use Coq's [Inductive] definition
     mechanism to characterize the property "Collatz holds for..." by
@@ -173,7 +184,7 @@ Inductive clos_trans {X: Type} (R: X->X->Prop) : X->X->Prop :=
 (** For example, suppose we define a "parent of" relation on a group
     of people... *)
 
-Inductive Person : Type := Sage | Cleo | Ridley | Moss.
+Inductive Person : Type := Sage | Cleo | Ridley | Moss | Maria.
 
 Inductive parent_of : Person -> Person -> Prop :=
   po_SC : parent_of Sage Cleo
@@ -199,7 +210,91 @@ Proof.
 
 (* FILL IN HERE
 
+  The reflexive closure adds a pair (x,x) for all (x : X) to the original relation. Simple.
+
+  The symmetric closure builds on top of a relation so that for all (x y : X), if the pair (x,y) belonged to the original relation, then (y,x) also belongs to the symmetric closure.
+
     [] *)
+
+(* 10min + 30min playing with examples *)
+
+Inductive clos_refl_trans {X : Type} (R : X->X->Prop) : X->X->Prop :=
+  | t_t (x y : X) : clos_trans R x y -> clos_refl_trans R x y
+  | t_refl (x : X) : clos_refl_trans R x x.
+
+Inductive clos_refl_symm_trans {X : Type} (R : X->X->Prop) : X->X->Prop :=
+  | t_rt (x y : X) : clos_refl_trans R x y -> clos_refl_symm_trans R x y
+  | t_symm (x y : X) : clos_refl_symm_trans R x y -> clos_refl_symm_trans R y x.
+  (*
+    I'm not so confident in this definition...
+    Don't we miss out on some pairs?
+    
+    If R x y and R y z, the transitive closure of R, TR, has R x z
+    Now, the symmetric transitive closure STR, has R z x, R z y, R y x.
+
+    Consider instead the case where R x y and R z y. TR doesn't have R x z!!
+    The symmetric-transitive closure introduces R y z, and consequently it should also have R x z; but under this definition STR doesn't have R x z, because the symmetric pairs are introduced on top of the transitive closure.
+
+    So yeah, we miss out on some pairs.
+
+    The transitive closure doesn't apply to the pairs introduced by t_symm!
+
+    The follwing examples illustrates its incompletess:
+  *)
+
+Inductive parent_of' : Person -> Person -> Prop :=
+  po_SC' : parent_of' Sage Cleo
+| po_SR' : parent_of' Sage Ridley
+| po_CM' : parent_of' Cleo Moss
+| po_MR : parent_of' Maria Ridley.
+
+Definition ancestor_of'''_bad : Person -> Person -> Prop :=
+  clos_refl_symm_trans parent_of'.
+
+Example ancestor_of'''1 : ancestor_of'''_bad Sage Maria.
+Proof. unfold ancestor_of'''_bad. apply t_rt. apply t_t. apply t_trans with Ridley. apply t_step. apply po_SR'.
+  apply t_step. (* Stuck... in order to use transitivity we had to descend to the bare relation, now it's impossible to apply symmetricity! *) Abort.
+
+(* correct definition *)
+Inductive clos_refl_symm_trans' {X: Type} (R: X->X->Prop) : X->X->Prop :=
+  | s_step (x y : X) :
+      R x y ->
+      clos_refl_symm_trans' R x y
+  | s_refl (x : X) : clos_refl_symm_trans' R x x
+  | s_symm (x y : X) : clos_refl_symm_trans' R x y -> clos_refl_symm_trans' R y x
+  | s_trans (x y z : X) :
+      clos_refl_symm_trans' R x y ->
+      clos_refl_symm_trans' R y z ->
+      clos_refl_symm_trans' R x z.
+
+Definition ancestor_of''' : Person -> Person -> Prop :=
+  clos_refl_symm_trans' parent_of'.
+
+Example ancestor_of'''2 : ancestor_of''' Sage Maria.
+Proof. unfold ancestor_of'''. apply s_trans with Ridley.
+  - apply s_step. apply po_SR'.
+  - apply s_symm. apply s_step. apply po_MR.
+Qed.
+
+
+(* other examples *)
+
+Definition ancestor_of' : Person -> Person -> Prop :=
+  clos_refl_trans parent_of.
+
+Example ancestor_of'1 : ancestor_of' Sage Sage.
+Proof.
+  unfold ancestor_of'. apply t_refl. Qed.
+
+Example ancestor_of'2 : ancestor_of' Sage Moss.
+Proof.
+  unfold ancestor_of'. apply t_t. apply ancestor_of1. Qed.
+
+Definition ancestor_of'' : Person -> Person -> Prop :=
+  clos_refl_symm_trans parent_of.
+
+Example ancestor_of''1 : ancestor_of'' Moss Sage.
+Proof. unfold ancestor_of''. apply t_symm. apply t_rt. apply ancestor_of'2. Qed.
 
 (* ================================================================= *)
 (** ** Example: Permutations *)

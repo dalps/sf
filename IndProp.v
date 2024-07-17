@@ -294,7 +294,7 @@ Definition ancestor_of'' : Person -> Person -> Prop :=
   clos_refl_symm_trans parent_of.
 
 Example ancestor_of''1 : ancestor_of'' Moss Sage.
-Proof. unfold ancestor_of''. apply t_symm. apply t_rt. apply ancestor_of'2. Qed.
+Proof. unfold ancestor_of''. apply t_symm. apply t_rt. apply ancestor_of'2. Qed. 
 
 (* ================================================================= *)
 (** ** Example: Permutations *)
@@ -325,6 +325,8 @@ Inductive Perm3 {X : Type} : list X -> list X -> Prop :=
     According to this definition, is [[1;2;3]] a permutation of
     [[3;2;1]]?  Is [[1;2;3]] a permutation of itself? *)
 
+(* 20min *)
+
 (* FILL IN HERE
 
     [] *)
@@ -334,6 +336,28 @@ Proof.
   apply perm3_trans with [2;1;3].
   - apply perm3_swap12.
   - apply perm3_swap23.   Qed.
+
+Example Perm3_exercise1 : Perm3 [1;2;3] [3;2;1].
+Proof.
+  (* apply perm3_trans with [2; 1; 3].
+  - apply perm3_swap12.
+  (* or [apply Perm3_example1.]!*)
+  - apply perm3_trans with [2; 3; 1].
+    + apply perm3_swap23.
+    + apply perm3_swap12. *)
+  apply perm3_trans with [2;3;1].
+  - apply Perm3_example1.
+  - apply perm3_swap12.  Qed.
+
+Example Perm3_exercise2 : Perm3 [1;2;3] [1;2;3].
+Proof.
+  apply perm3_trans with [3;2;1].
+  - apply Perm3_exercise1.
+  - apply perm3_trans with [2;3;1].
+    + apply perm3_swap12.
+    + apply perm3_trans with [2;1;3].
+      * apply perm3_swap23.
+      * apply perm3_swap12.  Qed.
 
 (* ================================================================= *)
 (** ** Example: Evenness (yet again) *)
@@ -453,7 +477,9 @@ Qed.
 Theorem ev_double : forall n,
   ev (double n).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n. induction n as [| n' IH].
+  - simpl. apply ev_0.
+  - simpl. apply ev_SS. apply IH.  Qed.
 (** [] *)
 
 (* ################################################################# *)
@@ -544,7 +570,8 @@ Qed.
 Theorem evSS_ev' : forall n,
   ev (S (S n)) -> ev n.
 Proof.
-  intros n E.  inversion E as [| n' E' Heq].
+  intros n E.  inversion E as [| n' E' Heq]. (* as many branches as constructors, as many labels as arguments of a constructor + equations *)
+  (* the contradictory case is discharged automatically! *)
   (* We are in the [E = ev_SS n' E'] case now. *)
   apply E'.
 Qed.
@@ -570,10 +597,21 @@ Proof.
     Prove the following result using [inversion].  (For extra
     practice, you can also prove it using the inversion lemma.) *)
 
+(* 2min + 9min with inversion lemma *)
+
 Theorem SSSSev__even : forall n,
   ev (S (S (S (S n)))) -> ev n.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* intros n E. apply ev_inversion in E. destruct E as [| [n' [En' E']]].
+  * discriminate H.
+  * injection En' as En'. rewrite <- En' in E'. 
+    apply ev_inversion in E'. destruct E' as [| [n'' [En'' E'']]].
+    + discriminate H.
+    + injection En'' as En''. rewrite <- En'' in E''. apply E''.
+  Qed. *)
+
+  intros n E. inversion E as [| n' E']. inversion E' as [| n'' E''].
+  apply E''.  Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard (ev5_nonsense)
@@ -583,7 +621,8 @@ Proof.
 Theorem ev5_nonsense :
   ev 5 -> 2 + 2 = 9.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros E5. inversion E5 as [| n E3]. inversion E3 as [| m E1].
+  apply one_not_even in E1. destruct E1.  Qed.
 (** [] *)
 
 (** The [inversion] tactic does quite a bit of work. For
@@ -745,9 +784,16 @@ Qed.
     technique, to help you familiarize yourself with it. *)
 
 (** **** Exercise: 2 stars, standard (ev_sum) *)
+
+(* 5 min *)
+
 Theorem ev_sum : forall n m, ev n -> ev m -> ev (n + m).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m En.
+  generalize dependent m. (* stay safe *)
+  induction En as [| n' En' IH].
+  * intros m Em. simpl. apply Em.
+  * intros m Em. simpl. apply ev_SS. apply IH. apply Em.  Qed.
 (** [] *)
 
 (** **** Exercise: 4 stars, advanced, optional (ev'_ev)
@@ -767,18 +813,45 @@ Inductive ev' : nat -> Prop :=
     technique works with constructors of inductively defined
     propositions. *)
 
+(* 21 min *)
+
 Theorem ev'_ev : forall n, ev' n <-> ev n.
 Proof.
- (* FILL IN HERE *) Admitted.
+  intros n. split.
+  { intros En. 
+    (* inversion En. apply ev_0. apply ev_SS. apply ev_0.
+    apply ev_sum. *)
+    (* better use induction on evidence, which subsumes inversion! *)
+    induction En as [ | | n' m En' IHn' Em IHm].
+    * apply ev_0.
+    * apply ev_SS. apply ev_0.
+    * apply (ev_sum n' m). apply IHn'. apply IHm. }
+  { intros En.
+    induction En as [ | n' En' IHn'].
+    * apply ev'_0.
+    * replace (S (S n')) with (2 + n'). apply ev'_sum.
+      + apply ev'_2.
+      + apply IHn'.
+      + reflexivity. }
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 3 stars, advanced, especially useful (ev_ev__ev) *)
+
+(* 13 min *)
+
 Theorem ev_ev__ev : forall n m,
   ev (n+m) -> ev n -> ev m.
   (* Hint: There are two pieces of evidence you could attempt to induct upon
       here. If one doesn't work, try the other. *)
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m Esum En.
+  generalize dependent m.
+  induction En as [| n' En' IHn'].
+  * intros m E0m. simpl in E0m. apply E0m.
+  * intros m Esum. simpl in Esum. inversion Esum as [| p Em].
+    apply IHn' in Em. apply Em.  Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard, optional (ev_plus_plus)
@@ -787,10 +860,26 @@ Proof.
     But, you will need a clever assertion and some tedious rewriting.
     Hint: Is [(n+m) + (n+p)] even? *)
 
+(* 48 min *)
+
+Check ev_sum.
+Check add_assoc.
 Theorem ev_plus_plus : forall n m p,
   ev (n+m) -> ev (n+p) -> ev (m+p).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m p Enm Enp. 
+  apply (ev_sum (n+m) (n+p)) in Enm.
+  (* grants you [ev (#1 + #2)] provided you prove [ev #2]*)
+  * rewrite (add_comm n p) in Enm. rewrite add_assoc in Enm.
+    rewrite <- (add_assoc n m p) in Enm. rewrite (add_comm n (m + p)) in Enm.
+    rewrite <- add_assoc in Enm. rewrite add_comm in Enm. 
+    apply (ev_ev__ev (n+n) (m+p)) in Enm.
+    (* applies [ev_ev__ev] forward, granting you the conclusion ([ev (m+p)]) provided you prove the middle hypothesis ([ev (n+n)]), which is easy *)
+    + apply Enm.
+    + rewrite <- double_plus. apply ev_double.
+  * apply Enp.
+Qed.
+
 (** [] *)
 
 (* ################################################################# *)

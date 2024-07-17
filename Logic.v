@@ -1102,7 +1102,7 @@ Theorem combine_odd_even_elim_odd :
     odd n = true ->
     Podd n.
 Proof.
-  intros Podd Peven n [Hodd _] H. apply Hodd. apply H.
+  intros Podd Peven n [Hodd _] H. apply Hodd. apply H.  Qed.
 
 Theorem combine_odd_even_elim_even :
   forall (Podd Peven : nat -> Prop) (n : nat),
@@ -1110,7 +1110,7 @@ Theorem combine_odd_even_elim_even :
     odd n = false ->
     Peven n.
 Proof.
-  intros Podd Peven n [_ Heven] H. apply Heven. apply H.
+  intros Podd Peven n [_ Heven] H. apply Heven. apply H.  Qed.
 (** [] *)
 
 (* ################################################################# *)
@@ -1580,7 +1580,7 @@ Proof.
   intros x y. split.
   * intro H. unfold not. intro G. rewrite <- not_true_iff_false in H.
     apply eqb_eq in G. rewrite G in H. unfold not in H. apply H. reflexivity.
-  * intro H. apply not_true_iff_false. unfold not. intro G. unfold not in H. apply H. apply eqb_eq in G. apply G.
+  * intro H. apply not_true_iff_false. unfold not. intro G. unfold not in H. apply H. apply eqb_eq in G. apply G.  Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard (eqb_list)

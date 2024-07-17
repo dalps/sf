@@ -2072,11 +2072,12 @@ Proof.
 
     (* in other words, having the excluded middle we can prove the other direction *)
 
-(* more than 2 hours (+sanity break):
-    - I did not know what to do with excluded_middle: [unfold] it!
-    - I did not remember that you can [destruct] on a [~ P = P -> False] in the context and have [P] as a goal *)
+(* an embarassing amount of time (more than 2 hours + sanity break):
+    - I did not know what to do with [excluded_middle]: [unfold] it!
+    - Took me some time to figure out what to instantiate [excluded_middle] with;
+    - It escaped me I could [destruct] on a formula [~ P = P -> False] in the context and have [P] as a goal *)
 
-Lemma impl_is_or : (* useless *)
+Lemma or_to_implies : (* useless *)
   forall (P Q : Prop), (~ P \/ Q) -> (P -> Q).
 Proof.
   intros P Q [contra | HQ].
@@ -2132,5 +2133,31 @@ Definition implies_to_or := forall P Q:Prop,
 (* FILL IN HERE
 
     [] *)
+
+Theorem classical_axioms_equiv :
+  excluded_middle             ->
+  peirce                      ->
+  double_negation_elimination ->
+  de_morgan_not_and_not       ->
+  implies_to_or               ->
+  excluded_middle.
+Proof.
+  unfold excluded_middle.
+  unfold peirce.
+  unfold double_negation_elimination.
+  unfold de_morgan_not_and_not.
+  unfold implies_to_or.
+  intros Mid Peirce Elim Morgan ImpOr.
+  intros P. apply Morgan.
+  intros [A B]. apply (Elim (P)) in B. apply (Peirce (~ P) (P)).
+  intros H. apply A. apply B. (* what about ImpOr? *)
+  (* Sketch:
+    - start with Mid as goal
+    - apply _every_ other axioms backwards (once? more than once?)
+    - end up with Mid again
+
+    The challenge: finding the right sequence of application and the right arguments
+    *)
+Abort.  
 
 (* 2023-12-29 17:12 *)

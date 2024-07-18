@@ -944,7 +944,7 @@ Proof.
 (** The "strictly less than" relation [n < m] can now be defined
     in terms of [le]. *)
 
-Definition lt (n m : nat) := le (S n) m.
+Definition lt (n m : nat) := le (S n) m. (* wow... ingenious *)
 
 Notation "n < m" := (lt n m).
 
@@ -955,13 +955,15 @@ End Playground.
     Define an inductive binary relation [total_relation] that holds
     between every pair of natural numbers. *)
 
+(* 2 min *)
+
 Inductive total_relation : nat -> nat -> Prop :=
-  (* FILL IN HERE *)
+  | any_p (n m : nat) : total_relation n m
 .
 
 Theorem total_relation_is_total : forall n m, total_relation n m.
-  Proof.
-  (* FILL IN HERE *) Admitted.
+Proof.
+  intros n m. apply any_p.  Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (empty_relation)
@@ -969,13 +971,14 @@ Theorem total_relation_is_total : forall n m, total_relation n m.
     Define an inductive binary relation [empty_relation] (on numbers)
     that never holds. *)
 
+(* wtf 30+ min - had to sleep over this *)
 Inductive empty_relation : nat -> nat -> Prop :=
-  (* FILL IN HERE *)
+  | no_p (n m : nat) (H : False) : empty_relation n m
 .
 
 Theorem empty_relation_is_empty : forall n m, ~ empty_relation n m.
-  Proof.
-  (* FILL IN HERE *) Admitted.
+Proof.
+  intros n m H. inversion H as [n' m' contra]. destruct contra.  Qed.
 (** [] *)
 
 (** From the definition of [le], we can sketch the behaviors of
@@ -995,46 +998,122 @@ Theorem empty_relation_is_empty : forall n m, ~ empty_relation n m.
     practice exercises. *)
 
 (** **** Exercise: 5 stars, standard, optional (le_and_lt_facts) *)
+
+(*
+Inductive le : nat -> nat -> Prop :=
+  | le_n (n : nat)                : le n n
+  | le_S (n m : nat) (H : le n m) : le n (S m).
+*)
+
+(* 28 min
+  - always keep one variable universal!
+*)
 Lemma le_trans : forall m n o, m <= n -> n <= o -> m <= o.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros m n o Lemn Leno. 
+  generalize dependent m.
+  induction Leno as [| o' Leno'].
+  * intros m Lemn. apply Lemn.
+  * intros m Lemn. apply le_S. apply IHLeno'. apply Lemn.
+Qed.
 
+(* 5 min *)
 Theorem O_le_n : forall n,
   0 <= n.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n. induction n as [| n']. apply le_n. apply le_S. apply IHn'.  Qed.
 
+(* 11 min *)
 Theorem n_le_m__Sn_le_Sm : forall n m,
   n <= m -> S n <= S m.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m Lenm. induction Lenm as [| m' Lenm'].
+  * apply le_n.
+  * apply le_S. apply IHLenm'.  Qed.
 
+(* 1h30min... weak... *)
 Theorem Sn_le_Sm__n_le_m : forall n m,
   S n <= S m -> n <= m.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m LeSS. inversion LeSS as [| m' LeS].
+  * apply le_n.
+  * apply le_trans with (S n). apply le_S. apply le_n. apply LeS.
+Qed.
+  
+  (* induction LeSS as [| m' E IH]. *)
+  (* WHY. THE FUCK. DOESN'T INDUCTION REWRITE n?!? *)
+
+  (* induction m as [| m' IHm'].
+  * inversion LeSS as [| z contra Ez]. apply le_n. inversion contra.
+  * apply le_S. apply IH. inversion LeSS as [| m'' H Em''].
+    + apply n_le_m__Sn_le_Sm. rewrite H in LeSS. rewrite <- H. apply IH. *)
+
+Lemma eqb_Sn_n : forall c, (S c =? c) = false.
+Proof.
+  intros c. induction c as [| c' IH].
+  + reflexivity.
+  + apply IH.  Qed.
+
+Lemma not_Sn_le_n : forall c, ~ (S c <= c).
+Proof.
+  intros c C. induction c as [| c' IH].
+    + inversion C.
+    + apply Sn_le_Sm__n_le_m in C. apply IH in C. destruct C.
+Qed.
+
+Lemma lt_to_le : forall a b, b < a <-> ~ (a <= b).
+  Proof.
+    intros a b. split.
+    { intros H. unfold lt in H. intros G. 
+      apply (le_trans (S b) (a) (b)) in H.
+      * apply not_Sn_le_n in H. destruct H.
+      * apply G. }
+    {
+      unfold not. unfold lt. intro H. Check (S b <= a).
+      Check double_negation_elimination.
+      apply double_negation_elimination with (P := S b <= a). 
+    }
+    Abort.
 
 Theorem lt_ge_cases : forall n m,
   n < m \/ n >= m.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m. unfold lt. unfold ge.
+  apply (restricted_excluded_middle (m <= n) (m <=? n)).
+  Check (S n <= m).
+  Abort.
 
+(* 2 min *)
 Theorem le_plus_l : forall a b,
   a <= a + b.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros a. induction a as [| a' IH].
+  * intros b. simpl. apply O_le_n.
+  * intros b. simpl. apply n_le_m__Sn_le_Sm. apply IH.  Qed.
 
+(* 9 min *)
 Theorem plus_le : forall n1 n2 m,
   n1 + n2 <= m ->
   n1 <= m /\ n2 <= m.
 Proof.
- (* FILL IN HERE *) Admitted.
+  intros n1 n2 m Hsum. split.
+  * apply (le_trans (n1) (n1 + n2) (m)). apply le_plus_l. apply Hsum.
+  * apply (le_trans (n2) (n1 + n2) (m)). 
+    rewrite add_comm. apply le_plus_l. apply Hsum.  Qed.
 
+(* 40+ min - the ..._cases exercises are the difficultest *)
 Theorem add_le_cases : forall n m p q,
   n + m <= p + q -> n <= p \/ m <= q.
   (** Hint: May be easiest to prove by induction on [n]. *)
 Proof.
-(* FILL IN HERE *) Admitted.
+  intros n. induction n as [| n' IH].
+  * simpl. intros m p q Hmpq. left. apply O_le_n.
+  * intros m p q HS.
+    apply le_S in HS.
+    replace (S n' + m) with (n' + S m) in HS.
+    replace (S (p + q)) with (S p + q) in HS.
+    + apply IH in HS. destruct HS.
+      - left. apply  
 
 Theorem plus_le_compat_l : forall n m p,
   n <= m ->

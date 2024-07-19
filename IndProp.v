@@ -1052,82 +1052,53 @@ Qed.
   * apply le_S. apply IH. inversion LeSS as [| m'' H Em''].
     + apply n_le_m__Sn_le_Sm. rewrite H in LeSS. rewrite <- H. apply IH. *)
 
-Lemma eqb_Sn_n : forall c, (S c =? c) = false.
+Lemma eqb_Sn_n : forall n, (S n =? n) = false.
 Proof.
-  intros c. induction c as [| c' IH].
+  intros n. induction n as [| n' IH].
   + reflexivity.
   + apply IH.  Qed.
 
-Lemma not_Sn_le_n : forall c, ~ (S c <= c).
+Lemma not_Sn_le_n : forall n, ~ (S n <= n).
 Proof.
-  intros c C. induction c as [| c' IH].
-    + inversion C.
-    + apply Sn_le_Sm__n_le_m in C. apply IH in C. destruct C.
+  intros n N. induction n as [| n' IH].
+    + inversion N.
+    + apply Sn_le_Sm__n_le_m in N. apply IH in N. destruct N.
 Qed.
 
-Lemma leb_S_l : forall x y, (S x <=? y) = true -> (x <=? y) = true.
+(* no induction needed with transitivity *)
+Lemma leb_S_l : forall n m, (S n <=? m) = true -> (n <=? m) = true.
 Proof.
-  intros x y H. induction x as [| x' IHx'].
-  * reflexivity.
-  * apply IHx'. simpl in H. apply leb_plus_exists in H.
-    destruct H as [k Ek].
-    Abort.
+  intros n m H.
+  generalize dependent n.
+  induction m as [| m' IH].
+  * intros n contra. discriminate contra.
+  * intros n H. destruct n as [| n'].
+    - reflexivity.
+    - simpl. apply IH. simpl in H. apply H.  Qed.
 
-Lemma leb_S_r : forall x y, (x <=? y) = true -> (x <=? S y) = true.
+(* same here *)
+Lemma leb_S_r : forall n m, (n <=? m) = true -> (n <=? S m) = true.
 Proof.
-  intros x y H. induction x as [| x' IHx'].
-  * reflexivity.
-  * intros y H. simpl. apply leb_plus_exists in H.
-    destruct H as [k Ek].
-    Abort.
+  intros n. induction n as [| n' IH].
+  * intros m H. reflexivity.
+  * intros m H. destruct m as [| m'].
+    - discriminate H.
+    - simpl. simpl in H. apply IH. apply H.  Qed.
 
-Lemma le_leb : forall (n m : nat), n <= m <-> n <=? m = true.
-Proof.
-  intros n. split.
-  { intros Lenm. induction Lenm as [| m' Em' IH].
-    Search leb.
-    * apply leb_refl.
-    * assert (forall a b c,
-      (a <=? b) = true -> 
-      (b <=? c) = true -> 
-      (a <=? c) = true) as leb_trans.
-      {
-        intros a b c.
-        generalize dependent b.
-        generalize dependent a.
-         induction c as [| c' IHc'].
-        * intros a b Hz.
-          assert (leb_n_0 : forall z, (z <=? 0) = true <-> z = 0).
-          {
-            intros z. split. destruct z. reflexivity. intros contra. discriminate contra. intros H0. rewrite H0. reflexivity. 
-          }
-          intros Ht. apply leb_n_0 in Ht. rewrite Ht in Hz. apply leb_n_0 in Hz. rewrite Hz. reflexivity.
-        * intros a b Hab HbSc'. apply IHc' in Hab.
-      }
-  }
-  Abort.
-
-Lemma lt_to_le : forall a b, b < a <-> ~ (a <= b).
-  Proof.
-    intros a b. split.
-    { intros H. unfold lt in H. intros G. 
-      apply (le_trans (S b) (a) (b)) in H.
-      * apply not_Sn_le_n in H. destruct H.
-      * apply G. }
-    {
-      unfold not. unfold lt. intro H. Check (S b <= a).
-      Check double_negation_elimination.
-      apply double_negation_elimination with (P := S b <= a). 
-    }
-    Abort.
-
+(* 2+ days, solution in ~30 min - forgot induction was a thing lol *)
 Theorem lt_ge_cases : forall n m,
   n < m \/ n >= m.
 Proof.
   intros n m. unfold lt. unfold ge.
-  apply (restricted_excluded_middle (m <= n) (m <=? n)).
-  Check (S n <= m).
-  Abort.
+  generalize dependent n.
+  induction m.
+  * right. apply O_le_n.
+  * intros n. destruct (IHm n) as [H1 | H2]. 
+    + left. apply le_S in H1. apply H1.
+    + inversion H2 as [| n' Hn']. 
+      - left. (* m = n *) apply le_n.
+      - right. (* m <= n *) apply n_le_m__Sn_le_Sm. apply Hn'.
+Qed.
 
 (* 2 min *)
 Theorem le_plus_l : forall a b,
@@ -1147,19 +1118,21 @@ Proof.
   * apply (le_trans (n2) (n1 + n2) (m)). 
     rewrite add_comm. apply le_plus_l. apply Hsum.  Qed.
 
-(* 40+ min - the ..._cases exercises are the difficultest *)
+Lemma le_S_l : forall n m, S n <= m -> n <= m.
+Proof.
+  intros n m H. apply le_trans with (S n). apply le_S. apply le_n. apply H.  Qed.
+
+(* 2+ days *)
 Theorem add_le_cases : forall n m p q,
   n + m <= p + q -> n <= p \/ m <= q.
   (** Hint: May be easiest to prove by induction on [n]. *)
 Proof.
   intros n. induction n as [| n' IH].
   * simpl. intros m p q Hmpq. left. apply O_le_n.
-  * intros m p q HS.
-    apply le_S in HS.
-    replace (S n' + m) with (n' + S m) in HS.
-    replace (S (p + q)) with (S p + q) in HS.
-    + apply IH in HS. destruct HS.
-      - left. (* nope, unprovable: what if n' = S p? consider other path *)
+  * intros m p q HS. destruct (p + q) as [| o] eqn:Eo.
+    + simpl in HS. inversion HS.
+    + apply plus_le in HS. destruct HS as [H1 H2].
+    simpl in HS. apply le_S_l in HS. apply IH in HS. destruct HS as [H1 | H2].
   Abort.
 
 (* 11 min *)
@@ -1258,6 +1231,17 @@ Proof.
   apply leb_complete in Lenm. apply leb_complete in Leno. apply leb_correct.
   apply le_trans with m. apply Lenm. apply Leno.  Qed.
 (** [] *)
+
+Lemma leb_S_l' : forall n m, (S n <=? m) = true -> (n <=? m) = true.
+Proof.
+  intros n m H. apply leb_true_trans with (S n).
+  apply NatList.leb_n_Sn. apply H.  Qed.
+
+Lemma leb_S_r' : forall n m, (n <=? m) = true -> (n <=? S m) = true.
+Proof.
+  intros n m H. apply leb_true_trans with m.
+  apply H. apply NatList.leb_n_Sn.  Qed.
+
 
 Module R.
 

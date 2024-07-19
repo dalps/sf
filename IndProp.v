@@ -1215,29 +1215,48 @@ Proof.
 (** [] *)
 
 (** **** Exercise: 4 stars, standard, optional (more_le_exercises) *)
+
+(* 10 min (proof of [leb_plus_exists] really helped) *)
 Theorem leb_complete : forall n m,
   n <=? m = true -> n <= m.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n. induction n as [| n' IH].
+  * intros m H. apply O_le_n.
+  * intros m H. destruct m as [| m'] eqn:Em'.
+    + discriminate H.
+    + simpl in H. apply IH in H. apply n_le_m__Sn_le_Sm. apply H.
+Qed.
 
+(* 33 min *)
 Theorem leb_correct : forall n m,
   n <= m ->
   n <=? m = true.
   (** Hint: May be easiest to prove by induction on [m]. *)
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m Lenm.
+  generalize dependent n. (* fundamental *)
+  induction m as [| m' IH].
+  * intros n Lenm. inversion Lenm. reflexivity.
+  * intros n Lenm. destruct n as [| n'] eqn:En.
+    - reflexivity.
+    - simpl. apply IH. apply Sn_le_Sm__n_le_m in Lenm. apply Lenm.
+Qed.
 
 (** Hint: The next two can easily be proved without using [induction]. *)
 
+(* 1 min *)
 Theorem leb_iff : forall n m,
   n <=? m = true <-> n <= m.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m. split. apply leb_complete. apply leb_correct.  Qed.
 
+(* 2 min *)
 Theorem leb_true_trans : forall n m o,
   n <=? m = true -> m <=? o = true -> n <=? o = true.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m o Lenm Leno.
+  apply leb_complete in Lenm. apply leb_complete in Leno. apply leb_correct.
+  apply le_trans with m. apply Lenm. apply Leno.  Qed.
 (** [] *)
 
 Module R.

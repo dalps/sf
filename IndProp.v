@@ -999,6 +999,10 @@ Proof.
 
 (** **** Exercise: 5 stars, standard, optional (le_and_lt_facts) *)
 
+(* I've been stuck on this exercise for two days now.
+   Time to leave it behind and carry on reading. I'll return to the aborted
+   proofs later on, when I'm a bit more learned. *)
+
 (*
 Inductive le : nat -> nat -> Prop :=
   | le_n (n : nat)                : le n n
@@ -1060,6 +1064,48 @@ Proof.
     + inversion C.
     + apply Sn_le_Sm__n_le_m in C. apply IH in C. destruct C.
 Qed.
+
+Lemma leb_S_l : forall x y, (S x <=? y) = true -> (x <=? y) = true.
+Proof.
+  intros x y H. induction x as [| x' IHx'].
+  * reflexivity.
+  * apply IHx'. simpl in H. apply leb_plus_exists in H.
+    destruct H as [k Ek].
+    Abort.
+
+Lemma leb_S_r : forall x y, (x <=? y) = true -> (x <=? S y) = true.
+Proof.
+  intros x y H. induction x as [| x' IHx'].
+  * reflexivity.
+  * intros y H. simpl. apply leb_plus_exists in H.
+    destruct H as [k Ek].
+    Abort.
+
+Lemma le_leb : forall (n m : nat), n <= m <-> n <=? m = true.
+Proof.
+  intros n. split.
+  { intros Lenm. induction Lenm as [| m' Em' IH].
+    Search leb.
+    * apply leb_refl.
+    * assert (forall a b c,
+      (a <=? b) = true -> 
+      (b <=? c) = true -> 
+      (a <=? c) = true) as leb_trans.
+      {
+        intros a b c.
+        generalize dependent b.
+        generalize dependent a.
+         induction c as [| c' IHc'].
+        * intros a b Hz.
+          assert (leb_n_0 : forall z, (z <=? 0) = true <-> z = 0).
+          {
+            intros z. split. destruct z. reflexivity. intros contra. discriminate contra. intros H0. rewrite H0. reflexivity. 
+          }
+          intros Ht. apply leb_n_0 in Ht. rewrite Ht in Hz. apply leb_n_0 in Hz. rewrite Hz. reflexivity.
+        * intros a b Hab HbSc'. apply IHc' in Hab.
+      }
+  }
+  Abort.
 
 Lemma lt_to_le : forall a b, b < a <-> ~ (a <= b).
   Proof.

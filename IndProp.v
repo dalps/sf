@@ -1113,37 +1113,59 @@ Proof.
     replace (S n' + m) with (n' + S m) in HS.
     replace (S (p + q)) with (S p + q) in HS.
     + apply IH in HS. destruct HS.
-      - left. apply  
+      - left. (* nope, unprovable: what if n' = S p? consider other path *)
+  Abort.
 
+(* 11 min *)
 Theorem plus_le_compat_l : forall n m p,
   n <= m ->
   p + n <= p + m.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m p Lenm. induction Lenm as [| m' Em' IH].
+  * apply le_n.
+  * apply (le_trans (p+n) (p+m') (p+S m')).
+    + apply IH.
+    + rewrite (add_comm p (S m')). simpl. apply le_S. rewrite (add_comm m' p).
+      apply le_n.  Qed.
 
+(* 2 min *)
 Theorem plus_le_compat_r : forall n m p,
   n <= m ->
   n + p <= m + p.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m p Lenm. rewrite add_comm. rewrite (add_comm m p). apply plus_le_compat_l. apply Lenm.  Qed.
 
+(* 7 min *)
 Theorem le_plus_trans : forall n m p,
   n <= m ->
   n <= m + p.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m p Lenm. induction Lenm as [| m' Em' IH].
+  * apply le_plus_l.
+  * simpl. apply le_S. apply IH.  Qed.
 
+(* 3 min *)
 Theorem n_lt_m__n_le_m : forall n m,
   n < m ->
   n <= m.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m Ltnm. unfold lt in Ltnm. apply (le_trans n (S n) m).
+  apply le_S. apply le_n. apply Ltnm.  Qed.
 
+(* 30 min *)
 Theorem plus_lt : forall n1 n2 m,
   n1 + n2 < m ->
   n1 < m /\ n2 < m.
 Proof.
-(* FILL IN HERE *) Admitted.
+  intros n1 n2 m. unfold lt. intros LeS. inversion LeS as [| m' Em'].
+  * split. 
+    + rewrite <- (plus_1_l (n1 + n2)). rewrite add_assoc. rewrite (plus_1_l n1). apply le_plus_l.
+    + rewrite plus_n_Sm. rewrite add_comm. apply le_plus_l.
+  * rewrite plus_n_Sm in Em'. apply plus_le in Em'. destruct Em' as [Hn1 HSn2].
+    split.
+    + apply n_le_m__Sn_le_Sm. apply Hn1.
+    + apply le_S. apply HSn2.  Qed.
+
 (** [] *)
 
 (** **** Exercise: 4 stars, standard, optional (more_le_exercises) *)

@@ -1814,7 +1814,7 @@ Proof.
   apply MStar0.  Qed.
 
 (* 40 min left dir, 35 min right dir
-  wasted time in correcting logical errors in the definition *)
+  guilty of mixing up && and || between [App] and [Union] *)
 Lemma re_not_empty_correct : forall T (re : reg_exp T),
   (exists s, s =~ re) <-> re_not_empty re = true.
 Proof.
@@ -1861,6 +1861,8 @@ Qed.
     information (much as [destruct] without an [eqn:] clause can do),
     and leave you unable to complete the proof.  Here's an example: *)
 
+(* I've used [generalize dependend] as a workaround so far *)
+
 Lemma star_app: forall T (s1 s2 : list T) (re : reg_exp T),
   s1 =~ Star re ->
   s2 =~ Star re ->
@@ -1872,7 +1874,11 @@ Proof.
     the recursive cases. (Try it!). So we need induction (on
     evidence!). Here is a naive first attempt. *)
 
-  induction H1
+  (* inversion H1 as [ | | | | | re1 Es1 H2 | s1' s2' re1 H2 H2Star Eapp Ere1 ].
+  * intros H. simpl. apply H.
+  * intros H. apply (MStarApp (s1' ++ s2') s2). -- stuck, as foretold... and [app_assoc] doesn't help *) 
+
+  induction H1 (* this is the equivalent of doing induction on [S n], if [n] was a [nat], which is silly. *)
     as [|x'|s1 re1 s2' re2 Hmatch1 IH1 Hmatch2 IH2
         |s1 re1 re2 Hmatch IH|re1 s2' re2 Hmatch IH
         |re''|s1 s2' re'' Hmatch1 IH1 Hmatch2 IH2].

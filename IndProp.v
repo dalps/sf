@@ -971,14 +971,12 @@ Proof.
     Define an inductive binary relation [empty_relation] (on numbers)
     that never holds. *)
 
-(* wtf 30+ min - had to sleep over this *)
-Inductive empty_relation : nat -> nat -> Prop :=
-  | no_p (n m : nat) (H : False) : empty_relation n m
-.
+(* wtf 30+ min - had to sleep over this
+   improved 3 days later by leaving the body empty *)
+Inductive empty_relation : nat -> nat -> Prop := (* empty *) .
 
 Theorem empty_relation_is_empty : forall n m, ~ empty_relation n m.
-Proof.
-  intros n m H. inversion H as [n' m' contra]. destruct contra.  Qed.
+Proof. intros n m H. inversion H. (* [destruct] also works *) Qed.
 (** [] *)
 
 (** From the definition of [le], we can sketch the behaviors of
@@ -1251,6 +1249,8 @@ Module R.
     etc., in just the same way as binary relations.  For example,
     consider the following three-place relation on numbers: *)
 
+(* 30 min *)
+
 Inductive R : nat -> nat -> nat -> Prop :=
   | c1                                     : R 0     0     0
   | c2 m n o (H : R m     n     o        ) : R (S m) n     (S o)
@@ -1273,6 +1273,28 @@ Inductive R : nat -> nat -> nat -> Prop :=
 
 (* FILL IN HERE *)
 
+(* 1. *)
+Example R_112 : R 1 1 2.
+Proof. apply c2. apply c3. apply c1.  Qed.
+
+Example R_226 : R 2 2 6.
+Proof. apply c2. apply c2. apply c3. apply c3. (* nope *) Abort.
+
+Example R_123 : R 1 2 3.
+Proof. apply c2. apply c3. apply c3. apply c1.  Qed.
+
+(* 14 min
+
+  2. No, because [c2] and [c3] let us increase the first two arguments 
+    independently, so swapping them with [c5] beforehand has no effect 
+    on the amount of times [o] can be decreased to reach 0.
+
+  3. No, because in a derivation applying [c4] increases the first two operands
+    by 1 and the last one by 2, but this effect can be promptly reversed 
+    thereafter by applying [c2] and [c3] in sequence, returning to where we 
+    started before applying [c4]. 
+*)
+
 (* Do not modify the following line: *)
 Definition manual_grade_for_R_provability : option (nat*string) := None.
 (** [] *)
@@ -1283,12 +1305,34 @@ Definition manual_grade_for_R_provability : option (nat*string) := None.
     Figure out which function; then state and prove this equivalence
     in Coq. *)
 
-Definition fR : nat -> nat -> nat
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+(* 21 min *)
+
+(* It's [+] on nats! *)
+
+Definition fR : nat -> nat -> nat := plus.
 
 Theorem R_equiv_fR : forall m n o, R m n o <-> fR m n = o.
 Proof.
-(* FILL IN HERE *) Admitted.
+  intros m n o. unfold fR. split.
+  { intro ER. induction ER.
+    * reflexivity.
+    * simpl. f_equal. apply IHER.
+    * rewrite <- plus_n_Sm. f_equal. apply IHER.
+    * rewrite <- plus_n_Sm in IHER. simpl in IHER. injection IHER.
+      intros H. apply H.
+    * rewrite add_comm. apply IHER. }
+  { generalize dependent n. generalize dependent o.
+    induction m as [| m' IH].
+    * intros n o H. simpl in H. rewrite H.
+      assert (forall a, R 0 a a) as R_0_n.
+      { intros a. induction a as [| a']. apply c1. apply c3. apply IHa'. }
+      apply R_0_n.
+    * intros o n. destruct o as [| o'].
+      + intros contra. discriminate contra.
+      + intros H. apply c2. apply IH. injection H. intros H'. apply H'.
+  }
+Qed.
+
 (** [] *)
 
 End R.
@@ -1389,7 +1433,7 @@ End bin1.
 
 (** It is completely equivalent to this... *)
 Module bin2.
-Inductive bin : Type :=
+Inductive bin : Type := (* no indexes - parameters in the right side of the colon *)
   | Z            : bin
   | B0 (n : bin) : bin
   | B1 (n : bin) : bin.
@@ -1511,6 +1555,7 @@ Inductive exp_match {T} : list T -> reg_exp T -> Prop :=
     rule that would have the effect of some string matching
     [EmptySet].  (Indeed, the syntax of inductive definitions doesn't
     even _allow_ us to give such a "negative rule.")
+    (note: should have done the same in the [empty_relation] exercise...)
 
     Second, the informal rules for [Union] and [Star] correspond
     to two constructors each: [MUnionL] / [MUnionR], and [MStar0] /
@@ -1576,6 +1621,9 @@ Qed.
     the following lemma shows that every string [s] that matches [re]
     also matches [Star re]. *)
 
+(* [Star re] is the family of strings obtained by repeating a string [s] that 
+  matches [re] a finite number of times. *)
+
 Lemma MStar1 :
   forall T s (re : reg_exp T) ,
     s =~ re ->
@@ -1597,27 +1645,38 @@ Qed.
     at the beginning of the chapter can be obtained from the formal
     inductive definition. *)
 
+(* ~25 min *)
+
 Lemma empty_is_empty : forall T (s : list T),
   ~ (s =~ EmptySet).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros T s H. inversion H.  Qed.
 
 Lemma MUnion' : forall T (s : list T) (re1 re2 : reg_exp T),
   s =~ re1 \/ s =~ re2 ->
   s =~ Union re1 re2.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros T s re1 re2 [H1 | H2].
+  { apply MUnionL. apply H1. }
+  { apply MUnionR. apply H2. }  Qed.
 
 (** The next lemma is stated in terms of the [fold] function from the
     [Poly] chapter: If [ss : list (list T)] represents a sequence of
     strings [s1, ..., sn], then [fold app ss []] is the result of
     concatenating them all together. *)
 
+(* 15 min *)
+
 Lemma MStar' : forall T (ss : list (list T)) (re : reg_exp T),
   (forall s, In s ss -> s =~ re) ->
   fold app ss [] =~ Star re.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros T ss re HIn. induction ss as [| w ss' IH].
+  * simpl. apply MStar0.
+  * simpl. apply MStarApp.
+    { apply HIn. simpl. left. reflexivity. }
+    { apply IH. intros w' HIn'. apply HIn. simpl. right. apply HIn'. }  Qed.
+
 (** [] *)
 
 (** Since the definition of [exp_match] has a recursive
@@ -1669,10 +1728,10 @@ Proof.
     [s1] (which matches [re1]), and a second one that applies when [x]
     occurs in [s2] (which matches [re2]). *)
 
-    rewrite In_app_iff in *.
+    rewrite In_app_iff in *. (* new notation! *)
     destruct Hin as [Hin | Hin].
     + (* In x s1 *)
-      left. apply (IH1 Hin).
+      left. apply (IH1 Hin). (* instead of the lengthier [apply IH1. apply Hin.] *)
     + (* In x s2 *)
       right. apply (IH2 Hin).
   - (* MUnionL *)
@@ -1697,7 +1756,7 @@ Proof.
     + (* In x s1 *)
       apply (IH1 Hin).
     + (* In x s2 *)
-      apply (IH2 Hin).
+      apply (IH2 Hin). (* simplifies [re_chars (Star re)] in [IH2] *)
 Qed.
 
 (** **** Exercise: 4 stars, standard (re_not_empty)
@@ -1706,13 +1765,91 @@ Qed.
     regular expression matches some string. Prove that your function
     is correct. *)
 
-Fixpoint re_not_empty {T : Type} (re : reg_exp T) : bool
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Check (Union (EmptySet) (Char 2)).
 
+(* 5 min *)
+Fixpoint re_not_empty {T : Type} (re : reg_exp T) : bool :=
+  match re with
+  | EmptySet => false
+  | EmptyStr | Char _ | Star _ => true
+  | App r1 r2 => re_not_empty r1 && re_not_empty r2 (* can't append to [s1 =~ r1] if there is no [s2 =~ r2], and viceversa! *)
+  | Union r1 r2  => re_not_empty r1 || re_not_empty r2
+  end.
+
+
+Example re_union : [2] =~ (Union (EmptySet) (Char 2)).
+Proof. apply MUnionR. apply MChar.  Qed.
+
+Example re_not_empty1 : re_not_empty (Union (EmptySet) (Char 2)) = 
+  (* false. - no *) true.
+Proof. reflexivity.  Qed.
+
+Example re_star : @exp_match nat [] (Star (EmptySet)).
+Proof. apply MStar0.  Qed.
+
+Example re_not_empty2 : @re_not_empty nat (Star EmptySet) = true.
+Proof. reflexivity.  Qed.
+
+Example re_not_empty3 : re_not_empty (Star (Union (Char 0) (Char 1))) = true.
+Proof. reflexivity.  Qed.
+  
+Example re_bin1 : [0;1;0;0] =~ Star (Union (Char 0) (Char 1)).
+Proof.
+  apply (MStarApp [0]).
+  { apply MUnionL. apply MChar. }
+  apply (MStarApp [1]).
+  { apply MUnionR. apply MChar. }
+  apply (MStarApp [0]).
+  { apply MUnionL. apply MChar. }
+  apply (MStarApp [0]).
+  { apply MUnionL. apply MChar. }
+  apply MStar0.  Qed.
+
+Example re_bin2 : [0;1;0;1] =~ Star (App (Char 0) (Char 1)).
+Proof.
+  apply (MStarApp [0;1]).
+  { apply (MApp [0]). apply MChar. apply MChar. }
+  apply (MStarApp [0;1]).
+  { apply (MApp [0]). apply MChar. apply MChar. }
+  apply MStar0.  Qed.
+
+(* 40 min left dir, 35 min right dir
+  wasted time in correcting logical errors in the definition *)
 Lemma re_not_empty_correct : forall T (re : reg_exp T),
   (exists s, s =~ re) <-> re_not_empty re = true.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros T re. split.
+  { induction re.
+    * intros [s Hs]. inversion Hs.
+    * intros. reflexivity.
+    * intros. reflexivity.
+    Search orb.
+    * intros [s Ms]. simpl. apply andb_true_iff.
+      inversion Ms as [ | | s1 r1 s2 r2 Ms1 Ms2 | | | | ].
+      split.
+      { apply IHre1. exists s1. apply Ms1. }
+      { apply IHre2. exists s2. apply Ms2. }
+    * intros [s Ms]. simpl. apply orb_true_iff.
+      inversion Ms as [ | | | s1 r1 r2 Ms1 | s2 r1 r2 Ms2 | | ].
+      left. apply IHre1. exists s. apply Ms1.
+      right. apply IHre2. exists s. apply Ms2.
+    * simpl. intros []. reflexivity. }
+  { intros H. induction re.
+    * discriminate H.
+    * exists []. apply MEmpty.
+    * exists [t]. apply MChar.
+    * simpl in H. apply andb_true_iff in H. destruct H as [H1 H2].
+      apply IHre1 in H1. destruct H1 as [s1 H1].
+      apply IHre2 in H2. destruct H2 as [s2 H2].
+      exists (s1 ++ s2). apply MApp. apply H1. apply H2.
+    * simpl in H. apply orb_true_iff in H. destruct H as [H1 | H2].
+      + apply IHre1 in H1. destruct H1 as [s1 H1].
+        exists s1. apply MUnionL. apply H1.
+      + apply IHre2 in H2. destruct H2 as [s2 H2].
+        exists s2. apply MUnionR. apply H2.
+    * exists []. apply MStar0. }
+Qed.
+
 (** [] *)
 
 (* ================================================================= *)

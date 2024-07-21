@@ -1083,7 +1083,7 @@ Proof.
     - discriminate H.
     - simpl. simpl in H. apply IH. apply H.  Qed.
 
-(* 2+ days, solution in ~30 min - forgot induction was a thing lol *)
+(* 2+ days to process, solution in ~30 min - forgot induction was a thing lol *)
 Theorem lt_ge_cases : forall n m,
   n < m \/ n >= m.
 Proof.
@@ -1131,7 +1131,7 @@ Proof.
     + simpl in HS. inversion HS.
     + apply plus_le in HS. destruct HS as [H1 H2].
     simpl in HS. apply le_S_l in HS. apply IH in HS. destruct HS as [H1 | H2].
-  Abort.
+  Admitted.
 
 (* 11 min *)
 Theorem plus_le_compat_l : forall n m p,
@@ -1985,7 +1985,8 @@ Qed.
     [MStar'] exercise above), shows that our definition of [exp_match]
     for [Star] is equivalent to the informal one given previously. *)
 
-(* 1h16min + *)
+(* 1h30min + 1h
+  I am so stuck... *)
 
 Lemma MStar'' : forall T (s : list T) (re : reg_exp T),
   s =~ Star re ->
@@ -1995,38 +1996,46 @@ Lemma MStar'' : forall T (s : list T) (re : reg_exp T),
 Proof.
   intros T s re H.
   remember (Star re) as re' eqn:Estar.
+  generalize dependent re. (* omg *)
   induction H as [
     | | | | | re'' | s1 s2 re'' Hmatch1 IH1 Hmatch2 IH2 
   ].
-  * discriminate Estar.
-  * discriminate Estar.
-  * discriminate Estar.
-  * discriminate Estar.
-  * discriminate Estar.
-  * exists []. split.
+  * intros. discriminate Estar.
+  * intros. discriminate Estar.
+  * intros. discriminate Estar.
+  * intros. discriminate Estar.
+  * intros. discriminate Estar.
+  * intros. exists []. split.
     + reflexivity.
     + simpl. intros s' [].
   * (* any list [s1;s2] is a subsequence of will do *)
     exists [s1;s2].
 
-    simpl.
-    split.
+    (* injection Estar as E. rewrite E in *. *)
+    simpl. split.
     + simpl. rewrite app_assoc. rewrite app_nil_r. reflexivity.
     (* gets stuck because I'm applyling [IH2] forward...
         but how can I apply it backward? Is it possible to reshape the goal to move [s1] outside the exists, for it must match [IH2]'s conclusion.
         Is the inductive hypothesis not sufficienlty general? I have no control over it, besides naming variables! *)
-    + simpl. intros s' HIn. destruct HIn as [HIns1 | [ HIns2 | contra]].
+    + intros s' HIn. 
+      destruct HIn as [HIns1 | [ HIns2 | contra]].
+      (* prove [s1 =~ re] *)
       - rewrite <- HIns1. injection Estar. 
         intros Hre. rewrite <- Hre. apply Hmatch1.
+      (* prove [s2 =~ re] given [s2 =~ Star re]
+        and [IH2] *)
       - rewrite <- HIns2.
-        inversion Hmatch2.
-        apply IH2 in Estar. destruct Estar as [ss [Hfold Hall]] eqn:E.
-        destruct ss as [| x ss'].
-        {
-          apply (Hall []). simpl.
-          simpl in Hfold. rewrite Hfold. apply MStar0.
-        }
+        rewrite Estar in Hmatch2.
+        apply IH2 in Estar.
+        destruct Estar as [ss [Hfold Hall]].
+        (* stuck *)
+        Abort.
 (** [] *)
+
+Compute fold app [] [].
+Compute fold app [[]] [].
+Compute fold app [[];[]] [].
+Compute fold app [[1];[]] [].
 
 (** **** Exercise: 5 stars, advanced (weak_pumping)
 
@@ -2113,8 +2122,13 @@ Proof.
   intros T n m l.
   induction n as [|n IHn].
   - reflexivity.
-  - simpl. rewrite IHn, app_assoc. reflexivity.
+  - simpl. rewrite IHn, app_assoc. reflexivity. (* notice comma notation in [rewrite] *)
 Qed.
+
+Compute napp 0 [2].
+Compute napp 2 [2].
+Compute napp 30 [].
+Compute napp 5 [[2;3]].
 
 Lemma napp_star :
   forall T m s1 s2 (re : reg_exp T),
@@ -2124,7 +2138,7 @@ Proof.
   intros T m s1 s2 re Hs1 Hs2.
   induction m.
   - simpl. apply Hs2.
-  - simpl. rewrite <- app_assoc.
+  - simpl. rewrite <- app_assoc. (* remember: [++] is right associative *)
     apply MStarApp.
     + apply Hs1.
     + apply IHm.
@@ -2147,6 +2161,28 @@ Lemma weak_pumping : forall T (re : reg_exp T) s,
     s2 <> [] /\
     forall m, s1 ++ napp m s2 ++ s3 =~ re.
 
+Definition re1 := App (Char 0) (Char 1).
+Compute pumping_constant re1.
+
+(* The pumping constant of any regexp built by recursively applying [App] to [Char _] is always greater than the length of the one possible string that matches it. The pumping lemma doesn't apply here. *)
+
+Example match_re1 : [0;1] =~ re1. (* no other strings match [re1] *)
+Proof. apply (MApp [0]). apply MChar. apply MChar.  Qed.
+
+Definition re1' := Star re1. (* This kind of regexp is relevant to the pumping lemma, because it is matched by strings whose length is greater than its pumping constant. *)
+Compute pumping_constant re1.
+
+Example match_re1' : [0;1;0;1;0;1] =~ re1'.
+Proof.
+  apply (MStarApp [0;1]). apply match_re1.
+  apply (MStarApp [0;1]). apply match_re1.
+  apply (MStarApp [0;1]). apply match_re1.
+  apply MStar0.  Qed.
+
+Lemma le_add_cases : forall n p q, n <= p + q ->
+  (n <= p \/ n <= q) \/ (n > p /\ n > q).
+Proof. Admitted.
+
 (** Complete the proof below. Several of the lemmas about [le] that
     were in an optional exercise earlier in this chapter may also be
     useful. *)
@@ -2158,7 +2194,87 @@ Proof.
        | re | s1 s2 re Hmatch1 IH1 Hmatch2 IH2 ].
   - (* MEmpty *)
     simpl. intros contra. inversion contra.
-  (* FILL IN HERE *) Admitted.
+  - (* MChar *)
+    simpl. intros contra. inversion contra. inversion H0.
+  - (* MApp - 42 min + 15 min *)
+    simpl. intros H. rewrite app_length in H. apply add_le_cases in H.
+    (* extract witnesses from induction hypotheses...? yessir *)
+    destruct H as [Hs1 | Hs2].
+    * (* PM holds of [s1] *)
+      apply IH1 in Hs1.
+      destruct Hs1 as [s1' [p1 [s1'' [Hs1' [Hnil Hpump]]]]].
+      exists s1', p1, (s1'' ++ s2).
+      rewrite Hs1'. split.
+      + rewrite <- (app_assoc T s1' (p1 ++ s1'') s2).
+        rewrite <- (app_assoc T p1 s1'' s2).
+        reflexivity.
+      + split.
+        { apply Hnil. }
+        { intros m. rewrite app_assoc, app_assoc.
+          rewrite <- app_assoc with (n:=s1''). apply MApp.
+          apply Hpump. apply Hmatch2. }
+    * (* PM holds of [s2] *)
+      apply IH2 in Hs2.
+      destruct Hs2 as [s2' [p2 [s2'' [Hs2' [Hnil Hpump]]]]].
+      exists (s1 ++ s2'), p2, s2''.
+      rewrite Hs2'. split.
+      + rewrite <- (app_assoc T s1 s2' (p2 ++ s2'')). reflexivity.
+      + split.
+        { apply Hnil. }
+        { intros m. rewrite <- app_assoc with (l:=s1). apply MApp.
+          apply Hmatch1. apply Hpump. }
+  - (* MUnionL - 10 min *)
+    simpl. intros H. apply plus_le in H. destruct H as [H1 _].
+    apply IH in H1.
+    destruct H1 as [s1' [p [s1'' [H1' [Hnil Hpump]]]]].
+    exists s1', p, s1''. split.
+      apply H1'. 
+      split. 
+        apply Hnil.
+        intros m. apply MUnionL. apply Hpump.
+  - (* MUnionR - immediate *)
+    simpl. intros H. apply plus_le in H. destruct H as [_ H2].
+    apply IH in H2.
+    destruct H2 as [s2' [p [s2'' [H2' [Hnil Hpump]]]]].
+    exists s2', p, s2''. split.
+      apply H2'. 
+      split. 
+        apply Hnil.
+        intros m. apply MUnionR. apply Hpump.
+  - (* MStar0 - 10 min *)
+    simpl. intros contra.
+    assert (Hp1 : pumping_constant re >= 1).
+    { apply pumping_constant_ge_1. }
+    apply (le_trans 1 (pumping_constant re) 0) in Hp1.
+    inversion Hp1. apply contra.
+  - (* MStarApp *)
+    intros H. rewrite app_length in H.
+    simpl in IH2.
+    (* break down H into 4 cases? *)
+    apply le_add_cases in H. destruct H as [[H1 | H2] | [H1 H2]].
+    + apply IH1 in H1. 
+      destruct H1 as [s1' [p [s1'' [H1' [Hnil Hpump]]]]].
+      exists s1', p, (s1'' ++ s2). split.
+        rewrite H1'. rewrite <- (app_assoc T s1' (p ++ s1'') s2).
+        rewrite <- app_assoc. reflexivity. split.
+          apply Hnil.
+          intros m. rewrite app_assoc with (l:=s1').
+          rewrite app_assoc. rewrite <- app_assoc with (n:=s1'').
+          apply MStarApp. apply Hpump. apply Hmatch2.
+    + apply IH2 in H2.
+      destruct H2 as [s2' [p [s2'' [H2' [Hnil Hpump]]]]].
+      exists (s1 ++ s2'), p, s2''. split.
+        rewrite H2'. rewrite <- app_assoc with (l:=s1). reflexivity.
+        split.
+          apply Hnil.
+          intros m.
+          rewrite <- app_assoc with (l:=s1).
+          apply MStarApp. apply Hmatch1. apply Hpump.
+    + simpl in H1, H2.
+      exists [], s1, s2.
+      (* 1h43min for nothing... should've followed earlier advice *)
+
+
 (** [] *)
 
 (** **** Exercise: 5 stars, advanced, optional (pumping)

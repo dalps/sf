@@ -1985,13 +1985,47 @@ Qed.
     [MStar'] exercise above), shows that our definition of [exp_match]
     for [Star] is equivalent to the informal one given previously. *)
 
+(* 1h16min + *)
+
 Lemma MStar'' : forall T (s : list T) (re : reg_exp T),
   s =~ Star re ->
   exists ss : list (list T),
     s = fold app ss []
     /\ forall s', In s' ss -> s' =~ re.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros T s re H.
+  remember (Star re) as re' eqn:Estar.
+  induction H as [
+    | | | | | re'' | s1 s2 re'' Hmatch1 IH1 Hmatch2 IH2 
+  ].
+  * discriminate Estar.
+  * discriminate Estar.
+  * discriminate Estar.
+  * discriminate Estar.
+  * discriminate Estar.
+  * exists []. split.
+    + reflexivity.
+    + simpl. intros s' [].
+  * (* any list [s1;s2] is a subsequence of will do *)
+    exists [s1;s2].
+
+    simpl.
+    split.
+    + simpl. rewrite app_assoc. rewrite app_nil_r. reflexivity.
+    (* gets stuck because I'm applyling [IH2] forward...
+        but how can I apply it backward? Is it possible to reshape the goal to move [s1] outside the exists, for it must match [IH2]'s conclusion.
+        Is the inductive hypothesis not sufficienlty general? I have no control over it, besides naming variables! *)
+    + simpl. intros s' HIn. destruct HIn as [HIns1 | [ HIns2 | contra]].
+      - rewrite <- HIns1. injection Estar. 
+        intros Hre. rewrite <- Hre. apply Hmatch1.
+      - rewrite <- HIns2.
+        inversion Hmatch2.
+        apply IH2 in Estar. destruct Estar as [ss [Hfold Hall]] eqn:E.
+        destruct ss as [| x ss'].
+        {
+          apply (Hall []). simpl.
+          simpl in Hfold. rewrite Hfold. apply MStar0.
+        }
 (** [] *)
 
 (** **** Exercise: 5 stars, advanced (weak_pumping)

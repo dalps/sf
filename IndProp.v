@@ -2144,6 +2144,21 @@ Proof.
     + apply IHm.
 Qed.
 
+(* silly *)
+Lemma napp_dist :
+  forall T m s1 s2 (re : reg_exp T),
+    s1 =~ re -> s2 =~ Star re ->
+    napp m (s1 ++ s2) =~ Star re.
+Proof.
+  intros T m s1 s2 re Hs1 Hs2.
+  generalize dependent s2.
+  induction m.
+  - intros s2 Hs2. simpl. apply MStar0.
+  - intros s2 Hs2. simpl. apply MStarApp.
+    + inversion Hs2.
+      rewrite app_nil_r. apply Hs1.
+Abort.
+
 (** The (weak) pumping lemma itself says that, if [s =~ re] and if the
     length of [s] is at least the pumping constant of [re], then [s]
     can be split into three substrings [s1 ++ s2 ++ s3] in such a way
@@ -2248,32 +2263,29 @@ Proof.
     apply (le_trans 1 (pumping_constant re) 0) in Hp1.
     inversion Hp1. apply contra.
   - (* MStarApp *)
-    intros H. rewrite app_length in H.
-    simpl in IH2.
-    (* break down H into 4 cases? *)
-    apply le_add_cases in H. destruct H as [[H1 | H2] | [H1 H2]].
-    + apply IH1 in H1. 
-      destruct H1 as [s1' [p [s1'' [H1' [Hnil Hpump]]]]].
-      exists s1', p, (s1'' ++ s2). split.
-        rewrite H1'. rewrite <- (app_assoc T s1' (p ++ s1'') s2).
-        rewrite <- app_assoc. reflexivity. split.
-          apply Hnil.
-          intros m. rewrite app_assoc with (l:=s1').
-          rewrite app_assoc. rewrite <- app_assoc with (n:=s1'').
-          apply MStarApp. apply Hpump. apply Hmatch2.
-    + apply IH2 in H2.
-      destruct H2 as [s2' [p [s2'' [H2' [Hnil Hpump]]]]].
-      exists (s1 ++ s2'), p, s2''. split.
-        rewrite H2'. rewrite <- app_assoc with (l:=s1). reflexivity.
-        split.
-          apply Hnil.
-          intros m.
-          rewrite <- app_assoc with (l:=s1).
-          apply MStarApp. apply Hmatch1. apply Hpump.
-    + simpl in H1, H2.
-      exists [], s1, s2.
-      (* 1h43min for nothing... should've followed earlier advice *)
-
+    intros H.
+    (* break down H into 4 cases? nope! *)
+    exists [], (s1 ++ s2), []. simpl. split.
+      rewrite app_nil_r. reflexivity.
+      split.
+        assert (Hp1 : pumping_constant re >= 1).
+        { apply pumping_constant_ge_1. }
+        unfold ge in Hp1. simpl in H.
+        apply (le_trans 1 (pumping_constant re)) in H.
+        assert (len_not_nil : forall X (l : list X), 1 <= length l -> l <> [ ]).
+        { intros X [| x l'].
+          simpl. intros F. inversion F.
+          intros _ F. inversion F. }
+        apply len_not_nil in H. apply H. apply Hp1.
+        intros m. rewrite app_nil_r.
+        assert (napp_dist_app : )
+        
+        induction m as [| m' IH].
+          simpl. apply MStar0.
+          rewrite (napp_plus T 1 m'). simpl.
+          rewrite app_nil_r. rewrite <- app_assoc. apply MStarApp.
+          apply Hmatch1. apply MStarApp.
+          apply (napp_star T 1 s1 s2) in Hmatch1. apply Hmatch1.
 
 (** [] *)
 

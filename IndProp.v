@@ -2144,21 +2144,6 @@ Proof.
     + apply IHm.
 Qed.
 
-(* silly *)
-Lemma napp_dist :
-  forall T m s1 s2 (re : reg_exp T),
-    s1 =~ re -> s2 =~ Star re ->
-    napp m (s1 ++ s2) =~ Star re.
-Proof.
-  intros T m s1 s2 re Hs1 Hs2.
-  generalize dependent s2.
-  induction m.
-  - intros s2 Hs2. simpl. apply MStar0.
-  - intros s2 Hs2. simpl. apply MStarApp.
-    + inversion Hs2.
-      rewrite app_nil_r. apply Hs1.
-Abort.
-
 (** The (weak) pumping lemma itself says that, if [s =~ re] and if the
     length of [s] is at least the pumping constant of [re], then [s]
     can be split into three substrings [s1 ++ s2 ++ s3] in such a way
@@ -2197,6 +2182,51 @@ Proof.
 Lemma le_add_cases : forall n p q, n <= p + q ->
   (n <= p \/ n <= q) \/ (n > p /\ n > q).
 Proof. Admitted.
+
+Lemma star_empty : forall T s,
+  s =~ @Star T EmptyStr -> s = nil.
+Proof.
+  intros T s H. remember (Star EmptyStr) as re eqn:E.
+  induction H
+    as [ | x | s1 re1 s2 re2 Hmatch1 IH1 Hmatch2 IH2
+       | s1 re1 re2 Hmatch IH | re1 s2 re2 Hmatch IH
+       | re | s1 s2 re Hmatch1 IH1 Hmatch2 IH2 ].
+  * reflexivity.
+  * inversion E.
+  * inversion E.
+  * inversion E.
+  * inversion E.
+  * reflexivity.
+  * injection E. intros H. rewrite H in *.
+    inversion Hmatch1.
+    rewrite IH2. reflexivity. apply E.  Qed.
+
+Lemma s_not_nil : forall T s (re : reg_exp T),
+    s =~ re -> pumping_constant re <= length s ->
+    1 <= length s.
+Proof.
+  intros T s re Hmatch Hpc.
+  apply le_trans with (pumping_constant re).
+  apply pumping_constant_ge_1.
+  apply Hpc.  Qed.
+
+Lemma star_not_nil : forall T s ss (re : reg_exp T),
+    s =~ re -> ss =~ Star re ->
+    pumping_constant re <= length (s ++ ss) ->
+    s <> nil.
+Proof.
+  intros T s ss re Hmatch1 Hmatch2.
+  apply s_not_nil in Hmatch2.
+  induction Hmatch1
+    as [ | x | s1 re1 s2 re2 Hmatch1 IH1 Hmatch2 IH2
+       | s1 re1 re2 Hmatch IH | re1 s2 re2 Hmatch IH
+       | re | s1 s2 re Hmatch1 IH1 Hmatch2 IH2 ].
+  * intros H. simpl in *. inversion H.
+    intros F. inversion F.
+    inversion H2. apply star_empty in H3. rewrite H3. simpl.
+    intros F. inversion F.
+  * simpl. intros _ _ F. inversion F.
+  * simpl. intros Hm Hp. Abort.
 
 (** Complete the proof below. Several of the lemmas about [le] that
     were in an optional exercise earlier in this chapter may also be
@@ -2264,9 +2294,8 @@ Proof.
     inversion Hp1. apply contra.
   - (* MStarApp *)
     intros H.
-    (* break down H into 4 cases? nope! *)
-    exists [], (s1 ++ s2), []. simpl. split.
-      rewrite app_nil_r. reflexivity.
+    exists [], s1, s2. simpl. split.
+      reflexivity.
       split.
         assert (Hp1 : pumping_constant re >= 1).
         { apply pumping_constant_ge_1. }
@@ -2278,14 +2307,8 @@ Proof.
           intros _ F. inversion F. }
         apply len_not_nil in H. apply H. apply Hp1.
         intros m. rewrite app_nil_r.
-        assert (napp_dist_app : )
-        
-        induction m as [| m' IH].
-          simpl. apply MStar0.
-          rewrite (napp_plus T 1 m'). simpl.
-          rewrite app_nil_r. rewrite <- app_assoc. apply MStarApp.
-          apply Hmatch1. apply MStarApp.
-          apply (napp_star T 1 s1 s2) in Hmatch1. apply Hmatch1.
+        apply (napp_star T m s1 s2) in Hmatch1. simpl in Hmatch1.
+        rewrite app_nil_r in Hmatch1.  
 
 (** [] *)
 

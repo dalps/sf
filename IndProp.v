@@ -2308,7 +2308,8 @@ Proof.
         apply len_not_nil in H. apply H. apply Hp1.
         intros m. rewrite app_nil_r.
         apply (napp_star T m s1 s2) in Hmatch1. simpl in Hmatch1.
-        rewrite app_nil_r in Hmatch1.  
+        rewrite app_nil_r in Hmatch1.
+        Abort.
 
 (** [] *)
 
@@ -2411,14 +2412,26 @@ Proof.
   intros P b H. destruct b eqn:Eb.
   - apply ReflectT. rewrite H. reflexivity.
   - apply ReflectF. rewrite H. intros H'. discriminate.
+  (* also           intro F. rewrite H in F. discriminate F. *)
 Qed.
 
 (** Now you prove the right-to-left implication: *)
 
 (** **** Exercise: 2 stars, standard, especially useful (reflect_iff) *)
+
+(* 8 min *)
 Theorem reflect_iff : forall P b, reflect P b -> (P <-> b = true).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros P b E. inversion E as [Et Eb | Ef Eb].
+    - split.
+      * intros H. reflexivity.
+      * intros _. apply Et.
+    - split.
+      * intros contra. apply Ef in contra. destruct contra.
+      * intros contra. discriminate contra.
+Qed.
+
+
 (** [] *)
 
 (** We can think of [reflect] as a variant of the usual "if and only
@@ -2467,6 +2480,8 @@ Qed.
 
     Use [eqbP] as above to prove the following: *)
 
+(* ~15 min *)
+
 Fixpoint count n l :=
   match l with
   | [] => 0
@@ -2477,7 +2492,19 @@ Theorem eqbP_practice : forall n l,
   count n l = 0 -> ~(In n l).
 Proof.
   intros n l Hcount. induction l as [| m l' IHl'].
-  (* FILL IN HERE *) Admitted.
+  * simpl. intro contra. destruct contra.
+  * simpl. unfold count in Hcount.
+    destruct (eqbP n m) in Hcount.
+    - (* [n = m] *)
+      discriminate Hcount.
+    - (* [n <> m] *)
+      intros [F | F].
+      + destruct H. symmetry. apply F.
+      + apply IHl'.
+        { apply Hcount. }
+        { apply F. }
+Qed.
+
 (** [] *)
 
 (** This small example shows reflection giving us a small gain in
@@ -2509,9 +2536,25 @@ Proof.
     [mylist] does not stutter.  Formulate an inductive definition for
     [nostutter]. *)
 
+(* ~25 min *)
+
 Inductive nostutter {X:Type} : list X -> Prop :=
- (* FILL IN HERE *)
-.
+  | NoStt0 : nostutter []
+  | NoStt1 x : nostutter [x] 
+  | NoSttCons 
+      (x y : X) (l : list X)
+      (H1 : y <> x)
+      (H2 : nostutter (y :: l)) : nostutter (x :: y :: l).
+
+      (* have the inequality evidence first helps streamline the proofs and lets you use the provided proofs. *)
+
+      (* Original (forgot the 1-element evidence, hypotheses unswapped):
+      | NoSttEmpty : nostutter []
+      | NoSttCons 
+        (x y : X) (l : list X)
+        (H1 : nostutter (y :: l)) 
+        (H2 : y <> x) : nostutter (x :: y :: l). *)
+
 (** Make sure each of these tests succeeds, but feel free to change
     the suggested proof (in comments) if the given one doesn't work
     for you.  Your definition might be different from ours and still
@@ -2523,27 +2566,32 @@ Inductive nostutter {X:Type} : list X -> Prop :=
     example with more basic tactics.)  *)
 
 Example test_nostutter_1: nostutter [3;1;4;1;5;6].
-(* FILL IN HERE *) Admitted.
+Proof. repeat constructor; apply eqb_neq; auto.
+Qed.
 (* 
   Proof. repeat constructor; apply eqb_neq; auto.
   Qed.
 *)
 
-Example test_nostutter_2:  nostutter (@nil nat).
-(* FILL IN HERE *) Admitted.
+Example test_nostutter_2:  nostutter (@nil nat). (* notice they're generalizing [nil] instead of [nostutter] *)
+Proof. repeat constructor; apply eqb_neq; auto.  Qed.
 (* 
   Proof. repeat constructor; apply eqb_neq; auto.
   Qed.
 *)
 
 Example test_nostutter_3:  nostutter [5].
-(* FILL IN HERE *) Admitted.
+Proof. repeat constructor; apply eqb_neq; auto.  Qed.
 (* 
   Proof. repeat constructor; auto. Qed.
 *)
 
 Example test_nostutter_4:      not (nostutter [3;1;1;4]).
-(* FILL IN HERE *) Admitted.
+Proof. intro.
+  repeat match goal with
+    h: nostutter _ |- _ => inversion h; clear h; subst
+  end.
+  contradiction; auto. Qed.
 (* 
   Proof. intro.
   repeat match goal with
@@ -2585,9 +2633,32 @@ Definition manual_grade_for_nostutter : option (nat*string) := None.
     First define what it means for one list to be a merge of two
     others.  Do this with an inductive relation, not a [Fixpoint].  *)
 
+(* 20 min + ~30 min *)
+
 Inductive merge {X:Type} : list X -> list X -> list X -> Prop :=
-(* FILL IN HERE *)
+  | Merge0L l : merge [] l l
+  | Merge0R l : merge l [] l
+  | MergeConsL x l1 l2 m
+    (Hm : merge l1 l2 m) : merge (x :: l1) l2 (x :: m)
+  | MergeConsR l1 y l2 m
+    (Hm : merge l1 l2 m) : merge l1 (y :: l2) (y :: m)
 .
+
+Example merge_test1 : merge [1;6;2] [4;3] [1;4;6;2;3].
+Proof. apply MergeConsL. apply MergeConsR. apply MergeConsL.
+  apply MergeConsL. apply Merge0L.  Qed.
+
+Example merge_test2 : merge [1;6;2] [4;3] [1;6;2;4;3].
+Proof. repeat apply MergeConsL; auto. repeat apply MergeConsR; auto.
+  apply Merge0L.  Qed.
+
+Example merge_test3 : ~ merge [1;6;2] [4;3] [1;3;2;6;4].
+Proof. intros H. inversion H. inversion Hm.  Qed.
+
+(* unnecessary *)
+Lemma forallb_filter_true : forall (X : Set) (test: X->bool) (l : list X),
+  forallb test l = true <-> filter test l = l.
+Proof. Admitted.
 
 Theorem merge_filter : forall (X : Set) (test: X->bool) (l l1 l2 : list X),
   merge l1 l2 l ->
@@ -2595,11 +2666,24 @@ Theorem merge_filter : forall (X : Set) (test: X->bool) (l l1 l2 : list X),
   All (fun n => test n = false) l2 ->
   filter test l = l1.
 Proof.
-  (* FILL IN HERE *) Admitted.
-
-(* FILL IN HERE *)
-
-(** [] *)
+  intros X test l l1 l2 Emerge HAll1 HAll2.
+  induction Emerge
+    as [ l2 | l1 | | ].
+  * induction l2 as [| h l2' IH].
+    - reflexivity.
+    - destruct HAll2 as [Hh HAll2].
+      unfold filter. rewrite Hh. apply IH. apply HAll2.
+  * apply forallb_true_iff in HAll1.
+    induction l1 as [| h l1' IH].
+    - reflexivity.
+    - simpl in *. 
+      apply andb_true_iff in HAll1. destruct HAll1 as [Hh HAll1].
+      rewrite Hh. f_equal. apply IH. apply HAll1.
+  * simpl in *. destruct HAll1 as [Hh HAll1].
+    rewrite Hh. f_equal. apply IHEmerge. apply HAll1. apply HAll2.
+  * simpl in *. destruct HAll2 as [Hh HAll2].
+    rewrite Hh. f_equal. apply IHEmerge. apply HAll1. apply HAll2.
+Qed.
 
 (** **** Exercise: 5 stars, advanced, optional (filter_challenge_2)
 

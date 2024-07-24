@@ -2719,18 +2719,34 @@ Qed.
        forall l, pal l -> l = rev l.
 *)
 
+(* ~15 min *)
+
 Inductive pal {X:Type} : list X -> Prop :=
-(* FILL IN HERE *)
+  | Pal0 : pal []
+  | Pal1 x : pal [x]
+  | PalApp x l (H : pal l) : pal (x :: l ++ [x])
 .
 
 Theorem pal_app_rev : forall (X:Type) (l : list X),
   pal (l ++ (rev l)).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros X l. induction l as [| h l' IH].
+  * apply Pal0.
+  * simpl.
+    assert (cons_app : 
+      forall A a (w1 w2: list A), (a :: w1) ++ w2 = a :: w1 ++ w2).
+    { intros. reflexivity. } (* unnecessary *)
+    rewrite app_assoc. apply PalApp. apply IH.
+Qed.
 
 Theorem pal_rev : forall (X:Type) (l: list X) , pal l -> l = rev l.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros X l Epal. induction Epal as [ | | x l' El' IH].
+  * reflexivity.
+  * reflexivity.
+  * simpl. rewrite rev_app_distr. simpl. f_equal. f_equal. apply IH.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 5 stars, standard, optional (palindrome_converse)
@@ -2742,10 +2758,22 @@ Proof.
      forall l, l = rev l -> pal l.
 *)
 
+(* 1h20min + *)
 Theorem palindrome_converse: forall {X: Type} (l: list X),
     l = rev l -> pal l.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  Search rev.
+  intros X l. generalize dependent l. induction l as [| x l'].
+  * intros H. apply Pal0.
+  * intros H. simpl in H.
+    rewrite <- (rev_involutive X l') in H.
+    rewrite <- (rev_involutive X l').
+    destruct (rev l') as [| y l''] eqn:Erev.
+    + apply Pal1.
+    + (* prove [x = y] *)
+      simpl. rewrite (rev_involutive) in H. simpl in H.
+      injection H. intros H' Hx. rewrite <- Hx in *.
+      rewrite H'. apply PalApp. (* stuck *)
 (** [] *)
 
 (** **** Exercise: 4 stars, advanced, optional (NoDup)

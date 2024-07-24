@@ -1373,28 +1373,66 @@ End R.
       transitive -- that is, if [l1] is a subsequence of [l2] and [l2]
       is a subsequence of [l3], then [l1] is a subsequence of [l3]. *)
 
+(* 10 min + 7 min on examples *)
 Inductive subseq : list nat -> list nat -> Prop :=
-(* FILL IN HERE *)
+  | Sub0 l : subseq [] l
+  | SubSkip y l1 l2
+    (H2 : subseq l1 l2) : subseq l1 (y :: l2)
+  | SubCons x y l1 l2
+    (H2 : x = y) (H2 : subseq l1 l2) : subseq (x :: l1) (y :: l2)
 .
 
+Example subseq_test1 : subseq [1;2;3] [1;2;3].
+Proof.  repeat apply SubCons; auto. apply Sub0.  Qed.
+
+Example subseq_test2 : subseq [1;2;3] [1;1;1;2;2;3].
+Proof. apply SubCons. reflexivity. apply SubSkip. apply SubSkip.
+  apply SubCons. reflexivity. apply SubSkip. apply SubCons. reflexivity.
+  apply Sub0.  Qed.
+
+Example subseq_test3 : ~ subseq [1;2] [2;1].
+Proof. intros F. inversion F.
+  - inversion H0.
+    inversion H5.
+    inversion H8.
+  - inversion H2.  Qed. 
+
+(* 2 min *)
 Theorem subseq_refl : forall (l : list nat), subseq l l.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros l. induction l as [| h l' IH].
+  * apply Sub0.
+  * apply SubCons. { reflexivity. } { apply IH. } Qed.
 
+(* 15 min - wasted time doing induction on l1 *)
 Theorem subseq_app : forall (l1 l2 l3 : list nat),
   subseq l1 l2 ->
   subseq l1 (l2 ++ l3).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros l1 l2 l3 H. induction H as [| y l1 l2' | h1 h2 l1' l2'].
+  * apply Sub0.
+  * simpl. apply SubSkip. apply IHsubseq.
+  * simpl. apply SubCons. apply H2. apply IHsubseq.  Qed.
+  
+  (* nope
+  induction l1 as [| h1 l1' IH].
+  * intros l2 l3 H. apply Sub0.
+  * intros l2 l3 H. inversion H as [| y l1'' l2' | h1' y l1'' l2'].
+    + (* h1 <> y *) 
+      simpl. *)
 
 Theorem subseq_trans : forall (l1 l2 l3 : list nat),
   subseq l1 l2 ->
   subseq l2 l3 ->
   subseq l1 l3.
 Proof.
-  (* Hint: be careful about what you are doing induction on and which
-     other things need to be generalized... *)
-  (* FILL IN HERE *) Admitted.
+  intros l1 l2 l3 H1 H2.
+  
+  
+  
+  induction H12 as [| y l1 l2' | h1 h2 l1' l2'].
+  * intros l3 _. apply Sub0.
+  * intros l3 H2'3. inversion H2'3. apply IHsubseq. apply SubSkip.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (R_provability2)

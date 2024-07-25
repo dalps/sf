@@ -617,7 +617,7 @@ Abort.
       - [R] = "if [double (S n) = 10] then [S n = 5]".
 
     But knowing [Q] doesn't give us any help at all with proving [R]!
-    If we tried to prove [R] from [Q], we would start with something
+    If we tried to prove [R] from [Q] (* i.e. reasoning forward *), we would start with something
     like "Suppose [double (S n) = 10]..." but then we'd be stuck:
     knowing that [double (S n)] is [10] tells us nothing helpful about
     whether [double n] is [10] (indeed, it strongly suggests that

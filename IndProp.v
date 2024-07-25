@@ -1421,18 +1421,44 @@ Proof.
     + (* h1 <> y *) 
       simpl. *)
 
+(* 30+ min first attempt + 45 min solution (after revising "Varying the Induction Hypothesis" and the proof of [le_trans])*)
 Theorem subseq_trans : forall (l1 l2 l3 : list nat),
   subseq l1 l2 ->
   subseq l2 l3 ->
   subseq l1 l3.
 Proof.
-  intros l1 l2 l3 H1 H2.
-  
-  
-  
-  induction H12 as [| y l1 l2' | h1 h2 l1' l2'].
-  * intros l3 _. apply Sub0.
-  * intros l3 H2'3. inversion H2'3. apply IHsubseq. apply SubSkip.
+  intros l1 l2 l3 Sub12 Sub23.
+  generalize dependent l1.
+  induction Sub23 as [| h3 l2 l3' eq IH | h2 h3 l2' l3' eq Sub2'3' IH ].
+  * intros l1 E. destruct l1.
+    - apply Sub0.
+    - inversion E.
+  * destruct l1 as [| h1 l1'].
+    - intros E. apply Sub0.
+    - intros E. apply SubSkip. apply IH. apply E.
+  * intros l1 E. inversion E
+    (* as [| h2' l1E l2'E eqE H | h1 h2E l1' l2'E eqE H]. *).
+    - (* [l1] is the empty list *)
+      apply Sub0.
+    - (* [subseq l1 l2] was proved one element sooner than [subseq l2 l3] *)
+      apply SubSkip. apply IH. apply H0.
+    - (* evidences are synchronized: all heads are the same *)
+      apply SubCons. 
+      + rewrite H1. apply eq.
+      + apply IH. apply H3.
+Qed.
+
+(* 
+    h    l'
+l1  1 :: [2]
+l2  4 :: [1;2;3]
+l3  1 :: [4;4;2;3]
+
+l1  1 :: [2]
+l2  4 :: [1;4;2]
+l3  4 :: [5;1;4;2]
+*)
+
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (R_provability2)

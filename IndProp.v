@@ -1476,10 +1476,25 @@ l3  4 :: [5;1;4;2]
     - [R 1 [1;2;1;0]]
     - [R 6 [3;2;1;0]]  *)
 
+(* 21 min *)
 (* FILL IN HERE
 
-    [] *)
+      R 2 [1;0]
+c2 -> R 1 [0]
+c2 -> R 0 []
+c1.
 
+      R 1 [1;2;1;0] 
+c3 -> R 2 [1;2;1;0]
+c2 -> R 1 [2;1;0]
+c3 -> R 2 [2;1;0]
+c3 -> R 3 [2;1;0]
+c2 -> R 2 [1;0]
+(proved).
+
+      R 6 [3;2;1;0]
+      I can only increment 6 using [c3], which leaves the list untouched, thus leading the goal astray from the successor of 3. Unprovable.
+    [] *)
 (* ################################################################# *)
 (** * A Digression on Notation *)
 
@@ -2759,6 +2774,73 @@ Qed.
 (* FILL IN HERE
 
     [] *)
+
+(* some lemmas I did for fun, besides that they serve no purpose in the solution of the exercise *)
+
+(* 12 min*)
+Lemma subseq_len : forall (l1 l2 : list nat),
+  subseq l1 l2 -> length l1 <= length l2.
+Proof.
+  intros l1 l2 E. induction E
+    as [l1 | h2 l1 l2 | h1 h2 l1' l2' Heq H IH ].
+  * apply O_le_n.
+  * simpl. apply le_S. apply IHE.
+  * simpl. apply n_le_m__Sn_le_Sm. apply IH.
+Qed.
+
+(* 5 min *)
+Lemma filter_is_subseq : forall (test : nat -> bool) (l : list nat),
+  subseq (filter test l) l.
+Proof.
+  intros test l. induction l as [| x l' IH].
+  * apply Sub0.
+  * simpl. destruct (test x).
+    - apply SubCons. { reflexivity. } { apply IH. }
+    - apply SubSkip. apply IH.
+Qed.
+
+Lemma subseq_filter_all : forall (test : nat -> bool) (s l : list nat),
+  subseq s (filter test l) -> All (fun x => test x = true) s.
+Proof.
+  intros test s l E.
+  (* remember (filter test l) as f.
+  generalize dependent l. *)
+  induction E
+    as [f | y s f' H IH | x y s' f' Heq H IH ].
+  * simpl. apply I.
+  * apply IH. (* [remember] complicates things ugh!!! *)
+  * simpl. split.
+    - (* stuck... I lost the information about filter *)
+Abort.
+
+(* 20 min in one go *)
+Theorem filter_longest_subseq : forall (test : nat -> bool) (s l : list nat),
+  subseq s l ->
+  All (fun x => test x = true) s ->
+  length s <= length (filter test l). 
+Proof.
+  intros test s l Hsub HAll.
+  induction Hsub as [ l | y s l' Hsub IH | x y s' l' Heq Hsub IH ].
+  * apply O_le_n.
+  * apply IH in HAll. simpl.
+    destruct (test y).
+    + simpl. apply le_S. apply HAll.
+    + apply HAll.
+  * simpl in HAll. destruct HAll as [Hx HAll'].
+    apply IH in HAll'.
+    simpl. destruct (test y) eqn:Hy.
+    + simpl. apply n_le_m__Sn_le_Sm. apply HAll'.
+    + (* spiky: [test] cannot be [false] on the head [x] of [s]! *)
+      rewrite Heq in *. rewrite Hy in Hx. discriminate Hx.
+Qed.
+
+(*
+[1;2;2]
+[1;2]
+
+[1;2]
+[3;1;2]
+*)
 
 (** **** Exercise: 4 stars, standard, optional (palindromes)
 

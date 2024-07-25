@@ -2771,11 +2771,7 @@ Qed.
     evaluates to [true] on all their members, [filter test l] is the
     longest.  Formalize this claim and prove it. *)
 
-(* FILL IN HERE
-
-    [] *)
-
-(* some lemmas I did for fun, besides that they serve no purpose in the solution of the exercise *)
+(* some lemmas I did for fun; besides that they serve no purpose in the solution of the exercise *)
 
 (* 12 min*)
 Lemma subseq_len : forall (l1 l2 : list nat),
@@ -2813,7 +2809,7 @@ Proof.
     - (* stuck... I lost the information about filter *)
 Abort.
 
-(* 20 min in one go *)
+(* 17 min in one go *)
 Theorem filter_longest_subseq : forall (test : nat -> bool) (s l : list nat),
   subseq s l ->
   All (fun x => test x = true) s ->
@@ -2904,23 +2900,43 @@ Qed.
      forall l, l = rev l -> pal l.
 *)
 
-(* 1h20min + *)
+(* 1h20min + 1h *)
 Theorem palindrome_converse: forall {X: Type} (l: list X),
     l = rev l -> pal l.
 Proof.
   Search rev.
-  intros X l. generalize dependent l. induction l as [| x l'].
+  intros X l. induction l as [| x l' IH].
   * intros H. apply Pal0.
-  * intros H. simpl in H.
+  * (*
+    - separate the last element [y] from [l'] to have the goal
+      [pal (x :: l'' ++ [y])]
+    - prove that [x] and [y] are equal
+    *)
+    intros H. simpl in H.
     rewrite <- (rev_involutive X l') in H.
     rewrite <- (rev_involutive X l').
+    (* I want to do induction on (rev l'), but it adds an hypothesis that are impossible to satisfy (i.e. [rev l' = l'']) *)
     destruct (rev l') as [| y l''] eqn:Erev.
     + apply Pal1.
-    + (* prove [x = y] *)
-      simpl. rewrite (rev_involutive) in H. simpl in H.
+    + simpl. rewrite (rev_involutive) in H. simpl in H.
       injection H. intros H' Hx. rewrite <- Hx in *.
       rewrite H'. apply PalApp. (* stuck *)
+Abort.
 (** [] *)
+
+(* 
+      x    l'
+      1 :: [2;3;3;2;1]
+rev ( 1 :: [2;3;3;2;1] )
+
+                l'                x
+rev             [2;3;3;2;1]   ++ [1]
+rev ( rev ( rev [2;3;3;2;1])) ++ [1]
+
+            y    l''              x
+rev ( rev ( 1 :: [2;3;3;2] )) ++ [1]
+            1 :: [2;3;3;2]    ++ [1]
+*)
 
 (** **** Exercise: 4 stars, advanced, optional (NoDup)
 
@@ -2941,6 +2957,26 @@ Proof.
 
 (* FILL IN HERE *)
 
+(* ~20 min *)
+Inductive disjoint {X : Type} : list X -> list X -> Prop :=
+  | Dis0L l : disjoint [] l
+  | Dis0R l : disjoint l []
+  | DisConsL x l1 l2
+    (HIn : ~ In x l1 /\ ~ In x l2)
+    (H : disjoint l1 l2) : disjoint (x :: l1) l2
+  | DisConsR x l1 l2
+    (HIn : ~ In x l1 /\ ~ In x l2)
+    (H : disjoint l1 l2) : disjoint l1 (x :: l2).
+
+Example disjoin_test1 : disjoint [3] [1;2].
+Proof. apply DisConsL. unfold not. simpl.
+  - split.
+    * intros [].
+    * intros [ | []].
+      discriminate H. discriminate H. destruct H.
+  - apply Dis0L.
+Qed.
+
 (** Next, use [In] to define an inductive proposition [NoDup X
     l], which should be provable exactly when [l] is a list (with
     elements of type [X]) where every member is different from every
@@ -2950,10 +2986,115 @@ Proof.
 
 (* FILL IN HERE *)
 
+(* 2 min + 8 min example *)
+Inductive NoDup {X : Type} : list X -> Prop :=
+  | NoDup0 : NoDup []
+  | NoDup1 x : NoDup [x]
+  | NoDupCons x l (HIn : ~ In x l) (H : NoDup l) : NoDup (x :: l).
+
+Example nodup_test1 : NoDup [1;2;3;4].
+Proof. apply NoDupCons.
+  * intros [|[|[|[]]]].
+    discriminate H. discriminate H. discriminate H.
+  * apply NoDupCons.
+    + intros [|[|[]]].
+      discriminate H. discriminate H.
+    + apply NoDupCons.
+      - intros [|[]]. discriminate.
+      - apply NoDup1.
+Qed.
+
 (** Finally, state and prove one or more interesting theorems relating
     [disjoint], [NoDup] and [++] (list append).  *)
 
 (* FILL IN HERE *)
+
+Lemma nil_app :
+  forall X (s1 s2 : list X), [] = s1 ++ s2 -> [] = s1 /\ [] = s2.
+Proof.
+  intros Y s1 s2 G. destruct s1.
+  split. reflexivity. simpl in G. apply G.
+  simpl in G. discriminate G.
+Qed.
+
+Lemma app_nodup : forall X (l1 l2 : list X),
+  NoDup (l1 ++ l2) -> NoDup l2 /\ NoDup l1.
+Proof.
+  intros X l1 l2 Eapp.
+  induction l1 as [| x l1' IH].
+  * simpl in Eapp. split. apply Eapp. apply NoDup0.
+  * simpl in Eapp. inversion Eapp.
+    - apply nil_app in H1. destruct H1 as [Hnil1 Hnil2].
+      split.
+        rewrite <- Hnil2. apply NoDup0.
+        rewrite <- Hnil1. apply NoDup1.
+    - destruct IH as [IHl2 IHl1'].
+      + apply H0.
+      + split.
+          apply IHl2.
+          apply NoDupCons.
+            intros F. apply HIn. apply In_app_iff. left. apply F.
+            apply IHl1'.
+Qed.
+
+Lemma nodup_rev : forall X x (l : list X),
+  NoDup (x :: l) -> NoDup (l ++ [x]).
+Proof.
+  intros X x l E.
+  remember (x :: l) as s.
+  induction E as [ | | x' s' Heq Hdup IH].
+  * discriminate Heqs.
+  * injection Heqs. intros Hnil Hx.
+    rewrite <- Hnil. apply NoDup1.
+  * (* [remember] ruins everything, as always *)
+  
+  (* induction l as [| x l' IH].
+  * apply NoDup0.
+  * simpl in E. apply app_nodup in E. destruct E as [HIn E].
+      apply IH in E. inversion E.
+      - intros [].
+      - *)
+Abort.
+(* 1h+ - blocked *)
+Lemma nodup_comm : forall X (l1 l2 : list X),
+  NoDup (l1 ++ l2) -> NoDup (l2 ++ l1).
+Proof.
+  induction l1 as [| x l1' IH].
+  * simpl. intros l2 E. rewrite app_nil_r. apply E.
+  * intros l2 E. inversion E.
+    + apply nil_app in H1. destruct H1 as [Hl1' Hl2].
+      rewrite <- Hl1'. rewrite <- Hl2. apply NoDup1.
+    + replace (x :: l1') with ([x] ++ l1').
+      rewrite app_assoc. apply IH.
+      rewrite app_assoc. apply IH. 
+
+(* 48 min + time to prove nodup_comm *)
+Theorem nodup_app : forall X (l1 l2 : list X),
+  NoDup l1 /\ NoDup l2 ->
+  disjoint l1 l2 -> NoDup (l1 ++ l2).
+Proof.
+  intros X l1 l2 [Edup1 Edup2] Edisj.
+  induction Edisj
+    as [ l2 | l1 | x l1' l2 [HIn1 HIn2] E IH | x l1 l2' [HIn1 HIn2] E IH].
+  * apply Edup2.
+  * rewrite app_nil_r. apply Edup1.
+  * simpl. apply NoDupCons.
+    - intros F. apply In_app_iff in F. destruct F as [F | F].
+      + apply HIn1 in F. destruct F.
+      + apply HIn2 in F. destruct F.
+    - apply IH.
+      + inversion Edup1. { apply NoDup0. } { apply H0. }
+      + apply Edup2.
+  * apply nodup_comm. apply nodup_comm in IH.
+    - simpl. apply NoDupCons.
+        intros F. apply In_app_iff in F. destruct F as [F | F].
+          apply HIn2 in F. destruct F.
+          apply HIn1 in F. destruct F.
+        apply IH.
+    - apply Edup1.
+    - inversion Edup2. { apply NoDup0. } { apply H1. }
+Qed.
+
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_NoDup_disjoint_etc : option (nat*string) := None.

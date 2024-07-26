@@ -3066,7 +3066,8 @@ Proof.
       rewrite <- Hl1'. rewrite <- Hl2. apply NoDup1.
     + replace (x :: l1') with ([x] ++ l1').
       rewrite app_assoc. apply IH.
-      rewrite app_assoc. apply IH. 
+      rewrite app_assoc. apply IH.
+Admitted.
 
 (* 48 min + time to prove nodup_comm *)
 Theorem nodup_app : forall X (l1 l2 : list X),
@@ -3092,9 +3093,8 @@ Proof.
           apply HIn1 in F. destruct F.
         apply IH.
     - apply Edup1.
-    - inversion Edup2. { apply NoDup0. } { apply H1. }
+    - inversion Edup2. { apply NoDup0. } { apply H0. }
 Qed.
-
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_NoDup_disjoint_etc : option (nat*string) := None.
@@ -3110,17 +3110,31 @@ Definition manual_grade_for_NoDup_disjoint_etc : option (nat*string) := None.
 
 (** First prove an easy and useful lemma. *)
 
+(* 8 min *)
 Lemma in_split : forall (X:Type) (x:X) (l:list X),
   In x l ->
   exists l1 l2, l = l1 ++ x :: l2.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros X x l HIn. induction l as [| h l' IH].
+  * destruct HIn as [].
+  * destruct HIn as [Hh | HIn].
+    + exists [], l'. simpl. rewrite Hh. reflexivity.
+    + apply IH in HIn. destruct HIn as [l1 [l2 Heq]].
+      exists (h :: l1), l2. rewrite Heq. reflexivity.
+Qed.
 
 (** Now define a property [repeats] such that [repeats X l] asserts
     that [l] contains at least one repeated element (of type [X]).  *)
 
 Inductive repeats {X:Type} : list X -> Prop :=
-  (* FILL IN HERE *)
+  | Rep0 x : repeats [x;x] (* covered by RepCons *)
+  | RepCons x l (HIn : In x l) : repeats (x :: l)
+  | RepSkip x l (H : repeats l) : repeats (x :: l)
+
+  (* | Rep0 x : repeats [x;x]
+  | Rep2 x l1 l2 : repeats (x :: l1 ++ x :: l2)
+  | RepCons x l (H : repeats l) : repeats (x :: l) *)
+  (* YesDup l (H : NoDup l) : repeats l *)
 .
 
 (* Do not modify the following line: *)
@@ -3138,6 +3152,8 @@ Definition manual_grade_for_check_repeats : option (nat*string) := None.
     go through _without_ assuming that [In] is decidable; if you
     manage to do this, you will not need the [excluded_middle]
     hypothesis. *)
+
+(* 1h40min + *)
 Theorem pigeonhole_principle: excluded_middle ->
   forall (X:Type) (l1  l2:list X),
   (forall x, In x l1 -> In x l2) ->
@@ -3145,9 +3161,28 @@ Theorem pigeonhole_principle: excluded_middle ->
   repeats l1.
 Proof.
   intros EM X l1. induction l1 as [|x l1' IHl1'].
-  (* FILL IN HERE *) Admitted.
+  * intros l2 _ Hlen. unfold lt in Hlen. inversion Hlen.
+  * intros l2 HIn Hlen.
+    destruct (EM (In x l1')) as [HxIn | HxOut].
+    + (* [x] is the element that repeats in [l1]. Easy *)
+      apply RepCons. apply HxIn.
+      
+    + (* [x] is _not_ the element that repeats in [l1],
+          but [x] must belong in [l2]! Therefore it splits [l2] in two other lists by [in_split]. The element that repeats must be in one of these two. *)
+      apply RepSkip.
+      apply (in_split X x) in HIn. destruct HIn as [l2a [l2b eq]].
+      apply (IHl1' (l2a ++ l2b)).
+      intros y HInl1'. (* stuck: I lost information when I applied [in_split] *)
+      apply In_app_iff.
+Abort.
 (** [] *)
 
+(*
+                                        x     l'
+  l1 (items)    [a;a;c;a;b]    [a;a]    b ::  [a;a]              [a;a]
+
+  l2 (labels)   [a;b;c]        [a]      [a;b] -- (in_split x) -> [a] 
+*)
 (* ================================================================= *)
 (** ** Extended Exercise: A Verified Regular-Expression Matcher *)
 

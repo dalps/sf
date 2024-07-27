@@ -2130,34 +2130,125 @@ Definition de_morgan_not_and_not := forall P Q:Prop,
 Definition implies_to_or := forall P Q:Prop,
   (P -> Q) -> (~P \/ Q).
 
+Theorem peirce_bool :
+  forall (P Q : Prop) (bp bq : bool),
+  (P <-> bp = true) ->
+  (Q <-> bq = true) ->
+  ((P -> Q) -> P) -> P.
+Proof.
+  intros P Q bp bq reflectP reflectQ H.
+  destruct bp eqn:Ep.
+  * apply reflectP. reflexivity.
+  * apply H. rewrite reflectP, reflectQ. destruct bq eqn:Eq.
+    + intros []. reflexivity.
+    + intros []. reflexivity.
+Qed. 
+
+(* ~30 min 
+  proof of if was significantly harder - 
+  
+  https://math.stackexchange.com/a/447217/711862 confirmed my intuition to instantiate Peirce with (P \/ ~P). 
+  
+  Besides that, it matches almost exactly my Coq proof, with the minor difference in the technical detail that in order to instantiate Peirce (the beta rule in the derivation) Coq requires I provide an argument for Q. False is the correct choice for Q, because it allows to reach the simpler premise:
+    [~ (P \/ ~ P) -> (P \/ ~ P)]
+  which is easy to prove. In the post's proof, negation is expressed through the other definition involving a quantified variable (the "bottom" symbol). *)
+Lemma exm_peirce_equiv :
+  excluded_middle <-> peirce.
+Proof.
+  unfold excluded_middle. unfold peirce. split.
+  { intros ExM P Q H.
+    destruct (ExM P) as [HP | HP].
+    + apply HP.
+    + apply H. intros contra. apply HP in contra. destruct contra. }
+  { intros Peirce P.
+    apply (Peirce (P \/ ~ P) False). intros contra.
+    right. intros HP. apply contra. left. apply HP. }
+Qed.
+
+(* 10 min *)
+Lemma exm_double_neg_equiv :
+  excluded_middle <-> double_negation_elimination.
+Proof.
+  unfold excluded_middle. unfold double_negation_elimination.
+  split.
+  { unfold not in *. intros ExM P nnP.
+    destruct (ExM P) as [HP | HP].
+    * apply HP.
+    * apply nnP in HP. destruct HP. }
+  { intros Double P. apply Double. intros contra. apply contra.
+    right. intros HP. apply contra. left. apply HP. }
+Qed.
+
+(* 8 min *)
+Lemma exm_impl_to_or_equiv :
+  excluded_middle <-> implies_to_or.
+Proof.
+  unfold excluded_middle, implies_to_or.
+  split.
+  { intros ExM P Q HPQ. destruct (ExM P) as [HP | HP].
+    * right. apply HPQ in HP. apply HP.
+    * left. apply HP. }
+  { intros ImplOr P. destruct (ImplOr P P).
+    * intros HP. apply HP.
+    * right. apply H.
+    * left. apply H. }
+Qed.
+
+(* 26 min *)
+Lemma impl_to_or_de_morgan_equiv :
+  de_morgan_not_and_not -> implies_to_or.
+Proof.
+  unfold implies_to_or, de_morgan_not_and_not.
+  { intros Mo P Q HPQ. destruct (Mo (~ P) Q) as [HP | HQ].
+    * intros [HP HQ]. unfold not in *.
+      (* [apply HQ. apply HPQ.] requires double_elim axiom, go other way around! *)
+      apply HP. intros HP'. apply HQ.
+      apply HPQ. apply HP'.
+    * left. apply HP.
+    * right. apply HQ. }
+Qed.
+
+(* 6 min *)
+Lemma de_morgan_double_neg_equiv :
+  double_negation_elimination -> de_morgan_not_and_not.
+Proof.
+  unfold double_negation_elimination, de_morgan_not_and_not.
+  { intros Db P Q Hand. apply (Db (P \/ Q)).
+    unfold not in *. intros Hor.
+    apply Hand. split.
+    * intros HP. apply Hor. left. apply HP.
+    * intros HQ. apply Hor. right. apply HQ. }
+Qed.
+
+(* 7 min *)
+Lemma double_neq_peirce_equiv :
+  peirce -> double_negation_elimination.
+Proof.
+  unfold peirce, double_negation_elimination.
+  { intros Pc P HP. unfold not in *. apply (Pc P False).
+    intros HnP. apply HP in HnP. destruct HnP. }
+Qed.
+
+(* time of the lemmas + time spent thinking and grasping (~2h30 min)*)
+Theorem classical_axioms_equiv :
+  excluded_middle ->
+  peirce ->
+  double_negation_elimination ->
+  de_morgan_not_and_not ->
+  implies_to_or ->
+  excluded_middle.
+Proof.
+  intros.
+  apply exm_impl_to_or_equiv.
+  apply impl_to_or_de_morgan_equiv.
+  apply de_morgan_double_neg_equiv.
+  apply double_neq_peirce_equiv.
+  apply exm_peirce_equiv.
+  apply H.
+Qed.
+
 (* FILL IN HERE
 
     [] *)
-
-Theorem classical_axioms_equiv :
-  excluded_middle             ->
-  peirce                      ->
-  double_negation_elimination ->
-  de_morgan_not_and_not       ->
-  implies_to_or               ->
-  excluded_middle.
-Proof.
-  unfold excluded_middle.
-  unfold peirce.
-  unfold double_negation_elimination.
-  unfold de_morgan_not_and_not.
-  unfold implies_to_or.
-  intros Mid Peirce Elim Morgan ImpOr.
-  intros P. apply Morgan.
-  intros [A B]. apply (Elim (P)) in B. apply (Peirce (~ P) (P)).
-  intros H. apply A. apply B. (* what about ImpOr? *)
-  (* Sketch:
-    - start with Mid as goal
-    - apply _every_ other axioms backwards (once? more than once?)
-    - end up with Mid again
-
-    The challenge: finding the right sequence of application and the right arguments
-    *)
-Abort.  
 
 (* 2023-12-29 17:12 *)

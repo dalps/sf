@@ -2260,7 +2260,7 @@ Proof.
 Qed.
 
 (* 7 min only if + 5 min if *)
-Lemma double_neq_peirce_equiv :
+Lemma double_neg_peirce_equiv :
   peirce <-> double_negation_elimination.
 Proof.
   unfold peirce, double_negation_elimination.
@@ -2271,7 +2271,8 @@ Proof.
     apply HnP in HP. destruct HP. }
 Qed.
 
-(* remaining connections for the sake of completeness and logic puzzles *)
+(* The remaining connections, for the sake of completeness and logic puzzles *)
+
 Lemma exm_de_morgan_equiv :
   excluded_middle <-> de_morgan_not_and_not.
 Proof. Admitted.
@@ -2297,9 +2298,11 @@ Proof.
   apply exm_impl_to_or_equiv.
   apply impl_to_or_de_morgan_equiv.
   apply de_morgan_double_neg_equiv.
-  apply double_neq_peirce_equiv.
+  apply double_neg_peirce_equiv.
   apply exm_peirce_equiv.
   apply H.
+  intros F. apply F. apply H2.
+  intros F. apply F. apply H2.
 Qed.
 
 (* FILL IN HERE

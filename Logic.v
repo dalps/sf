@@ -2194,11 +2194,32 @@ Proof.
     * left. apply H. }
 Qed.
 
-(* 26 min *)
+(* 7 min + 3 min (inspired by proof of [exm_double_neg_equiv])*)
+Lemma impl_to_or_double_neg_equiv :
+  implies_to_or <-> double_negation_elimination.
+Proof.
+  unfold implies_to_or, double_negation_elimination.
+  split.
+  { intros Im P H.
+  destruct (Im P P) as [ contra | HP ]. (* case analysis on [P] *)
+  * intros HP. apply HP.
+  * apply H in contra. destruct contra.
+  * apply HP. }
+  { intros Db P Q HPQ. apply Db. intros contra. apply contra.
+    right. apply HPQ. apply Db. intros HnP. apply contra. left. apply HnP. }
+Qed.
+
+(* 26 min only if + 1h if 
+  This one was pretty challenging. 
+  It took me a while to figure out how to apply Im in the proof of the if side.
+  Marko's words in https://stackoverflow.com/questions/55933706/is-it-possible-to-prove-implies-to-or-de-morgan-not-and-not-without-resorti
+  gave me the confidence to finish the proof. Luckily the if side reduces to the equivalence between [implies_to_or] and [double_negation_elimination], where [implies_to_or] is used to do case analysis on [P], much like one would employ [excluded_middle] for.
+*)
 Lemma impl_to_or_de_morgan_equiv :
-  de_morgan_not_and_not -> implies_to_or.
+  de_morgan_not_and_not <-> implies_to_or.
 Proof.
   unfold implies_to_or, de_morgan_not_and_not.
+  split.
   { intros Mo P Q HPQ. destruct (Mo (~ P) Q) as [HP | HQ].
     * intros [HP HQ]. unfold not in *.
       (* [apply HQ. apply HPQ.] requires double_elim axiom, go other way around! *)
@@ -2206,28 +2227,62 @@ Proof.
       apply HPQ. apply HP'.
     * left. apply HP.
     * right. apply HQ. }
+  { intros Im P Q Hand. destruct (Im (~ P) (~ ~ Q)).
+    * intros HnP. intros HnQ. apply Hand. split.
+      apply HnP. apply HnQ.
+    * left. destruct (Im P P) as [HP | HP].
+      + intros HP. apply HP.
+      + apply H in HP. destruct HP.
+      + apply HP.
+    * right. destruct (Im Q Q) as [HQ | HQ].
+      + intros HQ. apply HQ.
+      + apply H in HQ. destruct HQ.
+      + apply HQ. }
+      (* can it be done it differently, without resorting to [double_negation_elimination]? *)
 Qed.
 
-(* 6 min *)
+(* 6 min only if + 3 min if *)
 Lemma de_morgan_double_neg_equiv :
-  double_negation_elimination -> de_morgan_not_and_not.
+  double_negation_elimination <-> de_morgan_not_and_not.
 Proof.
   unfold double_negation_elimination, de_morgan_not_and_not.
+  split.
   { intros Db P Q Hand. apply (Db (P \/ Q)).
     unfold not in *. intros Hor.
     apply Hand. split.
     * intros HP. apply Hor. left. apply HP.
     * intros HQ. apply Hor. right. apply HQ. }
+  { intros Mo P HP. destruct (Mo P P).
+    * intros [HnP _]. apply HP. apply HnP.
+    * apply H.
+    * apply H.
+  }
 Qed.
 
-(* 7 min *)
+(* 7 min only if + 5 min if *)
 Lemma double_neq_peirce_equiv :
-  peirce -> double_negation_elimination.
+  peirce <-> double_negation_elimination.
 Proof.
   unfold peirce, double_negation_elimination.
+  split.
   { intros Pc P HP. unfold not in *. apply (Pc P False).
     intros HnP. apply HP in HnP. destruct HnP. }
+  { intros Db P Q H. apply Db. intros HnP. apply HnP. apply H. intros HP.
+    apply HnP in HP. destruct HP. }
 Qed.
+
+(* remaining connections for the sake of completeness and logic puzzles *)
+Lemma exm_de_morgan_equiv :
+  excluded_middle <-> de_morgan_not_and_not.
+Proof. Admitted.
+
+Lemma implies_to_or_peirce_equiv :
+  implies_to_or <-> peirce.
+Proof. Admitted.
+
+Lemma peirce_de_morgan_equiv :
+  peirce <-> de_morgan_not_and_not.
+Proof. Admitted.
 
 (* time of the lemmas + time spent thinking and grasping (~2h30 min)*)
 Theorem classical_axioms_equiv :

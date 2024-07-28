@@ -2130,7 +2130,7 @@ Definition de_morgan_not_and_not := forall P Q:Prop,
 Definition implies_to_or := forall P Q:Prop,
   (P -> Q) -> (~P \/ Q).
 
-Theorem peirce_bool :
+Lemma peirce_bool :
   forall (P Q : Prop) (bp bq : bool),
   (P <-> bp = true) ->
   (Q <-> bq = true) ->
@@ -2273,17 +2273,61 @@ Qed.
 
 (* The remaining connections, for the sake of completeness and logic puzzles *)
 
+(* 7 min *)
 Lemma exm_de_morgan_equiv :
   excluded_middle <-> de_morgan_not_and_not.
-Proof. Admitted.
+Proof.
+  unfold excluded_middle, de_morgan_not_and_not.
+  split.
+  { intros Ex P Q HPQ. destruct (Ex P) as [HP | HP].
+    * left. apply HP.
+    * destruct (Ex Q) as [HQ | HQ].
+      + right. apply HQ.
+      + unfold not in *. destruct HPQ. split. apply HP. apply HQ. }
+  { intros Mo P. destruct (Mo P (~ P)).
+    * intros [HnP HnnP]. apply HnnP. apply HnP.
+    * left. apply H.
+    * right. apply H. }
+Qed.
 
+(* 35 min - of course, if was a lot harder; I follwed the pattern of other
+  proofs that derive something from Peirce: instantiate it with the goal as the first argument and [False] as the second argument, this lets you do case analysis on it. *)
 Lemma implies_to_or_peirce_equiv :
   implies_to_or <-> peirce.
-Proof. Admitted.
+Proof.
+  unfold implies_to_or, peirce.
+  split.
+  { intros Im P Q H. destruct (Im P P) as [HnP | HP].
+    * intros HP. apply HP.
+    * apply H. intros HP. apply HnP in HP. destruct HP.
+    * apply HP. }
+  { intros Pc P Q HPQ. destruct (Pc (~ P \/ Q) False) as [HP | HQ].
+    * intros contra. left. intros HP. apply contra. right. apply HPQ. apply HP.
+    * left. apply HP.
+    * right. apply HQ. }
+Qed.
 
+(* 10 min + 15 min *)
 Lemma peirce_de_morgan_equiv :
   peirce <-> de_morgan_not_and_not.
-Proof. Admitted.
+Proof.
+  unfold peirce, de_morgan_not_and_not.
+  split.
+  { intros Pc P Q Hand. destruct (Pc (P \/ Q) False) as [HP | HQ].
+    * intros H. (* [H] says that neither [P] nor [Q] hold, which goes against the goal. Luckily this can be derived by contradicting [Hand]. With [destruct Hand] we discard the goal and replace it [Hand]'s hypothesis. *)
+     destruct Hand. split.
+      + intros HP. apply H. left. apply HP.
+      + intros HQ. apply H. right. apply HQ.
+    * left. apply HP.
+    * right. apply HQ. }
+  { intros Mo P Q HPQ. destruct (Mo P (~ P)) as [HP | HnP].
+    * intros [HnP HP]. apply HP in HnP. destruct HnP.
+    * apply HP.
+    * (* if [(P -> Q) -> P], [P] must hold! (exactly Peirce);
+        thus having [~ P] in the same context is a contradiction that can be
+        easily discharged. *)
+      apply HPQ. intros HP. apply HnP in HP. destruct HP. }
+Qed.
 
 (* time of the lemmas + time spent thinking and grasping (~2h30 min)*)
 Theorem classical_axioms_equiv :

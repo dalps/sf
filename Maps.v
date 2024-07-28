@@ -140,7 +140,9 @@ Definition examplemap :=
 Notation "'_' '!->' v" := (t_empty v)
   (at level 100, right associativity).
 
-Example example_empty := (_ !-> false).
+Definition example_empty := (_ !-> false).
+Fail Example example_empty1 : example_empty "foo" = false.
+(* how do I apply [example_empty]? *)
 
 (** We next introduce a convenient notation for extending an existing
     map with a new binding. *)
@@ -185,10 +187,11 @@ Proof. reflexivity. Qed.
 
     First, the empty map returns its default element for all keys: *)
 
+(* 2 min *)
 Lemma t_apply_empty : forall (A : Type) (x : string) (v : A),
   (_ !-> v) x = v.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros A x v. unfold t_empty. reflexivity.  Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (t_update_eq)
@@ -197,10 +200,11 @@ Proof.
     and then look up [x] in the map resulting from the [update], we
     get back [v]: *)
 
+(* 2 min *)
 Lemma t_update_eq : forall (A : Type) (m : total_map A) x v,
   (x !-> v ; m) x = v.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros A m x v. unfold t_update. rewrite String.eqb_refl. reflexivity.  Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (t_update_neq)
@@ -209,11 +213,14 @@ Proof.
     look up a _different_ key [x2] in the resulting map, we get the
     same result that [m] would have given: *)
 
+(* 3 min *)
 Theorem t_update_neq : forall (A : Type) (m : total_map A) x1 x2 v,
   x1 <> x2 ->
   (x1 !-> v ; m) x2 = m x2.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  Search eqb.
+  intros A m x1 x2 v neq. unfold t_update. apply String.eqb_neq in neq.
+  rewrite neq. reflexivity.  Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (t_update_shadow)
@@ -224,10 +231,14 @@ Proof.
     to any key) as the simpler map obtained by performing just
     the second [update] on [m]: *)
 
+(* 6 min *)
 Lemma t_update_shadow : forall (A : Type) (m : total_map A) x v1 v2,
   (x !-> v2 ; x !-> v1 ; m) = (x !-> v2 ; m).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros A m x v1 v2. unfold t_update.
+  apply functional_extensionality. (* this quantifies [x'] *)
+  intros x'. destruct ((x =? x')%string).
+  { reflexivity. } { reflexivity. }  Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard (t_update_same)
@@ -241,10 +252,13 @@ Proof.
     that if we update a map to assign key [x] the same value as it
     already has in [m], then the result is equal to [m]: *)
 
+(* 7 min *)
 Theorem t_update_same : forall (A : Type) (m : total_map A) x,
   (x !-> m x ; m) = m.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros A m x1. unfold t_update. apply functional_extensionality.
+  intros x2. destruct (String.eqb_spec x1 x2).
+  { rewrite e. reflexivity. } { reflexivity. }  Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard, especially useful (t_update_permute)
@@ -253,6 +267,7 @@ Proof.
     the [update] function: If we update a map [m] at two distinct
     keys, it doesn't matter in which order we do the updates. *)
 
+(* 10 min *)
 Theorem t_update_permute : forall (A : Type) (m : total_map A)
                                   v1 v2 x1 x2,
   x2 <> x1 ->
@@ -260,7 +275,17 @@ Theorem t_update_permute : forall (A : Type) (m : total_map A)
   =
   (x2 !-> v2 ; x1 !-> v1 ; m).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros A m v1 v2 x1 x2 neq.
+  unfold t_update. apply functional_extensionality.
+  intros x'. destruct (String.eqb_spec x1 x').
+  * destruct (String.eqb_spec x2 x').
+    - rewrite <- e in e0. apply neq in e0. destruct e0.
+    - reflexivity.
+  * destruct (String.eqb_spec x2 x').
+    - reflexivity.
+    - reflexivity.
+Qed.
+
 (** [] *)
 
 (* ################################################################# *)
@@ -326,12 +351,12 @@ Lemma update_shadow : forall (A : Type) (m : partial_map A) x v1 v2,
   (x |-> v2 ; x |-> v1 ; m) = (x |-> v2 ; m).
 Proof.
   intros A m x v1 v2. unfold update. rewrite t_update_shadow.
-  reflexivity.
+  reflexivity. (* [apply t_update_shadow.] also works *)
 Qed.
 
 Theorem update_same : forall (A : Type) (m : partial_map A) x v,
   m x = Some v ->
-  (x |-> v ; m) = m.
+  (x |-> v ; m) = m. (* the notation eludes [option]'s constructors *)
 Proof.
   intros A m x v H. unfold update. rewrite <- H.
   apply t_update_same.
@@ -380,3 +405,5 @@ Qed.
     given scope. *)
 
 (* 2023-12-29 17:12 *)
+
+(* completed in 1h46min *)

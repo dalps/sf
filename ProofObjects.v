@@ -172,13 +172,18 @@ Print ev_4'''.
 
     Give a tactic proof and a proof object showing that [ev 8]. *)
 
+(* 8 min *)
 Theorem ev_8 : ev 8.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  apply (ev_SS 6 (ev_SS 4 (ev_SS 2 (ev_SS 0 ev_0)))).
+Qed.
 
-Definition ev_8' : ev 8
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Definition ev_8' : ev 8 :=
+  ev_SS 6 (ev_SS 4 (ev_SS 2 (ev_SS 0 ev_0))).
 (** [] *)
+
+Print ev_8.
+Print ev_8'.
 
 (* ################################################################# *)
 (** * Quantifiers, Implications, Functions *)

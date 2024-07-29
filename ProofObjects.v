@@ -218,7 +218,7 @@ Qed.
 
 Definition ev_plus4' : forall n, ev n -> ev (4 + n) :=
   fun (n : nat) => fun (H : ev n) =>
-    ev_SS (S (S n)) (ev_SS n H).
+    ev_SS (S (S n)) (ev_SS n H). (* [2+n] and evidence that [2+n] is even *)
 
 (** Recall that [fun n => blah] means "the function that, given [n],
     yields [blah]," and that Coq treats [4 + n] and [S (S (S (S n)))]
@@ -399,8 +399,14 @@ Definition and_comm' P Q : P /\ Q <-> Q /\ P :=
 
     Construct a proof object for the following proposition. *)
 
-Definition conj_fact : forall P Q R, P /\ Q -> Q /\ R -> P /\ R
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+(* 10 min - remember: everything is a function! *)
+Definition conj_fact : forall P Q R, P /\ Q -> Q /\ R -> P /\ R :=
+  fun _ _ _ HPQ HQR =>
+    match HPQ with
+    | conj HP _ => match HQR with
+      | conj _ HR => conj HP HR
+      end
+    end.
 (** [] *)
 
 (* ================================================================= *)
@@ -412,7 +418,7 @@ Definition conj_fact : forall P Q R, P /\ Q -> Q /\ R -> P /\ R
 Module Or.
 
 Inductive or (P Q : Prop) : Prop :=
-  | or_introl : P -> or P Q
+  | or_introl : P -> or P Q (* takes evidence for [P], returns evidence for [or P Q] *)
   | or_intror : Q -> or P Q.
 
 Arguments or_introl [P] [Q].
@@ -438,7 +444,7 @@ Qed.
 Definition or_elim : forall (P Q R : Prop), (P \/ Q) -> (P -> R) -> (Q -> R) -> R :=
   fun P Q R HPQ HPR HQR =>
     match HPQ with
-    | or_introl HP => HPR HP
+    | or_introl HP => HPR HP (* HPR is a function with type [P -> R] that, given evidence for [P], returns evidence for [R] *)
     | or_intror HQ => HQR HQ
     end.
 
@@ -456,8 +462,14 @@ End Or.
 
     Construct a proof object for the following proposition. *)
 
-Definition or_commut' : forall P Q, P \/ Q -> Q \/ P
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+(* 8 min *)
+Definition or_commut' : forall P Q, P \/ Q -> Q \/ P :=
+  fun P Q HPQ =>
+    match HPQ with
+    | or_introl HP => or_intror HP
+    | or_intror HQ => or_introl HQ
+    end.
+
 (** [] *)
 
 (* ================================================================= *)
@@ -470,7 +482,7 @@ Definition or_commut' : forall P Q, P \/ Q -> Q \/ P
 Module Ex.
 
 Inductive ex {A : Type} (P : A -> Prop) : Prop :=
-  | ex_intro : forall x : A, P x -> ex P.
+  | ex_intro : forall x : A, P x -> ex P. (* [P x] is evidence for [ex P] *)
 
 Notation "'exists' x , p" :=
   (ex (fun x => p))
@@ -502,8 +514,15 @@ Definition some_nat_is_even : exists n, ev n :=
 
     Construct a proof object for the following proposition. *)
 
-Definition ex_ev_Sn : ex (fun n => ev (S n))
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+(* 30 min... weak dude
+  Reuse the same exact function as the first argument of [ex_intros]! *)
+Definition ex_ev_Sn : ex (fun n => ev (S n)) :=
+  ex_intro (fun n => ev (S n)) 3 (ev_SS 2 (ev_SS 0 ev_0)).
+
+Theorem ex_ev_Sn' : ex (fun n => ev (S n)).
+Proof. exists 3. apply ev_SS, ev_SS, ev_0.  Qed.
+(* I refrained from doing [Show Proof.], as that would have been cheating *)
+
 (** [] *)
 
 (* ================================================================= *)
@@ -521,20 +540,24 @@ Inductive True : Prop :=
 
     Construct a proof object for the following proposition. *)
 
-Definition p_implies_true : forall P, P -> True
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+(* 1 min *)
+Definition p_implies_true : forall P, P -> True :=
+  fun _ _ => I.
 (** [] *)
 
 (** [False] is equally simple -- indeed, so simple it may look
     syntactically wrong at first glance! *)
 
-Inductive False : Prop := .
+Inductive False : Prop := . (* just like the empty relation *)
+(* note: now it is clear why [destruct]ing some [False] in the context ends the proof,
+  or replaces the goal with its premise. *)
 
 (** That is, [False] is an inductive type with _no_ constructors --
     i.e., no way to build evidence for it. For example, there is
     no way to complete the following definition such that it
     succeeds. *)
 
+(* there is nothing of type [False], because [False] is empty; [False] is the empty type *)
 Fail
   Definition contra : False :=
   0 = 1.
@@ -557,8 +580,9 @@ Definition false_implies_zero_eq_one : False -> 0 = 1 :=
 
     Construct a proof object for the following proposition. *)
 
-Definition ex_falso_quodlibet' : forall P, False -> P
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+(* 1 min *)
+Definition ex_falso_quodlibet' : forall P, False -> P :=
+  fun _ contra => match contra with end.
 (** [] *)
 
 End Props.
@@ -655,9 +679,15 @@ Qed.
     Construct the proof object for this theorem. Use pattern matching
     against the equality hypotheses. *)
 
+(* 5 min *)
 Definition eq_cons : forall (X : Type) (h1 h2 : X) (t1 t2 : list X),
-    h1 == h2 -> t1 == t2 -> h1 :: t1 == h2 :: t2
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+    h1 == h2 -> t1 == t2 -> cons h1 t1 == cons h2 t2 :=
+  fun X h1 h2 t1 t2 Heqh Heqt => 
+    match Heqh with
+    | eq_refl h => match Heqt with
+      | eq_refl t => eq_refl (cons h t)
+      end
+    end.
 
 (** [] *)
 
@@ -668,10 +698,17 @@ Definition eq_cons : forall (X : Type) (h1 h2 : X) (t1 t2 : list X),
     property on [P] that is true of [x] is also true of [y]. Prove
     that. *)
 
+(* 2 min *)
 Lemma equality__leibniz_equality : forall (X : Type) (x y: X),
   x == y -> forall (P : X -> Prop), P x -> P y.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros X x y Heq P HPx.
+  Show Proof.
+  destruct Heq.
+  Show Proof.
+  apply HPx.
+  Show Proof.  Qed.
+
 (** [] *)
 
 (** **** Exercise: 2 stars, standard (equality__leibniz_equality_term)
@@ -680,9 +717,15 @@ Proof.
     requires is anonymous functions and pattern-matching; the large
     proof term constructed by tactics in the previous exercise is
     needessly complicated. Hint: pattern-match as soon as possible. *)
+
+(* 1h26min, i.e. the time it took me to realize that I should've introduced P and HPx _inside_ the match *)
 Definition equality__leibniz_equality_term : forall (X : Type) (x y: X),
-    x == y -> forall P : (X -> Prop), P x -> P y
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+    x == y -> forall P : (X -> Prop), P x -> P y :=
+  fun X x y Heq =>
+    match Heq with
+    | eq_refl x' =>
+        fun P HPx => HPx
+    end.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard, optional (leibniz_equality__equality)
@@ -692,10 +735,13 @@ Definition equality__leibniz_equality_term : forall (X : Type) (x y: X),
     about all you need to do is to invent a clever property [P] to
     instantiate the antecedent.*)
 
+(* 5 min - thanks, hint! *)
 Lemma leibniz_equality__equality : forall (X : Type) (x y: X),
   (forall P:X->Prop, P x -> P y) -> x == y.
 Proof.
-(* FILL IN HERE *) Admitted.
+  intros X x y Lz. apply (Lz (eq x)). apply eq_refl.  Qed.
+  (* [eq x : X -> Prop] is the property "is equal to [x]".
+    Thus [Lz (eq x)] asserts [eq x y] given we prove [eq x x]. The latter is immediate from [eq_refl]. *)
 (** [] *)
 
 End EqualityPlayground.

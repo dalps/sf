@@ -682,7 +682,7 @@ Qed.
 (* 5 min *)
 Definition eq_cons : forall (X : Type) (h1 h2 : X) (t1 t2 : list X),
     h1 == h2 -> t1 == t2 -> cons h1 t1 == cons h2 t2 :=
-  fun X h1 h2 t1 t2 Heqh Heqt => 
+  fun X h1 h2 t1 t2 Heqh Heqt =>
     match Heqh with
     | eq_refl h => match Heqt with
       | eq_refl t => eq_refl (cons h t)
@@ -704,7 +704,7 @@ Lemma equality__leibniz_equality : forall (X : Type) (x y: X),
 Proof.
   intros X x y Heq P HPx.
   Show Proof.
-  destruct Heq.
+  destruct Heq. (* [inversion] rewrites the goal only if [P] and [HPx] are introduced after it *)
   Show Proof.
   apply HPx.
   Show Proof.  Qed.
@@ -875,39 +875,107 @@ Fail Definition falso : False := infinite_loop 0.
     directly. *)
 
 (** **** Exercise: 2 stars, standard (and_assoc) *)
+
+(* 3 min *)
 Definition and_assoc : forall P Q R : Prop,
-    P /\ (Q /\ R) -> (P /\ Q) /\ R
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+    P /\ (Q /\ R) -> (P /\ Q) /\ R :=
+  fun P Q R HandPandQR =>
+    match HandPandQR with
+    | conj HP HandQR =>
+        match HandQR with
+        | conj HQ HR => conj (conj HP HQ) HR
+        end
+    end.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard (or_distributes_over_and) *)
+
+(* 26 min *)
 Definition or_distributes_over_and : forall P Q R : Prop,
-    P \/ (Q /\ R) <-> (P \/ Q) /\ (P \/ R)
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+    P \/ (Q /\ R) <-> (P \/ Q) /\ (P \/ R) :=
+  fun P Q R =>
+    (* To prove a conjunction (e.g. [<->]), you write a conjunction of terms *)
+    conj
+      (* To prove an implication, you write a function *)
+      (* P \/ (Q /\ R) -> (P \/ Q) /\ (P \/ R) *)
+      (fun H =>
+        match H with
+        | or_introl HP => conj (or_introl HP) (or_introl HP)
+        | or_intror HandQR =>
+          match HandQR with
+          | conj HQ HR => conj (or_intror HQ) (or_intror HR)
+          end
+        end
+      )
+      (* (P \/ Q) /\ (P \/ R) -> P \/ (Q /\ R) *)
+      (fun H =>
+        match H with
+        | conj HorPQ HorPR =>
+          match HorPQ with
+          | or_introl HP => or_introl HP
+          | or_intror HQ =>
+            match HorPR with
+            | or_introl HP => or_introl HP
+            | or_intror HR => or_intror (conj HQ HR)
+            end
+          end
+        end
+      ).
 (** [] *)
 
 (** **** Exercise: 3 stars, standard (negations) *)
+
+(* ~25 min *)
+
+(* 9 min *)
 Definition double_neg : forall P : Prop,
-    P -> ~~P
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+    P -> ~~P := (* note: doesn't require [excluded_middle] *)
+  (* P -> ((P -> False) -> False) *)
+  fun P HP HnP => HnP HP.
 
+(* with tactics, just for comparison *)
+Theorem double_neg_ref : forall P : Prop, P -> ~~P.
+Proof. intros P HP HnP. apply HnP in HP. apply HP. Show Proof.  Qed.
+
+(* 2 min - pretty straightforward *)
 Definition contradiction_implies_anything : forall P Q : Prop,
-    (P /\ ~P) -> Q
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+    (P /\ ~P) -> Q :=
+  fun P Q Hand =>
+    match Hand with
+    | conj HP HnP => match HnP HP with end
+    end.
 
+(* 10 min *)
 Definition de_morgan_not_or : forall P Q : Prop,
-    ~ (P \/ Q) -> ~P /\ ~Q
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+    ~ (P \/ Q) -> ~P /\ ~Q :=
+  fun P Q Hnor =>
+    (* [Hnor : (P \/ Q) -> False] is a function that
+    takes evidence for [P \/ Q] and returns [False] *)
+    conj
+      (* prove [P -> False] *)
+      (fun HP => Hnor (or_introl HP))
+      (* prove [Q -> False] *)
+      (fun HQ => Hnor (or_intror HQ)).
 (** [] *)
 
 (** **** Exercise: 2 stars, standard (currying) *)
-Definition curry : forall P Q R : Prop,
-    ((P /\ Q) -> R) -> (P -> (Q -> R))
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
 
+(* 8 min *)
+
+(* 5min 43s *)
+Definition curry : forall P Q R : Prop,
+    ((P /\ Q) -> R) -> (P -> (Q -> R)) :=
+  fun _ _ _ uncurried =>
+    fun HP HQ => uncurried (conj HP HQ).
+
+(* 2min 15s *)
 Definition uncurry : forall P Q R : Prop,
-    (P -> (Q -> R)) -> ((P /\ Q) -> R)
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+    (P -> (Q -> R)) -> ((P /\ Q) -> R) :=
+  fun _ _ _ curried =>
+    fun Hand =>
+      match Hand with
+      | conj HP HQ => curried HP HQ
+      end.
 (** [] *)
 
 (* ################################################################# *)
@@ -931,11 +999,19 @@ Definition propositional_extensionality : Prop :=
 
     Prove the following consequence of propositional extensionality. *)
 
+(* ~4min*)
 Theorem pe_implies_or_eq :
   propositional_extensionality ->
   forall (P Q : Prop), (P \/ Q) = (Q \/ P).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros Pe P Q. apply Pe. split.
+  { intros [HP | HQ].
+    * right. apply HP.
+    * left. apply HQ. }
+  { intros [HQ | HP].
+    * right. apply HQ.
+    * left. apply HP. }
+  Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, advanced (pe_implies_true_eq)
@@ -943,10 +1019,14 @@ Proof.
     Prove that if a proposition [P] is provable, then it is equal to
     [True] -- as a consequence of propositional extensionality. *)
 
+(* 4min *)
 Lemma pe_implies_true_eq :
   propositional_extensionality ->
-  forall (P : Prop), P -> True = P.
-Proof. (* FILL IN HERE *) Admitted.
+  forall (P : Prop), P -> True = P. (* evidence for [P] implies [True = P] *)
+Proof.
+  intros Pe P HP. apply Pe. split.
+  { intros _. apply HP. }
+  { intros _. apply I. }  Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, advanced (pe_implies_pi)
@@ -967,9 +1047,19 @@ Definition proof_irrelevance : Prop :=
     that equality to establish that both proof objects [pf1] and
     [pf2] must be just [I]. *)
 
+(* 30min - I forgot I could destruct values of type [True]. *)
 Theorem pe_implies_pi :
   propositional_extensionality -> proof_irrelevance.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  unfold propositional_extensionality, proof_irrelevance.
+  intros Pe P pf1 pf2.
+  destruct (pe_implies_true_eq Pe P pf1).  (* automatically rewrites [P = True] _at the type level_ *)
+  destruct pf1. destruct pf2. reflexivity.  Qed.
+
+  (* A few attempts:
+    * destruct (pe_implies_true_eq Pe P). - adds an extra goal that can be avoided by proving [pf1] as argument
+    * destruct (Pe P True). - doesn't rewrite the type in the generated subgoal 
+    * apply (pe_implies_true_eq Pe P) in pf1. *)
 (** [] *)
 
 (* 2023-12-29 17:12 *)

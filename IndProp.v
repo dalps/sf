@@ -1130,7 +1130,7 @@ Proof.
   * intros m p q HS. destruct (p + q) as [| o] eqn:Eo.
     + simpl in HS. inversion HS.
     + apply plus_le in HS. destruct HS as [H1 H2].
-    simpl in HS. apply le_S_l in HS. apply IH in HS. destruct HS as [H1 | H2].
+    (* simpl in HS. apply le_S_l in HS. apply IH in HS. destruct HS as [H1 | H2]. *)
   Admitted.
 
 (* 11 min *)
@@ -2232,14 +2232,7 @@ Qed.
     a (constructive!) way to generate strings matching [re] that are
     as long as we like. *)
 
-Lemma weak_pumping : forall T (re : reg_exp T) s,
-  s =~ re ->
-  pumping_constant re <= length s ->
-  exists s1 s2 s3,
-    s = s1 ++ s2 ++ s3 /\
-    s2 <> [] /\
-    forall m, s1 ++ napp m s2 ++ s3 =~ re.
-
+(* === my tests === *)
 Definition re1 := App (Char 0) (Char 1).
 Compute pumping_constant re1.
 
@@ -2294,7 +2287,7 @@ Lemma star_not_nil : forall T s ss (re : reg_exp T),
     pumping_constant re <= length (s ++ ss) ->
     s <> nil.
 Proof.
-  intros T s ss re Hmatch1 Hmatch2.
+  (* intros T s ss re Hmatch1 Hmatch2.
   apply s_not_nil in Hmatch2.
   induction Hmatch1
     as [ | x | s1 re1 s2 re2 Hmatch1 IH1 Hmatch2 IH2
@@ -2305,11 +2298,19 @@ Proof.
     inversion H2. apply star_empty in H3. rewrite H3. simpl.
     intros F. inversion F.
   * simpl. intros _ _ F. inversion F.
-  * simpl. intros Hm Hp. Abort.
+  * simpl. intros Hm Hp. *)
+  Abort.
 
 (** Complete the proof below. Several of the lemmas about [le] that
     were in an optional exercise earlier in this chapter may also be
     useful. *)
+Lemma weak_pumping : forall T (re : reg_exp T) s,
+  s =~ re ->
+  pumping_constant re <= length s ->
+  exists s1 s2 s3,
+    s = s1 ++ s2 ++ s3 /\
+    s2 <> [] /\
+    forall m, s1 ++ napp m s2 ++ s3 =~ re.
 Proof.
   intros T re s Hmatch.
   induction Hmatch
@@ -2384,11 +2385,12 @@ Proof.
         { intros X [| x l'].
           simpl. intros F. inversion F.
           intros _ F. inversion F. }
-        apply len_not_nil in H. apply H. apply Hp1.
+        apply len_not_nil in H.
+        (* apply H. apply Hp1.
         intros m. rewrite app_nil_r.
         apply (napp_star T m s1 s2) in Hmatch1. simpl in Hmatch1.
-        rewrite app_nil_r in Hmatch1.
-        Abort.
+        rewrite app_nil_r in Hmatch1. *)
+        Admitted.
 
 (** [] *)
 
@@ -3054,7 +3056,8 @@ Proof.
       apply IH in E. inversion E.
       - intros [].
       - *)
-Abort.
+  Abort.
+
 (* 1h+ - blocked *)
 Lemma nodup_comm : forall X (l1 l2 : list X),
   NoDup (l1 ++ l2) -> NoDup (l2 ++ l1).
@@ -3066,8 +3069,9 @@ Proof.
       rewrite <- Hl1'. rewrite <- Hl2. apply NoDup1.
     + replace (x :: l1') with ([x] ++ l1').
       rewrite app_assoc. apply IH.
-      rewrite app_assoc. apply IH.
-Admitted.
+      rewrite app_assoc. 
+      (* apply IH. *)
+  Admitted.
 
 (* 48 min + time to prove nodup_comm *)
 Theorem nodup_app : forall X (l1 l2 : list X),

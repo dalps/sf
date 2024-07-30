@@ -42,6 +42,16 @@ Proof.
   - (* n = S n' *) simpl. intros n' IHn'. rewrite -> IHn'.
     reflexivity.  Qed.
 
+(* --- I included the earlier proof for comparison *)
+Theorem mul_0_r'' : forall n:nat,
+  n * 0 = 0.
+Proof.
+  induction n as [| n' IHn'].
+  - (* n = O *) reflexivity.
+  - (* n = S n' *) simpl. rewrite -> IHn'.
+    reflexivity.  Qed.
+
+
 (** This proof is basically the same as the earlier one, but a
     few minor differences are worth noting.
 
@@ -68,10 +78,13 @@ Proof.
 
     Complete this proof without using the [induction] tactic. *)
 
+(* 1 min *)
 Theorem plus_one_r' : forall n:nat,
   n + 1 = S n.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  apply nat_ind.
+  * reflexivity.
+  * intros n' IHn'. simpl. rewrite IHn'. reflexivity.  Qed.
 (** [] *)
 
 (** Coq generates induction principles for every datatype
@@ -118,7 +131,13 @@ Inductive rgb : Type :=
   | red
   | green
   | blue.
-Check rgb_ind.
+Check rgb_ind. (* :
+  forall P : rgb -> Prop,
+    P red ->
+    P green ->
+    P blue ->
+    forall c : rgb, P c.
+*)
 (** [] *)
 
 (** Here's another example, this time with one of the constructors
@@ -175,6 +194,8 @@ Check natlist'_ind :
     Here is a type for trees that contain a boolean value at each leaf
     and branch. *)
 
+(* 9 min *)
+
 Inductive booltree : Type :=
   | bt_empty
   | bt_leaf (b : bool)
@@ -187,16 +208,31 @@ Inductive booltree : Type :=
    in between here and there. Fill in those definitions based on what
    you wrote on paper. *)
 
+(* ~5 min *)
+(*
+  Check booltree_ind :
+    forall P : booltree -> Prop,
+      P bt_empty ->
+      (forall (b : bool), P (bt_leaf b)) ->
+      (forall (b : bool) (t1 : booltree),
+        P t1 -> forall (t2 : booltree),
+          P t2 -> P (bt_branch b t1 t2)) ->
+      forall t : booltree, P t.
+*)
+
 Definition booltree_property_type : Type := booltree -> Prop.
 
-Definition base_case (P : booltree_property_type) : Prop
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Definition base_case (P : booltree_property_type) : Prop :=
+  P bt_empty.
 
-Definition leaf_case (P : booltree_property_type) : Prop
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Definition leaf_case (P : booltree_property_type) : Prop :=
+  forall (b : bool), P (bt_leaf b).
 
-Definition branch_case (P : booltree_property_type) : Prop
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Definition branch_case (P : booltree_property_type) : Prop :=
+  forall (b : bool) (t1 : booltree),
+    P t1 -> 
+      forall (t2 : booltree),
+        P t2 -> P (bt_branch b t1 t2).
 
 Definition booltree_ind_type :=
   forall (P : booltree_property_type),
@@ -212,7 +248,7 @@ Definition booltree_ind_type :=
     same type as what you just defined. *)
 
 Theorem booltree_ind_type_correct : booltree_ind_type.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. exact booltree_ind.  Qed. (* ez *)
 
 (** [] *)
 

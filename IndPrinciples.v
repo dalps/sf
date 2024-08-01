@@ -43,7 +43,7 @@ Proof.
     reflexivity.  Qed.
 
 (* --- I included the earlier proof for comparison *)
-Theorem mul_0_r'' : forall n:nat,
+Theorem mul_0_r'_old : forall n:nat,
   n * 0 = 0.
 Proof.
   induction n as [| n' IHn'].
@@ -264,8 +264,10 @@ Proof. exact booltree_ind.  Qed. (* ez *)
     Give an [Inductive] definition of [Toy], such that the induction
     principle Coq generates is that given above: *)
 
+(* 4min 20s*)
 Inductive Toy : Type :=
-  (* FILL IN HERE *)
+  | con1 (b : bool)
+  | con2 (n : nat) (t : Toy)
 .
 
 (** Show that your definition is correct by proving the following theorem.
@@ -279,7 +281,7 @@ Theorem Toy_correct : exists f g,
     (forall b : bool, P (f b)) ->
     (forall (n : nat) (t : Toy), P t -> P (g n t)) ->
     forall t : Toy, P t.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. exists con1, con2. exact Toy_ind.  Qed.
 
 (** [] *)
 
@@ -320,10 +322,20 @@ Proof. (* FILL IN HERE *) Admitted.
    the following datatype.  Compare your answer with what Coq
    prints. *)
 
+(* 3 min - with mistakes:
+  1. I forgot to pass the explicit type parameter to the contructors! 
+  2. I must wrap each assumption with parentheses: remember, implication is right associative, and if you don't parenthesize the assumption about [leaf], [forall x : X, ...] is lumped together with [forall (X : Type) (P : tree X -> Prop)] and [P (leaf X x)] is parsed as the antecedent of what follows. Instead you want the argument of [leaf] (x : X) to be quantified locally, strictly within the assumption about [leaf]. *)
+
 Inductive tree (X:Type) : Type :=
   | leaf (x : X)
   | node (t1 t2 : tree X).
-Check tree_ind.
+Check tree_ind : forall (X : Type) (P : tree X -> Prop),
+    (forall (x : X), P (leaf X x)) ->
+    (forall (t1 : tree X), P t1 ->
+      forall (t2 : tree X), P t2 ->
+        P (node X t1 t2)) ->
+    forall t : tree X, P t.
+
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (mytype)
@@ -339,6 +351,15 @@ Check tree_ind.
                forall n : nat, P (constr3 X m n)) ->
             forall m : mytype X, P m
 *) 
+
+(* 6 min *)
+
+Inductive mytype (X : Type) :=
+  | constr1 (x : X)
+  | constr2 (n : nat)
+  | constr3 (m : mytype X) (n : nat).
+
+Check mytype_ind.
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (foo)
@@ -354,11 +375,28 @@ Check tree_ind.
                (forall n : nat, P (f1 n)) -> P (quux X Y f1)) ->
              forall f2 : foo X Y, P f2
 *) 
+
+(* 6 min *)
+Inductive foo (X Y : Type) :=
+  | bar (x : X)
+  | baz (y : Y)
+  | quux (f1 : nat -> foo X Y).
+Check foo_ind :
+  forall (X Y : Type) (P : foo X Y -> Prop),
+    (forall x : X, P (bar X Y x)) ->
+    (forall y : Y, P (baz X Y y)) ->
+    (forall f1 : nat -> foo X Y,
+      (forall n : nat, P (f1 n)) -> P (quux X Y f1)) ->
+    forall f2 : foo X Y, P f2.
+
+  (* There is a function [f1] in the way of [P] holding of a sub-[foo] in the [quux] case. For any argument of [f1], [P] must hold of [(f1 n)], which is a [foo]. *)
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (foo')
 
     Consider the following inductive definition: *)
+
+(* 5 min - again, forgot type arguments *)
 
 Inductive foo' (X:Type) : Type :=
   | C1 (l : list X) (f : foo' X)
@@ -370,12 +408,19 @@ Inductive foo' (X:Type) : Type :=
      foo'_ind :
         forall (X : Type) (P : foo' X -> Prop),
               (forall (l : list X) (f : foo' X),
-                    _______________________ ->
-                    _______________________   ) ->
-             ___________________________________________ ->
-             forall f : foo' X, ________________________
+                    P f ->
+                    P (C1 X l f)   ) ->
+              P (C2 X) ->
+              forall f : foo' X, P f.
 *)
 
+
+Check foo'_ind : forall (X : Type) (P : foo' X -> Prop),
+              (forall (l : list X) (f : foo' X),
+                    P f ->
+                    P (C1 X l f)   ) ->
+              P (C2 X) ->
+              forall f : foo' X, P f.
 (** [] *)
 
 (* ################################################################# *)
@@ -512,9 +557,34 @@ Proof.
     induction, and state the theorem and proof in terms of this
     defined proposition.  *)
 
-(* FILL IN HERE
+(* 10 min (5 min for rewriting old proofs) *)
+Definition P_add_assoc : nat -> nat -> nat -> Prop :=
+  fun n m p => n + (m + p) = (n + m) + p.
 
-    [] *)
+Theorem add_assoc'' : forall n m p, P_add_assoc n m p.
+Proof.
+  (* [apply add_assoc'.] concludes immediately *)
+
+  induction n as [| n'].
+  * reflexivity.
+  * intros m p. unfold P_add_assoc in *. simpl. rewrite IHn'. reflexivity.
+Qed.
+
+
+Definition P_add_comm (n m : nat) : Prop :=
+  n + m = m + n.
+
+Theorem add_comm''' : forall n m, P_add_comm n m.
+Proof.
+  (* [apply add_comm''.] *)
+
+  unfold P_add_comm.
+  induction m as [| m'].
+  * simpl. rewrite add_0_r. reflexivity.
+  * simpl. rewrite <- IHm'. rewrite plus_n_Sm. reflexivity.
+Qed.
+
+(** [] *)
 
 (* ################################################################# *)
 (** * Induction Principles for Propositions *)
@@ -533,11 +603,14 @@ Print ev.
 
 *)
 
+(* Used to prove [P] holds of all [n] such that [ev n]. *)
+
 Check ev_ind :
   forall P : nat -> Prop,
     P 0 ->
     (forall n : nat, ev n -> P n -> P (S (S n))) ->
     forall n : nat, ev n -> P n.
+(* remember: inductive hypotheses always regard the property argument [P]; here it is [P n], _not_ [ev n]. *)
 
 (** In English, [ev_ind] says: Suppose [P] is a property of natural
     numbers.  To show that [P n] holds whenever [n] is even, it suffices
@@ -588,12 +661,15 @@ Notation "m <=1 n" := (le1 m n) (at level 70).
 Inductive le2 (n:nat) : nat -> Prop :=
   | le2_n : le2 n n
   | le2_S m (H : le2 n m) : le2 n (S m).
+(* [le2 n] connotes the set of numbers that are greater than or equal to [n],
+  so it has [n] itself and any successor of [n]. *)
 
 Notation "m <=2 n" := (le2 m n) (at level 70).
-
+ 
 (** The second one is better, even though it looks less symmetric.
     Why?  Because it gives us a simpler induction principle. *)
 
+(* Used to prove something about all pairs [(n,m)] related by [le1] *)
 Check le1_ind :
   forall P : nat -> nat -> Prop,
     (forall n : nat, P n n) ->
@@ -613,12 +689,18 @@ Check le2_ind :
     on a natural number [n].  It could have additionally been parameterized
     on the evidence that [n] was even, which would have led to this
     induction principle:
+ 
+(* note: look how the type of [P] changes. There's an additional index,
+  standing for evidence of evenness of [n] *)
 
     forall P : (forall n : nat, ev'' n -> Prop),
       P O ev_0 ->
       (forall (m : nat) (E : ev'' m),
         P m E -> P (S (S m)) (ev_SS m E)) ->
       forall (n : nat) (E : ev'' n), P n E
+
+  (* [P] holding of [m] and [E] (evenness of [m]) implies [P] also holding
+    of [S (S m)] and evidence of it being even, i.e. [ev_SS m E]. *)
 *)
 
 (**   ... because:
@@ -844,7 +926,7 @@ Fixpoint build_proof
          (n : nat) : P n :=
   match n with
   | 0 => evPO
-  | S k => evPS k (build_proof P evPO evPS k)
+  | S k => evPS k (build_proof P evPO evPS k) (* [k] and the proof object that [P] holds of [k]*)
   end.
 
 Definition nat_ind_tidy := build_proof.
@@ -897,6 +979,17 @@ Abort.
     non-standard induction principle that goes "by twos":
  *)
 
+(* ~8 min >> try it! *)
+Lemma even_ev' : forall n : nat,
+     (even n = true -> ev n) /\ (even (S n) = true -> ev (S n)).
+Proof.
+  induction n; intros.
+  * split. intros. apply ev_0. intros. simpl in H. discriminate H.
+  * split.
+    - destruct IHn as [_ IH2]. apply IH2.
+    - simpl. destruct IHn  as [IH1 _]. intros H. apply ev_SS. apply IH1, H.
+Qed.
+
 Definition nat_ind2 :
   forall (P : nat -> Prop),
   P 0 ->
@@ -907,7 +1000,7 @@ Definition nat_ind2 :
       fix f (n:nat) := match n with
                          0 => P0
                        | 1 => P1
-                       | S (S n') => PSS n' (f n')
+                       | S (S n') => PSS n' (f n') (* builds the proof object of [n - 2], then builds the proof object of [n] *)
                        end.
 
  (** Once you get the hang of it, it is entirely straightforward to
@@ -938,12 +1031,14 @@ Qed.
     constructor that bundles the children and value at a node into a
     tuple? *)
 
+(* tuples as left associative pairs *)
 Notation "( x , y , .. , z )" := (pair .. (pair x y) .. z) : core_scope.
 
 Inductive t_tree (X : Type) : Type :=
 | t_leaf
 | t_branch : (t_tree X * X * t_tree X) -> t_tree X.
 
+(* making the type argument of each constructor implicit *)
 Arguments t_leaf {X}.
 Arguments t_branch {X}.
 
@@ -968,6 +1063,7 @@ Proof.
   intros X t. induction t.
   - reflexivity.
   - destruct p as [[l v] r]. simpl. Abort.
+    (* we know nothing about what [relfect^2] does to [l] and [r]! *)
 
 (** We get stuck, because we have no inductive hypothesis for [l] or
     [r]. So, we need to define our own custom induction principle, and
@@ -977,14 +1073,25 @@ Proof.
     use. There are many possible answers. Recall that you can use
     [match] as part of the definition. *)
 
-Definition better_t_tree_ind_type : Prop
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+(* 5 min 1st attempt *)
+Definition better_t_tree_ind_type : Prop :=
+  forall (X : Type) (P : t_tree X -> Prop),
+  P t_leaf ->
+  (forall l : t_tree X, P l ->
+    forall r : t_tree X, P r ->
+      forall v : X, P (t_branch (l, v, r))) ->
+  forall t : t_tree X, P t.
 
 (** Second, define the induction principle by giving a term of that
     type. Use the examples about [nat], above, as models. *)
 
-Definition better_t_tree_ind : better_t_tree_ind_type
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+(* ~7 min *)
+Definition better_t_tree_ind : better_t_tree_ind_type :=
+  fun X P Pleaf Pbranch =>
+    fix f (t : t_tree X) := match t with
+    | t_leaf => Pleaf
+    | t_branch (l, v, r) => Pbranch l (f l) r (f r) v
+    end.
 
 (** Finally, prove the theorem. If [induction...using] gives you an
     error about "Cannot recognize an induction scheme", don't worry
@@ -993,9 +1100,15 @@ Definition better_t_tree_ind : better_t_tree_ind_type
     to debug what is wrong about that shape.  You can use [apply]
     instead, as we saw at the beginning of this file. *)
 
+(* 18 min - big part spent on [apply] not replacing [t] properly, see comment *)
 Theorem reflect_involution : forall (X : Type) (t : t_tree X),
     reflect (reflect t) = t.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  Fail induction t using better_t_tree_ind. (* :\ *)
+  intros X. apply better_t_tree_ind. (* don't introduce [t] into the context!!! *)
+  * reflexivity.
+  * intros l IHl r IHr v. simpl. rewrite IHl. rewrite IHr. reflexivity.
+Qed.
 
 (** [] *)
 

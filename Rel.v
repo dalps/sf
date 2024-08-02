@@ -47,6 +47,11 @@ Check le : relation nat.
     to the left of the [:], which makes Coq generate a somewhat nicer
     induction principle for reasoning about [<=].) *)
 
+(* note: Notice each case requires evidence on [n] instead of a constructor or [le]. This is typical of induction principles of inductively defined propositions, see "Induction Principles for Propositions" in [[IndPrinciples.v]]. *)
+
+Check le_ind.
+Print le_ind.
+
 (* ################################################################# *)
 (** * Basic Properties *)
 
@@ -105,13 +110,20 @@ Proof.
 (** Copy the definition of [total_relation] from your [IndProp]
     here so that this file can be graded on its own.  *)
 Inductive total_relation : nat -> nat -> Prop :=
-  (* FILL IN HERE *)
+  | any_p (n m : nat) : total_relation n m
 .
 
+(* 2min37s *)
 Theorem total_relation_not_partial_function :
   ~ (partial_function total_relation).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold not, partial_function. intros Hc.
+  assert (3 = 42) as Nonsense. {
+    apply Hc with (x := 7).
+    * apply any_p.
+    * apply any_p.
+  }
+  discriminate Nonsense.   Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (empty_relation_partial_function)
@@ -119,16 +131,20 @@ Proof.
     Show that the [empty_relation] defined in (an exercise in)
     [IndProp] is a partial function. *)
 
+(* 2 min *)
+
 (** Copy the definition of [empty_relation] from your [IndProp]
     here so that this file can be graded on its own.  *)
 Inductive empty_relation : nat -> nat -> Prop :=
-  (* FILL IN HERE *)
+  (* empty *)
 .
 
 Theorem empty_relation_partial_function :
   partial_function empty_relation.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold partial_function.
+  intros x y1 y2 H1 _.
+  inversion H1.   Qed.
 (** [] *)
 
 (* ----------------------------------------------------------------- *)
@@ -177,6 +193,7 @@ Proof.
     We can also prove [lt_trans] more laboriously by induction,
     without using [le_trans].  Do this. *)
 
+(* 4min30s *)
 Theorem lt_trans' :
   transitive lt.
 Proof.
@@ -184,20 +201,30 @@ Proof.
   unfold lt. unfold transitive.
   intros n m o Hnm Hmo.
   induction Hmo as [| m' Hm'o].
-    (* FILL IN HERE *) Admitted.
+  * apply le_S. apply Hnm.
+  * apply le_S in IHHm'o. apply IHHm'o.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (lt_trans'')
 
     Prove the same thing again by induction on [o]. *)
 
+(* 23min - draw, draw, draw if you can't visualize *)
 Theorem lt_trans'' :
   transitive lt.
 Proof.
   unfold lt. unfold transitive.
   intros n m o Hnm Hmo.
   induction o as [| o'].
-  (* FILL IN HERE *) Admitted.
+  * (* o = 0 *) inversion Hmo.
+  * (* o = S o' *) apply Sn_le_Sm__n_le_m in Hmo.
+    inversion Hmo as [eq | o'' H eq].
+    + (* m = o' *) apply le_S in Hnm. rewrite eq in Hnm. apply Hnm.
+    + (* m < o' *) rewrite <- eq in *.
+      apply le_S. apply IHo'.
+      apply n_le_m__Sn_le_Sm. apply H.
+Qed.
 (** [] *)
 
 (** The transitivity of [le], in turn, can be used to prove some facts
@@ -212,10 +239,19 @@ Proof.
 Qed.
 
 (** **** Exercise: 1 star, standard, optional (le_S_n) *)
+
+(* ~10 min, pretty slow considering I've already done it...
+  fiddling with tactics and lemmas is not the right way: plan on paper first, visualize your assumptions and do case analysis on the number line. *)
 Theorem le_S_n : forall n m,
   (S n <= S m) -> (n <= m).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m H. inversion H as [| m' Hm' eq].
+  * (* S n = S m *) apply le_n.
+  * (* S n < S m *) apply le_trans with (S n).
+    + apply le_S. apply le_n.
+    + apply Hm'.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (le_Sn_n_inf)
@@ -228,15 +264,78 @@ Proof.
     writing an informal proof without doing the formal proof first.
 
     Proof: *)
-    (* FILL IN HERE
 
+    (* 1h12min for the informal proof - I've been actively neglecting that there are two instances of [n] to rewrite in the inductive case. *)
+    (*
+
+    By case analysis on [n].
+    
+    Assume [S n <= n]. Then we have two cases to consider for [n]:
+
+    * [n = 0]. Then we have [1 <= 0], which can be discharged immediately.
+
+    * [n = S n']. Then we have [S n <= S n'] - (* no assumption on n'!!! *)
+
+    NO
+    ~~~~~~~~~~~~~~~~
+
+    By case analysis on [le (S n) n].
+
+    There two ways this could have been derived:
+
+    * [le_n], which would imply [S n = n], a contradiciton.
+
+    * [le_S] with [n = S n'] and [S n <= n'], we must show [S n <= S n'].
+
+      The thesis can be simplified to [n <= n'] by [le_S_n]. Then, by 
+      [le_trans] we destruct it in two subgoals:
+
+      + [n <= S n']
+
+      + [S n' <= n']. (* back to proving the same thing... *)
+
+    NO
+    ~~~~~~~~~~~~~~~~
+
+    By induction on evidence [le (S n) n]. - (not possible)
+
+    * The case [le_n] is obvious.
+
+    * In the case [le_S] we have [n = S n'] with [S n <= n'] and [~ (S n <= n')] as the inductive hypothesis. 
+      It is easy to see that the two assumptions contradict each other.  []
+
+    NO
+    ~~~~~~~~~~~~~~~~
+
+    By induction on [n].
+
+    * The case [n = 0] is obvious.
+
+    * Let [n = S n'] with the inductive hypothesis [~ (S n' <= n')].
+      We must show [~ (S (S n') <= S n')]. Assume [S (S n') <= S n'].
+      By [le_S_n] we have [S n' <= n'], which contradicts the inductive
+      hypothesis.  []
+
+    OK
+    ~~~~~~~~~~~~~~~
+
+    We disprove the contrary, [exists n, S n <= n]. 
+    Then consider [1 <= 0], which is clearly a contradiction.
+    By the exlcuded middle priciple, it must be that [forall n, ~ S n <= n].
+
+    OK?
     [] *)
 
 (** **** Exercise: 1 star, standard, optional (le_Sn_n) *)
 Theorem le_Sn_n : forall n,
   ~ (S n <= n).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n Hc.
+  induction n as [| n' IHn'].
+  * inversion Hc.
+  * apply le_S_n in Hc. apply IHn' in Hc. destruct Hc.
+Qed.
+
 (** [] *)
 
 (** Reflexivity and transitivity are the main concepts we'll need for
@@ -252,33 +351,60 @@ Definition symmetric {X: Type} (R: relation X) :=
   forall a b : X, (R a b) -> (R b a).
 
 (** **** Exercise: 2 stars, standard, optional (le_not_symmetric) *)
+
+(* 6 min *)
 Theorem le_not_symmetric :
   ~ (symmetric le).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* if [not] wraps quantified variables, you can easily prove the goal with
+    [assert (falsehood) as Nonsense.] technique. *)
+  unfold symmetric. intros Hc.
+  (* say [le] is symmetric, then [0 <= 1] implies [1 <= 0]! *)
+  assert (1 <= 0) as Nonsense.
+  * apply Hc. apply le_S. apply le_n.
+  * inversion Nonsense.
+Qed.
+
 (** [] *)
 
 (** A relation [R] is _antisymmetric_ if [R a b] and [R b a] together
     imply [a = b] -- that is, if the only "cycles" in [R] are trivial
     ones. *)
 
+(* note: [lt] is _not_ (doubt) antisymmetric, rather it is _asymmetric_. (doubt) *)
+
 Definition antisymmetric {X: Type} (R: relation X) :=
   forall a b : X, (R a b) -> (R b a) -> a = b.
 
 (** **** Exercise: 2 stars, standard, optional (le_antisymmetric) *)
+
+(* 15 min *)
 Theorem le_antisymmetric :
   antisymmetric le.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold antisymmetric.
+  intros a b H1 H2.
+  inversion H1 as [| b' Hb'].
+  * reflexivity.
+  * rewrite <- H in *. apply (le_trans (S b') a b') in H2.
+    + apply le_Sn_n in H2. destruct H2.
+    + apply Hb'.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (le_step) *)
+
+(* ~9min - was I supposed to use [antisymmetric]? *)
 Theorem le_step : forall n m p,
   n < m ->
   m <= S p ->
   n <= p.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold lt. intros n m p Hnm HmSp.
+  apply (le_trans (S n) m (S p)) in Hnm.
+  * apply le_S_n in Hnm. apply Hnm.
+  * apply HmSp.  Qed.
 (** [] *)
 
 (* ----------------------------------------------------------------- *)
@@ -326,10 +452,13 @@ Proof.
 Inductive clos_refl_trans {A: Type} (R: relation A) : relation A :=
   | rt_step x y (H : R x y) : clos_refl_trans R x y
   | rt_refl x : clos_refl_trans R x x
+    (* [clos_refl_trans] relates [x] to itself (provided [x] was in [R]'s domain) *)
   | rt_trans x y z
         (Hxy : clos_refl_trans R x y)
         (Hyz : clos_refl_trans R y z) :
         clos_refl_trans R x z.
+    (* if the [clos_refl_trans] relates [x] and [y], and it also
+      relates [y] and [z], then it also relates [x] and [z]. *)
 
 (** For example, the reflexive and transitive closure of the
     [next_nat] relation coincides with the [le] relation. *)
@@ -342,13 +471,13 @@ Proof.
     intro H. induction H.
     + (* le_n *) apply rt_refl.
     + (* le_S *)
-      apply rt_trans with m. apply IHle. apply rt_step.
-      apply nn.
+      apply rt_trans with m. apply IHle. apply rt_step. (* reveals [next_nat] *)
+      apply nn. (* [clos_refl_trans] subsumes [next_nat]! *)
   - (* <- *)
     intro H. induction H.
     + (* rt_step *) inversion H. apply le_S. apply le_n.
     + (* rt_refl *) apply le_n.
-    + (* rt_trans *)
+    + (* rt_trans [x := n, z := m]*)
       apply le_trans with y.
       apply IHclos_refl_trans1.
       apply IHclos_refl_trans2. Qed.
@@ -361,10 +490,13 @@ Proof.
     since the "nondeterminism" of the [rt_trans] rule can sometimes
     lead to tricky inductions.  Here is a more useful definition: *)
 
+(* I suppose the nondetermism lies in the choice of the middle term [y]. *)
+
 Inductive clos_refl_trans_1n {A : Type}
                              (R : relation A) (x : A)
                              : A -> Prop :=
   | rt1n_refl : clos_refl_trans_1n R x x
+  (* to see how [t_step] is bundled here, consider the case [y = z] *)
   | rt1n_trans (y z : A)
       (Hxy : R x y) (Hrest : clos_refl_trans_1n R y z) :
       clos_refl_trans_1n R x z.
@@ -385,7 +517,8 @@ Lemma rsc_R : forall (X:Type) (R:relation X) (x y : X),
   R x y -> clos_refl_trans_1n R x y.
 Proof.
   intros X R x y H.
-  apply rt1n_trans with y. apply H. apply rt1n_refl.   Qed.
+  apply rt1n_trans with y. (* i.e. [apply (rt1n_trans R x y)] *)
+  apply H. apply rt1n_refl.   Qed.
 
 (** **** Exercise: 2 stars, standard, optional (rsc_trans) *)
 Lemma rsc_trans :
@@ -394,7 +527,13 @@ Lemma rsc_trans :
       clos_refl_trans_1n R y z ->
       clos_refl_trans_1n R x z.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros X R x y z Hxy Hyz.
+  induction Hyz as [y | y w z Hyz Hzw IH].
+  * (* rt1n_refl: y = z *) apply Hxy.
+  * (* rt1n_trans:  *) 
+    apply rt1n_trans with (x := y) in Hzw.
+    apply IH. apply rt1n_trans with y. (* stuck... 2 stars?? *)
+    
 (** [] *)
 
 (** Then we use these facts to prove that the two definitions of

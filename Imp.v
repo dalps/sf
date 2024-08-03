@@ -463,13 +463,38 @@ Admitted.
     it is sound.  Use the tacticals we've just seen to make the proof
     as short and elegant as possible. *)
 
-Fixpoint optimize_0plus_b (b : bexp) : bexp
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+(* ~14 min*)
 
+(* 5 min *)
+Fixpoint optimize_0plus_b (b : bexp) : bexp :=
+  match b with
+  | BTrue => BTrue
+  | BFalse => BFalse
+  | BEq a1 a2 => BEq (optimize_0plus a1) (optimize_0plus a2)
+  | BNeq a1 a2 => BNeq (optimize_0plus a1) (optimize_0plus a2)
+  | BLe a1 a2 => BLe (optimize_0plus a1) (optimize_0plus a2)
+  | BGt a1 a2 => BGt (optimize_0plus a1) (optimize_0plus a2)
+  | BNot b => BNot (optimize_0plus_b b)
+  | BAnd b1 b2 => BAnd (optimize_0plus_b b1) (optimize_0plus_b b2)
+  end.
+  
+
+(* 8 min *)
 Theorem optimize_0plus_b_sound : forall b,
   beval (optimize_0plus_b b) = beval b.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros b;
+  induction b;
+    (* [True] and [False] *)
+    try (simpl; reflexivity);
+    (* Non-recursive cases *)
+    try (simpl; rewrite optimize_0plus_sound; rewrite optimize_0plus_sound; reflexivity).
+  (* BNot *)
+  + simpl. rewrite IHb. reflexivity.
+  (* BAnd *)
+  + simpl. rewrite IHb1, IHb2. reflexivity.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 4 stars, standard, optional (optimize)
@@ -483,8 +508,59 @@ Proof.
     incrementally to something more interesting.)  *)
 
 (* FILL IN HERE
-
+  * BAnd True b = b
+  * BAnd False b = False
+  * AMult 1 a = a
+  * 
     [] *)
+
+(* +30 min *)
+Fixpoint optimize_constAnd (b : bexp) :=
+  match b with
+  | BNot b => BNot (optimize_constAnd b)
+  | BAnd BTrue b2 => optimize_constAnd b2
+  | BAnd BFalse _ => BFalse
+  | BAnd b1 b2 => BAnd (optimize_constAnd b1) (optimize_constAnd b2)
+  | b => b
+  end.
+
+Theorem optimize_constAnd_sound : forall b : bexp,
+  beval (optimize_constAnd b) = beval b.
+Proof.
+  intros b.
+  induction b;
+    (* Most cases are immediate or follow from the IH *)
+    try (simpl; rewrite IHb; reflexivity);
+    try reflexivity.
+  + (* BAnd *) simpl. destruct b1 eqn:Eb1;
+    (* Again, immediate from the IH *)
+    try (simpl; rewrite IHb2; reflexivity);
+    (* BNot and BAnd *)
+    try (simpl; rewrite IHb2; simpl in IHb1; rewrite IHb1; reflexivity).
+    (* False is trivial *)
+    - simpl. reflexivity.
+Qed.
+
+(* Not that interesting to prove for soundness *)
+Definition optimize_a :=
+  fun a => optimize_0plus a.
+
+(* More interesting: *)
+Definition optimize_b :=
+  fun b => optimize_constAnd (optimize_0plus_b b).
+
+(* 12 min *)
+Theorem optimize_b_sound : forall b : bexp,
+  beval (optimize_b b) = beval b.
+Proof.
+  intros b. induction b;
+  (* [try] on a sequence works tactic-wise! *)
+  try (simpl; repeat (rewrite optimize_0plus_sound); reflexivity); (* [repeat] is unnecessary*)
+  try (unfold optimize_b;
+    rewrite optimize_constAnd_sound;
+    rewrite optimize_0plus_b_sound; 
+    reflexivity).
+Qed.
 
 (* ================================================================= *)
 (** ** Defining New Tactics *)

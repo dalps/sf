@@ -715,6 +715,7 @@ Module HypothesisNames.
     [aevalR] as follow, with explicit names for the hypotheses in each
     case: *)
 
+(* Move the sub-evidences to the left of the column, as arguments to the constructor. There you can give them a name *)
 Inductive aevalR : aexp -> nat -> Prop :=
   | E_ANum (n : nat) :
       aevalR (ANum n) n
@@ -802,6 +803,8 @@ Inductive aevalR : aexp -> nat -> Prop :=
     constructor and read each of the linebreaks between the premises
     above the line (as well as the line itself) as [->].
 
+    ("note: [e1] evaluates to [n1] implies [e2] evaluates to [n2] implies [APlus e1 e2] evaluates to [n1 + n2]")
+
     All the variables mentioned in the rule ([e1], [n1], etc.) are
     implicitly bound by universal quantifiers at the beginning. (Such
     variables are often called _metavariables_ to distinguish them
@@ -856,6 +859,48 @@ Inductive aevalR : aexp -> nat -> Prop :=
     relation (in inference rule notation). *)
 (* FILL IN HERE *)
 
+(* ~15 min
+
+      Let [bevalR : bexp -> bool -> Prop] be the smallest relation 
+      closed under the following rules:
+
+
+      --------------                                        (E_BTrue)
+      BTrue ==> true
+
+      ----------------                                      (E_BFalse)
+      BFalse ==> false
+
+      e ==> b
+      ------------------                                    (E_BNot)
+      BNot e ==> negb b
+      
+      e1 ==> b1
+      e2 ==> b2
+      ------------------                                    (E_BAnd)
+      BAnd e1 e2 ==> b1 && b2
+
+      e1 ==> n1
+      e2 ==> n2
+      ----------------------                                (E_BEq)
+      BEq e1 e2 ==> n1 =? n2
+
+      e1 ==> n1
+      e2 ==> n2
+      ----------------------                                (E_BNeq)
+      BNeq e1 e2 ==> negb (n1 =? n2)
+
+      e1 ==> n1
+      e2 ==> n2
+      ----------------------                                (E_BLe)
+      BLe e1 e2 ==> n1 <=? n2
+
+      e1 ==> n1
+      e2 ==> n2
+      ----------------------                                (E_BGt)
+      BGt e1 e2 ==> negb (n1 <=? n2)
+*)
+
 (* Do not modify the following line: *)
 Definition manual_grade_for_beval_rules : option (nat*string) := None.
 (** [] *)
@@ -909,9 +954,9 @@ Theorem aeval_iff_aevalR' : forall a n,
 Proof.
   (* WORKED IN CLASS *)
   split.
-  - (* -> *)
+  - (* -> (only if) *)
     intros H; induction H; subst; reflexivity.
-  - (* <- *)
+  - (* <- (if) *)
     generalize dependent n.
     induction a; simpl; intros; subst; constructor;
        try apply IHa1; try apply IHa2; reflexivity.
@@ -922,16 +967,48 @@ Qed.
     Write a relation [bevalR] in the same style as
     [aevalR], and prove that it is equivalent to [beval]. *)
 
+(* ~28 min *)
+
+(* 7 min *)
 Reserved Notation "e '==>b' b" (at level 90, left associativity).
 Inductive bevalR: bexp -> bool -> Prop :=
-(* FILL IN HERE *)
+  | E_BTrue : BTrue ==>b true
+  | E_BFalse : BFalse ==>b false
+  | E_BNot e b (H : e ==>b b) : BNot e ==>b negb b
+  | E_BAnd e1 e2 b1 b2 
+    (H1 : e1 ==>b b1)
+    (H2 : e2 ==>b b2) : BAnd e1 e2 ==>b b1 && b2
+  | E_BEq e1 e2 n1 n2
+    (H1 : e1 ==> n1)
+    (H2 : e2 ==> n2) : BEq e1 e2 ==>b n1 =? n2
+  | E_BNeq e1 e2 n1 n2
+    (H1 : e1 ==> n1)
+    (H2 : e2 ==> n2) : BNeq e1 e2 ==>b negb (n1 =? n2)
+  | E_BLe e1 e2 n1 n2
+    (H1 : e1 ==> n1)
+    (H2 : e2 ==> n2) : BLe e1 e2 ==>b n1 <=? n2
+  | E_BGt e1 e2 n1 n2
+    (H1 : e1 ==> n1)
+    (H2 : e2 ==> n2) : BGt e1 e2 ==>b negb (n1 <=? n2)
 where "e '==>b' b" := (bevalR e b) : type_scope
 .
 
+(* 19min *)
 Lemma beval_iff_bevalR : forall b bv,
   b ==>b bv <-> beval b = bv.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  split.
+  * (* -> *)
+    intros H. induction H; simpl; subst; try reflexivity;
+    try apply aeval_iff_aevalR in H1, H2; subst; reflexivity.
+  * (* <- *)
+    generalize dependent bv.
+    induction b; simpl; intros; subst; constructor;
+    try (rewrite aeval_iff_aevalR);
+    try apply IHb; try apply IHb1; try apply IHb2;
+    reflexivity.
+Qed.
+
 (** [] *)
 
 End AExp.
@@ -1013,7 +1090,7 @@ Inductive aexp : Type :=
 
 Inductive aevalR : aexp -> nat -> Prop :=
   | E_Any (n : nat) :
-      AAny ==> n                        (* <--- NEW *)
+      AAny ==> n                        (* <--- NEW - notice the similarity to E_ANum *)
   | E_ANum (n : nat) :
       (ANum n) ==> n
   | E_APlus (a1 a2 : aexp) (n1 n2 : nat) :
@@ -1038,6 +1115,10 @@ End aevalR_extended.
 
     One point in favor of relational definitions is that they can be
     more elegant and easier to understand.
+
+    (* note: point in favor: 
+      - you can use notation within them
+      - easier to visualize the inference rules *)
 
     Another is that Coq automatically generates nice inversion and
     induction principles from [Inductive] definitions.

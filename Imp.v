@@ -1274,6 +1274,8 @@ Definition example_bexp : bexp := <{ true && ~(X <= 4) }>.
 (* ================================================================= *)
 (** ** Evaluation *)
 
+(* note: so far, no imperative constructs shown *)
+
 (** The arith and boolean evaluators must now be extended to
     handle variables in the obvious way, taking a state [st] as an
     extra argument: *)
@@ -1348,7 +1350,7 @@ Proof. reflexivity. Qed.
     commands: *)
 
 Inductive com : Type :=
-  | CSkip
+  | CSkip (* _nullary_ *)
   | CAsgn (x : string) (a : aexp)
   | CSeq (c1 c2 : com)
   | CIf (b : bexp) (c1 c2 : com)
@@ -1381,6 +1383,8 @@ Notation "'while' x 'do' y 'end'" :=
     formal Coq definition.  When this command terminates, the variable
     [Y] will contain the factorial of the initial value of [X]. *)
 
+(* Set Printing Coercions. *)
+
 Definition fact_in_coq : com :=
   <{ Z := X;
      Y := 1;
@@ -1410,7 +1414,7 @@ Print fact_in_coq.
     elaborate the current goal and context. *)
 
 Unset Printing Notations.
-Print fact_in_coq.
+Print fact_in_coq. (* doesn't unsugar nats in the output I get *)
 (* ===>
    fact_in_coq =
    CSeq (CAsgn Z X)
@@ -1419,7 +1423,7 @@ Print fact_in_coq.
                       (CSeq (CAsgn Y (AMult Y Z))
                             (CAsgn Z (AMinus Z (S O))))))
         : com *)
-Set Printing Notations.
+Set Printing Notations. (* turns on sugar *)
 
 Print example_bexp.
 (* ===> example_bexp = <{(true && ~ (X <= 4))}> *)
@@ -1471,6 +1475,7 @@ Locate "&&".
       "x && y" := BAnd x y (default interpretation)
       "x && y" := andb x y : bool_scope (default interpretation)
 *)
+(* note: the first interpretation only occurs within the custom scope [com_scope] of commands, delimited with "<{" and "}>"*)
 Locate ";".
 (* ===>
     Notation
@@ -1552,6 +1557,13 @@ Fixpoint ceval_fun_no_while (st : state) (c : com) : state :=
           else ceval_fun_no_while st c2
     | <{ while b do c end }> =>
         st  (* bogus *)
+
+        (* my attempt: 
+        [
+        if (beval st b)
+          then ceval_fun_no_while st <{ c ; while b do c end }>
+          else ~~<{ skip }>~~ st
+        ] *)
   end.
 
 (** In a more conventional functional programming language like OCaml or
@@ -1565,6 +1577,8 @@ Fixpoint ceval_fun_no_while (st : state) (c : com) : state :=
                   then ceval_fun st <{c ; while b do c end}>
                   else st
           end.
+
+    (* not only isn't it decreasing, it is even increasing! *)
 
     Coq doesn't accept such a definition ("Error: Cannot guess
     decreasing argument of fix") because the function we want to
@@ -1583,6 +1597,9 @@ Fixpoint ceval_fun_no_while (st : state) (c : com) : state :=
     That is, propositions like [False] would become provable
     ([loop_false 0] would be a proof of [False]), which would be
     a disaster for Coq's logical consistency.
+
+    (* Still puzzled at the connection between False and non-termination.
+      [False] is defined inductively as the empty set, i.e. no value can have type [False]. Oh yeah!! Since [loop_false n] will never exhibit a value, it may aswell belong to [False]. *)
 
     Thus, because it doesn't terminate on all inputs, [ceval_fun]
     cannot be written in Coq -- at least not without additional tricks
@@ -1709,6 +1726,8 @@ Proof.
 Qed.
 
 (** **** Exercise: 2 stars, standard (ceval_example2) *)
+
+(* 3 min *)
 Example ceval_example2:
   empty_st =[
     X := 0;
@@ -1716,7 +1735,12 @@ Example ceval_example2:
     Z := 2
   ]=> (Z !-> 2 ; Y !-> 1 ; X !-> 0).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  apply E_Seq with (X !-> 0).
+  * apply E_Asgn. reflexivity.
+  * apply E_Seq with (Y !-> 1 ; X !-> 0).
+    + apply E_Asgn. reflexivity.
+    + apply E_Asgn. reflexivity.
+Qed.
 (** [] *)
 
 Set Printing Implicit.
@@ -1730,15 +1754,40 @@ Check @ceval_example2.
     which you can reverse-engineer to discover the program you should
     write.  The proof of that theorem will be somewhat lengthy. *)
 
-Definition pup_to_n : com
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+(* 2 min *)
+Definition pup_to_n : com :=
+  <{
+    Y := 0;
+    while X <> 0 do
+      Y := Y + X;
+      X := X - 1
+    end
+  }>.
 
+(* 12 min + 8 min to tidy up with definitions *)
 Theorem pup_to_2_ceval :
   (X !-> 2) =[
     pup_to_n
   ]=> (X !-> 0 ; Y !-> 3 ; X !-> 1 ; Y !-> 2 ; Y !-> 0 ; X !-> 2).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  Definition st0 := (Y !-> 0; X !-> 2).
+  apply E_Seq with st0.
+  * apply E_Asgn. reflexivity.
+  * apply E_WhileTrue with (X !-> 1 ; Y !-> 2; st0). (* supply state that results from executing _the body_ (there are two assignments that add two new bindings!) *)
+    + (* while's guard *) reflexivity.
+    + (* while's body *)
+      apply E_Seq with (Y !-> 2; st0);
+      apply E_Asgn; reflexivity.
+    + (* repeat *)
+      Definition st1 := (X !-> 1 ; Y !-> 2; st0). (* state after one iteration *)
+      apply E_WhileTrue with 
+        (X !-> 0 ; Y !-> 3 ; st1).
+      - reflexivity.
+      - apply E_Seq with (Y !-> 3 ; st1);
+        apply E_Asgn; reflexivity.
+      - apply E_WhileFalse. reflexivity.
+Qed.
+
 (** [] *)
 
 (* ================================================================= *)
@@ -1795,6 +1844,9 @@ Proof.
     somewhat low-level way) just by working with the bare definitions.
     This section explores some examples. *)
 
+Locate plus2.
+Print plus2.
+
 Theorem plus2_spec : forall st n st',
   st X = n ->
   st =[ plus2 ]=> st' ->
@@ -1816,11 +1868,26 @@ Proof.
 
 (* FILL IN HERE *)
 
+(* 2 min - way too easy for 3 stars?*)
+
+Print XtimesYinZ.
+
+Theorem XtimesYinZ_spec : forall st n m st',
+  st X = n ->
+  st Y = m ->
+  st =[ XtimesYinZ ]=> st' ->
+  st' Z = n * m.
+Proof.
+  intros st n m st' HX HY Heval.
+  inversion Heval. subst. reflexivity.  Qed.
+
 (* Do not modify the following line: *)
 Definition manual_grade_for_XtimesYinZ_spec : option (nat*string) := None.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard, especially useful (loop_never_stops) *)
+
+(* 12 min *)
 Theorem loop_never_stops : forall st st',
   ~(st =[ loop ]=> st').
 Proof.
@@ -1833,7 +1900,13 @@ Proof.
       contradictory and so can be solved in one step with
       [discriminate]. *)
 
-  (* FILL IN HERE *) Admitted.
+  induction contra; try discriminate Heqloopdef.
+  * (* E_WhileFalse *) 
+    inversion Heqloopdef. rewrite H1 in H. simpl in H. discriminate H.
+  * (* E_WhileTrue *) apply IHcontra2 in Heqloopdef. destruct Heqloopdef.
+Qed.
+(* now *)
+
 (** [] *)
 
 (** **** Exercise: 3 stars, standard (no_whiles_eqv)
@@ -1859,14 +1932,35 @@ Fixpoint no_whiles (c : com) : bool :=
     [no_whilesR c] is provable exactly when [c] is a program with no
     while loops.  Then prove its equivalence with [no_whiles]. *)
 
+(* recall a unary relation is a set, here the set of all programs with no while loops. *)
+
+(* 7 min *)
 Inductive no_whilesR: com -> Prop :=
- (* FILL IN HERE *)
+  | NoWhiles_Skip : no_whilesR <{ skip }>
+  | NoWhiles_Asgn x a : no_whilesR <{ x := a }>
+  | NoWhiles_Seq c1 c2 
+      (H1 : no_whilesR c1) (H2 : no_whilesR c2) : no_whilesR <{ c1 ; c2 }>
+  | NoWhiles_Ife b ct cf
+      (H1 : no_whilesR ct) (H2 : no_whilesR cf) :
+      no_whilesR <{ if b then ct else cf end }>
 .
 
+(* 15 min -> (looked hard for [andb_true_iff]) + 3 min <- 666*)
+Search andb_true_iff.
 Theorem no_whiles_eqv:
   forall c, no_whiles c = true <-> no_whilesR c.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros c. split.
+  * intros Hb.
+    induction c; 
+    try constructor; try apply IHc1; try apply IHc2;
+    simpl in Hb; try discriminate Hb;
+    apply andb_true_iff in Hb; destruct Hb as [Hb1 Hb2]; assumption.
+  * intros HE.
+    induction HE; try reflexivity; simpl;
+    apply andb_true_iff; split; try apply IHHE1; try apply IHHE2.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 4 stars, standard (no_whiles_terminating)
@@ -1877,6 +1971,35 @@ Proof.
     Use either [no_whiles] or [no_whilesR], as you prefer. *)
 
 (* FILL IN HERE *)
+
+(* 20 min (3 min to formalize theorem)
+  this was really sweet to work out *)
+Theorem no_whiles_terminating : forall c st,
+  no_whilesR c -> exists st', st =[ c ]=> st'.
+Proof.
+  intros c st H.
+  generalize dependent st.
+  induction H; intros.
+  * (* NoWhile_Skip *)
+    exists st. constructor.
+  * (* NoWhile_Asgn *)
+    exists ( x !-> aeval st a ; st ). constructor. reflexivity.
+  * (* NoWhile_Seq *)
+    destruct (IHno_whilesR1 st) as [st'].
+    destruct (IHno_whilesR2 st') as [st''].
+    exists st''. apply E_Seq with st'; assumption.
+  * (* NoWhile_Ife *)
+    destruct (beval st b) eqn:Eb.
+    + destruct (IHno_whilesR1 st) as [st'].
+      exists st'. apply E_IfTrue.
+      - apply Eb.
+      - apply H1.
+    + destruct (IHno_whilesR2 st) as [st'].
+      exists st'. apply E_IfFalse.
+      - apply Eb.
+      - apply H1.
+Qed.
+
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_no_whiles_terminating : option (nat*string) := None.

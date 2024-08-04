@@ -1989,17 +1989,12 @@ Proof.
     destruct (IHno_whilesR2 st') as [st''].
     exists st''. apply E_Seq with st'; assumption.
   * (* NoWhile_Ife *)
-    destruct (beval st b) eqn:Eb.
-    + destruct (IHno_whilesR1 st) as [st'].
-      exists st'. apply E_IfTrue.
-      - apply Eb.
-      - apply H1.
-    + destruct (IHno_whilesR2 st) as [st'].
-      exists st'. apply E_IfFalse.
-      - apply Eb.
-      - apply H1.
+    Ltac exists_st st Hex := destruct (Hex st) as [st']; 
+      exists st'; constructor; assumption.
+    destruct (beval st b) eqn:Eb;
+    try exists_st st IHno_whilesR1;
+    try exists_st st IHno_whilesR2. (* seems like it the guesses the wrong constructor - [E_IfTrue] instead of [E_IfFalse], yet it manages to successfully apply the assumptions... *)
 Qed.
-
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_no_whiles_terminating : option (nat*string) := None.
@@ -2068,10 +2063,34 @@ Inductive sinstr : Type :=
     But for sake of later exercises, it would be best to skip the
     offending instruction and continue with the next one.  *)
 
+(* ~15 min *)
 Fixpoint s_execute (st : state) (stack : list nat)
                    (prog : list sinstr)
-                 : list nat
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+                 : list nat :=
+  match prog with
+  | [] => stack
+  | i :: prog' =>
+    s_execute st (match i with
+    | SPush n => n :: stack
+    | SLoad x => (st x) :: stack
+    | SPlus =>
+      match stack with
+      | n :: m :: stack' => m + n :: stack'
+      | _ => stack
+      end
+    | SMinus =>
+      match stack with
+      | n :: m :: stack' => m - n :: stack'
+      | _ => stack
+      end
+    | SMult =>
+      match stack with
+      | n :: m :: stack' => m * n :: stack'
+      | _ => stack
+      end
+    end) prog'
+  end.
+
 
 Check s_execute.
 
@@ -2079,20 +2098,35 @@ Example s_execute1 :
      s_execute empty_st []
        [SPush 5; SPush 3; SPush 1; SMinus]
    = [2; 5].
-(* FILL IN HERE *) Admitted.
+Proof. simpl. reflexivity.  Qed.
 
 Example s_execute2 :
      s_execute (X !-> 3) [3;4]
        [SPush 4; SLoad X; SMult; SPlus]
    = [15; 4].
-(* FILL IN HERE *) Admitted.
+Proof. simpl. reflexivity.  Qed.
 
 (** Next, write a function that compiles an [aexp] into a stack
     machine program. The effect of running the program should be the
     same as pushing the value of the expression on the stack. *)
 
-Fixpoint s_compile (e : aexp) : list sinstr
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+(* ~14 min (slow!) *)
+Print aexp.
+
+Fixpoint s_compile (e : aexp) : list sinstr :=
+  match e with
+  | ANum n => [SPush n]
+  | AId x => [SLoad x]
+  | APlus e1 e2 => s_compile e1 ++ s_compile e2 ++ [SPlus]
+  | AMinus e1 e2 => s_compile e1 ++ s_compile e2 ++ [SMinus]
+  | AMult e1 e2 => s_compile e1 ++ s_compile e2 ++ [SMult]
+  end.
+
+(* AMinus (ANum 3) (ANum 2) = [SPush 3; SPush 2; SPlus]*)
+
+Definition p := <{ (2*3)+(3*(4-2)) }>.
+Compute s_compile p.
+Compute s_execute empty_st [] (s_compile p).
 
 (** After you've defined [s_compile], prove the following to test
     that it works. *)
@@ -2100,7 +2134,7 @@ Fixpoint s_compile (e : aexp) : list sinstr
 Example s_compile1 :
   s_compile <{ X - (2 * Y) }>
   = [SLoad X; SPush 2; SLoad Y; SMult; SMinus].
-(* FILL IN HERE *) Admitted.
+Proof. simpl. reflexivity.  Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard (execute_app) *)
@@ -2110,10 +2144,13 @@ Example s_compile1 :
     the resulting stack, and executing [p2] from that stack. Prove
     that fact. *)
 
+(* 7 min *)
 Theorem execute_app : forall st p1 p2 stack,
   s_execute st stack (p1 ++ p2) = s_execute st (s_execute st stack p1) p2.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros st p1. induction p1 as [| i p1' IH]; intros p2 stack.
+  * reflexivity.
+  * simpl. rewrite IH. reflexivity.  Qed. (* the two stacks differ by just the updates the instruction [i] introduces. Up to executing [i], they are the same (IH). *)
 
 (** [] *)
 
@@ -2124,17 +2161,27 @@ Proof.
     becomes difficult, consider whether your implementation of
     [s_execute] or [s_compile] could be simplified. *)
 
+(* 13 min + 1 min *)
 Lemma s_compile_correct_aux : forall st e stack,
   s_execute st stack (s_compile e) = aeval st e :: stack.
+  (* executing the compiled expression yields the same result as adding its value to the stack*)
 Proof.
-  (* FILL IN HERE *) Admitted.
+  Set Printing Coercions.
+  intros st e. induction e; intros stack;
+  (* ANum and AId *)
+  try reflexivity;
+  (* Binary operations *)
+  simpl; 
+  rewrite execute_app; rewrite IHe1; (* feed the new stack to execute [s_compile e2] *)
+  rewrite execute_app; rewrite IHe2;
+  reflexivity.  Qed.
 
 (** The main theorem should be a very easy corollary of that lemma. *)
 
 Theorem s_compile_correct : forall (st : state) (e : aexp),
   s_execute st [] (s_compile e) = [ aeval st e ].
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros st e. apply s_compile_correct_aux.  Qed.
 
 (** [] *)
 
@@ -2155,9 +2202,28 @@ Proof.
     would _not_ be equivalent to the original, since it would make more
     programs terminate.) *)
 
-(* FILL IN HERE
+(* 14 min *)
+Print beval.
 
-    [] *)
+(* 8 min *)
+Fixpoint beval_ss st (b : bexp) : bool :=
+  match b with
+  | BTrue => true
+  | BFalse => false
+  | BNot b => negb (beval_ss st b)
+  | BAnd b1 b2 => if beval_ss st b1 then beval_ss st b2 else false
+  | b => beval st b
+  end.
+(** [] *)
+
+(* 5min 35s *)
+Theorem beval_ss_correct : forall st b,
+  beval_ss st b = beval st b.
+Proof.
+  intros st. induction b; try reflexivity; simpl.
+  * (* BNot *) rewrite IHb. reflexivity.
+  * (* BAnd *) rewrite IHb1, IHb2.
+    destruct (beval st b1); reflexivity.  Qed.
 
 Module BreakImp.
 (** **** Exercise: 4 stars, advanced (break_imp)

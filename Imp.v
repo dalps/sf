@@ -2342,64 +2342,168 @@ Reserved Notation "st '=[' c ']=>' st' '/' s"
 (** Based on the above description, complete the definition of the
     [ceval] relation. *)
 
+Print com.
+Print ceval.
+
+(* 22 min *)
 Inductive ceval : com -> state -> result -> state -> Prop :=
   | E_Skip : forall st,
-      st =[ CSkip ]=> st / SContinue
-  (* FILL IN HERE *)
-
+      st =[ skip ]=> st / SContinue
+  | E_Asgn : forall st x a,
+      st =[ x := a ]=> (x !-> aeval st a ; st) / SContinue
+  | E_Break : forall st,
+      st =[ break ]=> st / SBreak
+  | E_SeqContn : forall c1 c2 st st' st'' sig,
+      st =[ c1 ]=> st' / SContinue ->
+      st' =[ c2 ]=> st'' / sig ->
+      st =[ c1 ; c2 ]=> st'' / sig
+  | E_SeqBreak : forall c1 c2 st st',
+      st =[ c1 ]=> st' / SBreak ->
+      st =[ c1 ; c2 ]=> st' / SBreak
+  | E_IfeTrue : forall b ct cf st st' sig,
+      beval st b = true ->
+      st =[ ct ]=> st' / sig ->
+      st =[ if b then ct else cf end ]=> st' / sig
+  | E_IfeFalse : forall b ct cf st st' sig,
+      beval st b = false ->
+      st =[ cf ]=> st' / sig ->
+      st =[ if b then ct else cf end ]=> st' / sig
+  | E_WhileFalse : forall b c st,
+      beval st b = false ->
+      st =[ while b do c end ]=> st / SContinue
+  | E_WhileTrueContn : forall b c st st' st'' sig,
+      beval st b = true ->
+      st =[ c ]=> st' / SContinue ->
+      st' =[ while b do c end ]=> st'' / sig -> (* a while never signals [SBreak] *)
+      st =[ while b do c end ]=> st'' / sig
+  | E_WhileTrueBreak : forall b c st st',
+      beval st b = true ->
+      st =[ c ]=> st' / SBreak ->
+      st =[ while b do c end ]=> st' / SContinue
   where "st '=[' c ']=>' st' '/' s" := (ceval c st s st').
 
 (** Now prove the following properties of your definition of [ceval]: *)
 
+(* 4 min *)
 Theorem break_ignore : forall c st st' s,
      st =[ break; c ]=> st' / s ->
      st = st'.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros c st st' s H. inversion H.
+  * (* E_SeqContn *) inversion H2.
+  * (* E_SeqBreak *) inversion H5. subst. reflexivity.
+Qed.
 
+(* 9 min *)
 Theorem while_continue : forall b c st st' s,
   st =[ while b do c end ]=> st' / s ->
   s = SContinue.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros b c st st' s H.
+  remember <{ while b do c end }> as cmd eqn:Ecmd.
+  induction H; inversion Ecmd; try reflexivity.
+  rewrite IHceval2; try reflexivity; apply Ecmd.
+Qed.
 
+(* 3 min *)
 Theorem while_stops_on_break : forall b c st st',
   beval st b = true ->
   st =[ c ]=> st' / SBreak ->
   st =[ while b do c end ]=> st' / SContinue.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros b c st st' Hb Hc. constructor.
+  * apply Hb.
+  * apply Hc.  Qed.
 
+
+(* 3 min *)
 Theorem seq_continue : forall c1 c2 st st' st'',
   st =[ c1 ]=> st' / SContinue ->
   st' =[ c2 ]=> st'' / SContinue ->
   st =[ c1 ; c2 ]=> st'' / SContinue.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros. apply E_SeqContn with st';
+  try apply H; try apply H0.  Qed.
 
+(* 1 min v *)
 Theorem seq_stops_on_break : forall c1 c2 st st',
   st =[ c1 ]=> st' / SBreak ->
   st =[ c1 ; c2 ]=> st' / SBreak.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros. apply E_SeqBreak. apply H.  Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, advanced, optional (while_break_true) *)
+
+(* 28 min + 9 min to internalize *)
 Theorem while_break_true : forall b c st st',
   st =[ while b do c end ]=> st' / SContinue ->
   beval st' b = true ->
   exists st'', st'' =[ c ]=> st' / SBreak.
+
+  (* If 1. evaluation of while results in [st' / SContinue] (remember: evaluation is big-step) but 2. guard is still true then it must be that [c] executed a break statement at some point. *)
 Proof.
-(* FILL IN HERE *) Admitted.
+  intros b c st st' Hw Hb.
+  remember <{ while b do c end }> as cmd eqn:Ecmd.
+  induction Hw; inversion Ecmd.
+  * (* E_WhileFalse *) inversion Ecmd. subst. rewrite H in Hb. discriminate Hb.
+  * (* E_WhileTrueContn *) subst.
+    destruct IHHw2 as [breakpoint]. (* [c] eventually breaks *)
+    + reflexivity.
+    + apply Hb.
+    + exists breakpoint. apply H0.
+  * (* E_WhileTrueBreak *) subst.
+    exists st. apply Hw. (* [c] breaks right away *)
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 4 stars, advanced, optional (ceval_deterministic) *)
+
+(* 1h5min - mostly due to repetiveness *)
 Theorem ceval_deterministic: forall (c:com) st st1 st2 s1 s2,
      st =[ c ]=> st1 / s1 ->
      st =[ c ]=> st2 / s2 ->
      st1 = st2 /\ s1 = s2.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros c st st1 st2 s1 s2 E1 E2.
+  generalize dependent st2.
+  generalize dependent s2.
+  induction E1; intros s2 st2 E2.
+  (* inversion E2; try (subst; split; reflexivity). - I don't like how it forces you to "flatten" your proof, it's so frustrating *)
+  * (* E_Skip *) inversion E2. subst. split; reflexivity.
+  * (* E_Asgn *) inversion E2. subst. split; reflexivity.
+  * (* E_Break *) inversion E2. subst. split; reflexivity.
+  * (* E_SeqContn *) inversion E2; (* prove executing [c1] in both assumptions leads to the same intermediate state [st' = st'0] *) subst.
+    + (* E_SeqContn *) subst.
+      apply IHE1_1 in H1. destruct H1 as [H1 _].
+      apply IHE1_2. rewrite <- H1 in H5. apply H5.
+    + (* E_SeqBreak *)
+      apply IHE1_1 in H4. destruct H4 as [_ contra]. discriminate.
+  * (* E_SeqBreak *) inversion E2.
+    + (* E_SeqContn *) subst. apply IHE1 in H1. destruct H1 as [_ contra]. discriminate.
+    + (* E_SeqBreak *) subst. apply IHE1 in H4. apply H4.
+  * (* E_IfeTrue *) inversion E2; subst.
+    + apply IHE1 in H7. apply H7.
+    + rewrite H in H6. discriminate.
+  * (* E_IfeFalse *) inversion E2; subst.
+    + rewrite H in H6. discriminate.
+    + apply IHE1 in H7. apply H7.
+  * (* E_WhileFalse *) inversion E2; subst;
+    try (split; reflexivity);
+    try (rewrite H in H2; discriminate).
+  * (* E_WhileTrueContn *) inversion E2; subst.
+    + rewrite H5 in H. discriminate.
+    + apply IHE1_1 in H3. destruct H3 as [H3 _].
+      apply IHE1_2. rewrite <- H3 in H7. apply H7.
+    + apply IHE1_1 in H6. destruct H6 as [_ contra]. discriminate.
+  * (* E_WhileTrueBreak *) inversion E2; subst.
+    + rewrite H5 in H. discriminate.
+    + apply IHE1 in H3. destruct H3 as [_ contra]. discriminate.
+    + apply IHE1 in H6. split.
+      - destruct H6 as [H6 _]. apply H6.
+      - reflexivity.
+Qed. (* Jesus Christ... *)
 
 (** [] *)
 End BreakImp.

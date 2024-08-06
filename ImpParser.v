@@ -78,27 +78,28 @@ Definition string_of_list (xs : list ascii) : string :=
 
 Definition token := string.
 
+(* [acc] gathers the character belonging to an expression *)
 Fixpoint tokenize_helper (cls : chartype) (acc xs : list ascii)
                        : list (list ascii) :=
-  let tk := match acc with [] => [] | _::_ => [rev acc] end in
+  let tk := match acc with [] => [] | _::_ => [rev acc] end in (* A single token. Since the characters where cons'd to the accumulator argument, they are in reverse order *)
   match xs with
   | [] => tk
   | (x::xs') =>
-    match cls, classifyChar x, x with
+    match cls, classifyChar x, x with (* previous character class, current character class, character *)
     | _, _, "("      =>
       tk ++ ["("]::(tokenize_helper other [] xs')
     | _, _, ")"      =>
       tk ++ [")"]::(tokenize_helper other [] xs')
     | _, white, _    =>
-      tk ++ (tokenize_helper white [] xs')
+      tk ++ (tokenize_helper white [] xs') (* add whatever was accumulated when a separator (whitespace or parentheses) is read *)
     | alpha,alpha,x  =>
-      tokenize_helper alpha (x::acc) xs'
+      tokenize_helper alpha (x::acc) xs' (* work in the accumulator *)
     | digit,digit,x  =>
       tokenize_helper digit (x::acc) xs'
     | other,other,x  =>
       tokenize_helper other (x::acc) xs'
     | _,tp,x         =>
-      tk ++ (tokenize_helper tp [x] xs')
+      tk ++ (tokenize_helper tp [x] xs') (* [tp] is a different class than both [white] and the previous one. Start recognizing a new string of such class, and append the one read so far to the output *)
     end
   end %char.
 
@@ -146,6 +147,8 @@ Notation "'TRY' e1 'OR' e2"
        end)
    (right associativity,
     at level 60, e1 at next level, e2 at next level).
+
+Check TRY SomeE (2 + 2) OR SomeE 3.
 
 (* ----------------------------------------------------------------- *)
 (** *** Generic Combinators for Building Parsers *)
@@ -204,6 +207,9 @@ match xs with
       NoneE ("Illegal identifier:'" ++ x ++ "'")
 end.
 
+Compute parseIdentifier ["foo" ; ":="].
+Compute parseIdentifier ["fooBar"].
+
 (** Numbers: *)
 
 Definition parseNumber (xs : list token)
@@ -222,6 +228,9 @@ match xs with
     else
       NoneE "Expected number"
 end.
+
+Compute parseNumber ["123" ; "abc" ; ":="].
+Compute parseNumber ["0xff" ; "abc" ; ":="].
 
 (** Parse arithmetic expressions *)
 
@@ -341,13 +350,11 @@ Definition testParsing {X : Type}
   let t := tokenize s in
   p 100 t.
 
-(*
 Eval compute in
   testParsing parseProductExp "x.y.(x.x).x".
 
 Eval compute in
   testParsing parseConjunctionExp "~(x=x&&x*x<=(x*x)*x)&&x=x".
-*)
 
 (** Parsing commands: *)
 

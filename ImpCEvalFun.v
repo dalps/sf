@@ -98,7 +98,7 @@ Fixpoint ceval_step2 (st : state) (c : com) (i : nat) : state :=
       | <{ while b1 do c1 end }> =>
           if (beval st b1)
           then let st' := ceval_step2 st c1 i' in
-               ceval_step2 st' c i'
+               ceval_step2 st' c i' (* there is a decreasing argument now *)
           else st
     end
   end.
@@ -151,10 +151,12 @@ Fixpoint ceval_step3 (st : state) (c : com) (i : nat)
     bit of auxiliary notation to hide the plumbing involved in
     repeatedly matching against optional states. *)
 
+(* note: Is this a monadic programming idiom? *)
+
 Notation "'LETOPT' x <== e1 'IN' e2"
    := (match e1 with
-         | Some x => e2
-         | None => None
+         | Some x => e2 (*  [e1] is unboxed in [x], which can then be used in [e2] *)
+         | None => None (* the box is empty, nothing can be done! *)
        end)
    (right associativity, at level 60).
 
@@ -186,7 +188,7 @@ Fixpoint ceval_step (st : state) (c : com) (i : nat)
 Definition test_ceval (st:state) (c:com) :=
   match ceval_step st c 500 with
   | None    => None
-  | Some st => Some (st X, st Y, st Z)
+  | Some st => Some (st X, st Y, st Z) (* project the result on [X] [Y] and [Z] *)
   end.
 
 Example example_test_ceval :
@@ -207,16 +209,20 @@ Proof. reflexivity. Qed.
    [X] (inclusive -- i.e., [1 + 2 + ... + X]) in the variable [Y].  Make
    sure your solution satisfies the test that follows. *)
 
-Definition pup_to_n : com
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+(* 2 min *)
+Definition pup_to_n : com :=
+  <{
+    Y := 0;
+    while X > 0 do
+      Y := Y + X;
+      X := X - 1
+    end
+  }>.
 
 Example pup_to_n_1 :
   test_ceval (X !-> 5) pup_to_n
   = Some (0, 15, 0).
-(* FILL IN HERE *) Admitted.
-(* 
-Proof. reflexivity. Qed.
-*)
+Proof. cbv. reflexivity. Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (peven)
@@ -225,9 +231,36 @@ Proof. reflexivity. Qed.
     sets [Z] to [1] otherwise.  Use [test_ceval] to test your
     program. *)
 
-(* FILL IN HERE
+(* 8 min *)
+Definition peven : com :=
+  <{
+    Y := X;
+    while Y > 1 do
+      Y := Y - 2
+    end;
+    Z := Y
+    (* if Y = 1
+      then Z := 1
+      else Z := 0
+    end *)
+  }>.
 
-    [] *)
+Example peven_odd :
+  test_ceval (X !-> 5) peven
+  = Some (5, 1, 1).
+Proof. cbv. reflexivity.  Qed.
+
+Example peven_even_1 :
+  test_ceval (X !-> 0) peven
+  = Some (0, 0, 0).
+Proof. cbv. reflexivity.  Qed.
+
+Example peven_even_2 :
+  test_ceval (X !-> 42) peven
+  = Some (42, 0, 0).
+Proof. cbv. reflexivity.  Qed.
+
+(** [] *)
 
 (* ################################################################# *)
 (** * Relational vs. Step-Indexed Evaluation *)
@@ -255,7 +288,7 @@ Proof.
   - (* i = S i' *)
     intros c st st' H.
     destruct c;
-           simpl in H; inversion H; subst; clear H.
+           simpl in H; inversion H; subst; clear H. 
       + (* skip *) apply E_Skip.
       + (* := *) apply E_Asgn. reflexivity.
 

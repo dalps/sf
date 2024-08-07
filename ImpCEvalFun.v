@@ -332,7 +332,34 @@ Proof.
     the main ideas to a human reader; do not simply transcribe the
     steps of the formal proof. *)
 
-(* FILL IN HERE *)
+(* ~1h *)
+
+(*  Proof: Suppose we are given an [i] such that 
+    the [ceval_steps st c i = Some st'], i.e. the evaluation of [c] by [ceval_steps] terminates and it takes [st] to [st'] in no more than [i] steps. We show that this implies [st =[ c ]=> st'] by induction on [i].
+
+    * The case [i = 0] is immediate, as it would mean [ceval_steps] ran out of gas while executing [c], contradicting our hypothesis.
+
+    * In the case [i = S i'], suppose [st], [st'] are states and [c] is a command. From the inductive hypothesis we have that, for any command [c], and any states [st] and [st'], [ceval_step st c i' = Some st'] implies [st =[ c ]=> st'].
+
+      We must show that [ceval_step st c (S i') = Some st'] implies [st =[ c ]=> st']. We proceed by case-analysis on the command [c]. [ c = skip ] and [ c = x := a ] are obvious. We focus on the interesting cases:
+
+      + [ c = c1 ; c2 ]. There are two cases to consider. First, the evaluation of [c1] ends normally and it results in the state [s]. Then the goal can be derived by the rule [E_Seq] and the inductive hypothesis.
+
+        The case where the evaluation of [c1] runs out of gas can be immediately discharged.
+      
+      + [ c = if b then ct else cf ]. There are two cases to consider: if the evaluation of [b] is [true], then the goal must be derived by [E_IfTrue]; otherwise, it must be derived by [E_IfFalse]. In both cases, the thesis that the specific branch terminates is given by the IH.
+
+      + [ c = while b do c1 end ]. Again, there are two cases to consider based on the truth value of [b].
+        - If [beval st b] is [true], then we must inquire on the termination of the body command, [c1]. We have two more subcases:
+
+          o Assume the command [c1] runs in no more than [i'] steps and produces the state [s].Then, by the constructor [E_WhileTrue] supplied with [s] as the "middle state" and the IH we have the goal.
+
+          o Now assume the evaluation [c1] runs out of gas. By definition of [ceval], this contradicts our hypothesis that the original command [c] terminated.
+
+        - Otherwise, [beval st b] is [false] and [c] returns immediately, so we can say [st = st']. The goal follows from [E_WhileFalse].
+  
+  []
+*)
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_ceval_step__ceval_inf : option (nat*string) := None.

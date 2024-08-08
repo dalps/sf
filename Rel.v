@@ -520,7 +520,28 @@ Proof.
   apply rt1n_trans with y. (* i.e. [apply (rt1n_trans R x y)] *)
   apply H. apply rt1n_refl.   Qed.
 
+Definition clos_nn := clos_refl_trans_1n next_nat.
+
+Example test_rsc1 : clos_nn 42 42.
+Proof. apply rt1n_refl.  Qed.
+
+Example test_rsc2 : clos_nn 2 4.
+Proof.
+  apply rt1n_trans with 3. apply nn.
+  apply rt1n_trans with 4. apply nn.
+  apply rt1n_refl.  Qed.
+
+Example test_rsc3 : clos_nn 2 4 /\ next_nat 4 5 -> clos_nn 2 5.
+Proof.
+  intros [H1 H2].
+  apply rt1n_trans with 3. apply nn.
+  apply rt1n_trans with 4. apply nn.
+  apply rt1n_trans with 5. apply H2.
+  apply rt1n_refl.  Qed.
+
 (** **** Exercise: 2 stars, standard, optional (rsc_trans) *)
+
+(* 3h+ this is vile; just the fact they rated it 2 stars makes my blood boil *)
 Lemma rsc_trans :
   forall (X:Type) (R: relation X) (x y z : X),
       clos_refl_trans_1n R x y  ->
@@ -528,12 +549,14 @@ Lemma rsc_trans :
       clos_refl_trans_1n R x z.
 Proof.
   intros X R x y z Hxy Hyz.
-  induction Hyz as [y | y w z Hyz Hzw IH].
-  * (* rt1n_refl: y = z *) apply Hxy.
-  * (* rt1n_trans:  *) 
-    apply rt1n_trans with (x := y) in Hzw.
-    apply IH. apply rt1n_trans with y. (* stuck... 2 stars?? *)
+  (* generalize dependent x. *)
+  induction Hyz as [y | y w z Hyw Hrest IH].
+  * (* rt1n_refl: y = z *) 
+    (* intros x Hxy. *)
+    apply Hxy.
+  * (* rt1n_trans *)
     
+
 (** [] *)
 
 (** Then we use these facts to prove that the two definitions of

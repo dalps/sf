@@ -541,7 +541,22 @@ Proof.
 
 (** **** Exercise: 2 stars, standard, optional (rsc_trans) *)
 
-(* 3h+ this is vile; just the fact they rated it 2 stars makes my blood boil *)
+(* 3h+ this is vile; just the fact they rated it 2 stars makes my blood boil (8/2/2024) + solved (8/8/2024) in ~1h5min. Can you do without the auxiliary lemma? *)
+
+Print clos_refl_trans_1n.
+
+Lemma rsc_trans_1 :
+  forall (X:Type) (R: relation X) (x y z : X),
+    clos_refl_trans_1n R x y ->
+    R y z ->
+    clos_refl_trans_1n R x z.
+Proof.
+  intros X R x y z Hxy Hyz.
+  induction Hxy as [| x w y Hxw Hrest].
+  * apply rsc_R. apply Hyz.
+  * apply IHHrest in Hyz. apply (rt1n_trans R x w z) in Hyz. apply Hyz. apply Hxw.
+Qed.
+
 Lemma rsc_trans :
   forall (X:Type) (R: relation X) (x y z : X),
       clos_refl_trans_1n R x y  ->
@@ -549,13 +564,17 @@ Lemma rsc_trans :
       clos_refl_trans_1n R x z.
 Proof.
   intros X R x y z Hxy Hyz.
-  (* generalize dependent x. *)
+  generalize dependent x.
   induction Hyz as [y | y w z Hyw Hrest IH].
   * (* rt1n_refl: y = z *) 
     (* intros x Hxy. *)
-    apply Hxy.
+    intros x Hxy. apply Hxy.
   * (* rt1n_trans *)
-    
+    intros x Hxy.
+    apply (rsc_trans_1 X R x y w) in Hyw.
+    - apply IH in Hyw. apply Hyw.
+    - apply Hxy.
+Qed.
 
 (** [] *)
 
@@ -564,11 +583,27 @@ Proof.
     relation. *)
 
 (** **** Exercise: 3 stars, standard, optional (rtc_rsc_coincide) *)
+
+Print clos_refl_trans.
+
+(* 11min *)
 Theorem rtc_rsc_coincide :
   forall (X:Type) (R: relation X) (x y : X),
     clos_refl_trans R x y <-> clos_refl_trans_1n R x y.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros X R x y. split.
+  * intros H. induction H.
+    - apply rsc_R in H. apply H.
+    - apply rt1n_refl.
+    - apply rsc_trans with y.
+        apply IHclos_refl_trans1. apply IHclos_refl_trans2.
+  * intros H. induction H.
+    - apply rt_refl.
+    - apply rt_step in Hxy.
+      apply (rt_trans R x y z) in Hxy.
+      apply Hxy. apply IHclos_refl_trans_1n. 
+Qed.
+
 (** [] *)
 
 (* 2023-12-29 17:12 *)

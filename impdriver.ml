@@ -7,7 +7,7 @@ let explode s =
 
 let test s =
   print_newline();
-  print_endline ("Propgram: " ^ s);
+  print_endline ("Program: " ^ s);
   let parse_res = parse (explode s) in
   (match parse_res with
     NoneE _ -> print_endline ("Syntax error");

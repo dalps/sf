@@ -56,6 +56,7 @@ Extract Inductive nat => "int"
 Extract Constant plus => "( + )".
 Extract Constant mult => "( * )".
 Extract Constant eqb => "( = )".
+Extract Constant minus => "( - )".
 
 (** Important: It is entirely _your responsibility_ to make sure that
     the translations you're proving make sense.  For example, it might
@@ -64,6 +65,11 @@ Extract Constant eqb => "( = )".
       Extract Constant minus => "( - )".
 
     but doing so could lead to serious confusion!  (Why?)
+
+    Because OCaml's ( - ) isn't closed over naturals!!! (15+ mins)
+    In Coq:     1 - 4 = 0
+    In OCaml:   1 - 4 = -3
+
 *)
 
 Extraction "imp2.ml" ceval_step.

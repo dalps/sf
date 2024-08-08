@@ -365,6 +365,7 @@ Proof.
 Definition manual_grade_for_ceval_step__ceval_inf : option (nat*string) := None.
 (** [] *)
 
+(* If [ceval_step] can evaluate [c] in no more than [i1] steps, then it can evaluate [c] in [i2 >= i1] steps aswell. *)
 Theorem ceval_step_more: forall i1 i2 st st' c,
   i1 <= i2 ->
   ceval_step st c i1 = Some st' ->
@@ -414,13 +415,51 @@ induction i1 as [|i1']; intros i2 st st' c Hle Hceval.
     Finish the following proof.  You'll need [ceval_step_more] in a
     few places, as well as some basic facts about [<=] and [plus]. *)
 
+(* Lemma seq_step : forall i1 i2 c1 c2 st st' st'',
+  ceval_step st c1 i1 = Some st' ->
+  ceval_step st' c2 i2 = Some st'' ->
+  i1 <= i2.
+Proof.
+  induction i1 as [| i1' IHi1']; intros i2 c1 c2 st st' st'' Hi1 Hi2.
+  - (* i1 = 0 *)
+    inversion Hi1.
+  - (* i1 = S i1' *)
+    destruct c1.
+    + simpl in Hi1. Abort. *) (* bogus theorem *)
+
+(* 40 min (sluggish after lunch) + energy break + solved in 11 min 
+    + learned how to use [lia]! *)
 Theorem ceval__ceval_step: forall c st st',
       st =[ c ]=> st' ->
       exists i, ceval_step st c i = Some st'.
 Proof.
   intros c st st' Hce.
   induction Hce.
-  (* FILL IN HERE *) Admitted.
+  * (* E_Skip *) exists 1. reflexivity.
+  * (* E_Asgn *) exists 1; subst; reflexivity.
+  * (* E_Seq *)
+    destruct IHHce1 as [i1 IHc1].
+    destruct IHHce2 as [i2 IHc2].
+    exists (S (i1 + i2)). (* need gas to take a single step -> [S (...)]. Simply [i2] won't work! Also, [i2] isn't enough gas for the whole sequence; [i1 + i2] is plenty of gas. *)
+    simpl. apply (ceval_step_more i1 (i1 + i2)) in IHc1; try lia. rewrite IHc1.
+    apply (ceval_step_more i2 (i1 + i2)); try lia. apply IHc2.
+  * (* E_IfTrue *)
+    destruct IHHce as [i IHct].
+    exists (S i). simpl. destruct (beval st b); try discriminate; apply IHct.
+  * (* E_IfFalse *)
+    destruct IHHce as [i IHcf].
+    exists (S i). simpl. destruct (beval st b); try discriminate; apply IHcf.
+  * (* E_WhileFalse *)
+    exists 1. simpl. destruct (beval st b); try discriminate; reflexivity.
+  * (* E_WhileTrue *)
+    destruct IHHce1 as [i1 IHc].
+    destruct IHHce2 as [i2 IHwhile].
+    exists (S (i1 + i2)). simpl. destruct (beval st b); try discriminate.
+    apply (ceval_step_more i1 (i1 + i2)) in IHc; try lia. rewrite IHc.
+    apply (ceval_step_more i2 (i1 + i2)) in IHwhile; try lia. apply IHwhile.
+Qed.
+
+
 (** [] *)
 
 Theorem ceval_and_ceval_step_coincide: forall c st st',

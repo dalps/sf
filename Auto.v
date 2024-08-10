@@ -103,7 +103,9 @@ Example auto_example_2 : forall P Q R S T U : Prop,
   T ->
   P ->
   U.
-Proof. auto. Qed.
+Proof. 
+  (* intros. apply H2. apply H3. apply H. apply H5. apply H4. *)
+  auto. Qed.
 
 (** Proof search could, in principle, take an arbitrarily long time,
     so there are limits to how deep [auto] will search by default. *)
@@ -140,7 +142,7 @@ Example auto_example_4 : forall P Q R : Prop,
   Q ->
   (Q -> R) ->
   P \/ (Q /\ R).
-Proof. auto. Qed.
+Proof. info_auto. Qed.
 
 (** If we want to see which facts [auto] is using, we can use
     [info_auto] instead. *)
@@ -154,14 +156,14 @@ Example auto_example_5' : forall (P Q R S T U W: Prop),
   (U -> T) ->
   (W -> U) ->
   (R -> S) ->
-  (S -> T) ->
+  (S -> T) -> (* leads to proof *)
   (P -> R) ->
-  (U -> T) ->
+  (U -> T) -> (* lead nowhere (W is a dead end) *)
   P ->
   T.
 Proof.
   intros.
-  info_auto.
+  info_auto. (* Coq numbers hypotheses like this: [H], [H0], [H1], [H2]... so [Hn] is actaully the (n + 2)-th hypothesis, counting from the top *)
 Qed.
 
 (** We can extend the hint database just for the purposes of one
@@ -175,7 +177,7 @@ Example auto_example_6 : forall n m p : nat,
   n <= p ->
   n = m.
 Proof.
-  auto using le_antisym.
+  info_auto using le_antisym.
 Qed.
 
 (** Of course, in any given development there will probably be
@@ -231,7 +233,7 @@ Hint Unfold is_fortytwo : core.
 Example auto_example_7' : forall x,
   (x <= 42 /\ 42 <= x) -> is_fortytwo x.
 Proof.
-  auto. (* try also: info_auto. *)
+  info_auto. (* try also: info_auto. *)
 Qed.
 
 (** (Note that the [Hint Unfold is_fortytwo] command above the
@@ -251,6 +253,7 @@ Proof.
   generalize dependent st2;
     induction E1; intros st2 E2; inversion E2; subst;
     auto.   (* <---- here's one good place for auto *)
+    (* solves 5 out of 11 subgoals, namely [E_Skip], [E_Asgn], and trivial cases where [beval st b] agrees with guard: [E_IfTrue], [E_IfFalse], [E_WhileFalse]. *)
   - (* E_Seq *)
     rewrite (IHE1_1 st'0 H1) in *.
     auto.   (* <---- here's another *)
@@ -310,6 +313,8 @@ Qed.
 
       H2: beval st b = true
 
+    (* note: one equality comes from [induction E1], the other from [inversion E2]. *)
+
     as hypotheses.  The contradiction is evident, but demonstrating it
     is a little complicated: we have to locate the two hypotheses [H1]
     and [H2] and do a [rewrite] following by a [discriminate].  We'd
@@ -347,6 +352,7 @@ Proof.
   - (* EWhileTrue - b true *)
     rewrite (IHE1_1 st'0 H3) in *.
     auto. Qed.
+(* you, the user, still need to search names containing "magic numbers" and apply them manually to [rwd]. *)
 
 (** That was a bit better, but we really want Coq to discover the
     relevant hypotheses for us.  We can do this by using the [match
@@ -390,8 +396,8 @@ Proof.
 
 Ltac find_eqn :=
   match goal with
-    H1: forall x, ?P x -> ?L = ?R,
-    H2: ?P ?X
+    H1: forall x, ?P x -> ?L = ?R, (* any [x] satisfying [P] induces the equality [L = R] *)
+    H2: ?P ?X (* an [X] satisfying [P] *)
     |- _ => rewrite (H1 X H2) in *
   end.
 
@@ -416,7 +422,7 @@ Proof.
   intros c st st1 st2 E1 E2.
   generalize dependent st2;
   induction E1; intros st2 E2; inversion E2; subst; try find_rwd;
-    try find_eqn; auto.
+    try find_eqn; auto. (* order [find_rwd] and [find_eqn] is irrelevant here *)
 Qed.
 
 (** The big payoff in this approach is that our proof script should be
@@ -644,7 +650,10 @@ Example eauto_example : exists s',
       else Y := X + Z
     end
   ]=> s'.
-Proof. info_eauto. Qed.
+Proof.
+  (* eapply ex_intro.
+  apply E_IfFalse. reflexivity. apply E_Asgn. reflexivity. *)
+  info_eauto. Qed.
 
 (** The [eauto] tactic works just like [auto], except that it uses
     [eapply] instead of [apply]; [info_eauto] shows us which facts
@@ -671,7 +680,7 @@ Lemma silly1 : forall (P : nat -> nat -> Prop) (Q : nat -> Prop),
   (forall x y : nat, P x y -> Q x) ->
   Q 42.
 Proof.
-  intros P Q HP HQ. eapply HQ. apply HP.
+  intros P Q HP HQ. eapply HQ. apply HP.  (* Qed. *)
 (** Coq gives a warning after [apply HP]: "All the remaining goals
     are on the shelf," means that we've finished all our top-level
     proof obligations but along the way we've put some aside to be

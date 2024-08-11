@@ -55,6 +55,8 @@ Fixpoint re_opt_e {T:Type} (re: reg_exp T) : reg_exp T :=
   | _ => re
   end.
 
+Compute re_opt_e (App (App EmptyStr EmptyStr) (Char 2)). (* needs another round *)
+
 (** We would like to show the equivalence of re's with their
     "optimized" form.  One direction of this equivalence looks like
     this (the other is similar).  *)
@@ -75,7 +77,7 @@ Proof.
     + apply MApp.
       * apply IH1.
       * apply IH2.
-    + inversion Hmatch1. simpl. apply IH2.
+    + inversion Hmatch1. simpl. apply IH2. (* prove [s1] is empty! *)
     + apply MApp.
       * apply IH1.
       * apply IH2.
@@ -179,15 +181,19 @@ Qed.
     between [Proof.] and [Qed.]. Let's call that a "one shot"
     proof. *)
 
+(* 8 min total *)
+
+(* 2 min *)
 Theorem andb_eq_orb :
   forall (b c : bool),
   (andb b c = orb b c) ->
   b = c.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. destruct b eqn:Eb, c eqn:Ec; simpl; intro H; try reflexivity; try discriminate H.  Qed.
 
+(* 2min 20s *)
 Theorem add_assoc : forall n m p : nat,
     n + (m + p) = (n + m) + p.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. induction n; intros m p; try reflexivity; simpl; rewrite IHn; reflexivity.  Qed.
 
 Fixpoint nonzeros (lst : list nat) :=
   match lst with
@@ -196,9 +202,10 @@ Fixpoint nonzeros (lst : list nat) :=
   | h :: t => h :: nonzeros t
   end.
 
+(* 3min 23s *)
 Lemma nonzeros_app : forall lst1 lst2 : list nat,
   nonzeros (lst1 ++ lst2) = (nonzeros lst1) ++ (nonzeros lst2).
-Proof. (* FILL IN HERE *) Admitted.
+Proof. induction lst1; intros lst2; try reflexivity; destruct x; simpl; rewrite IHlst1; reflexivity.  Qed.
 
 (** [] *)
 
@@ -272,7 +279,7 @@ Theorem app_length' : forall (X : Type) (lst1 lst2 : list X),
     length (lst1 ++ lst2) = (length lst1) + (length lst2).
 Proof.
   intros; induction lst1;
-    [idtac | simpl; rewrite IHlst1];
+    [idtac | simpl; rewrite IHlst1]; (* also works omitting [idtac] *)
     reflexivity.
 Qed.
 
@@ -281,9 +288,10 @@ Qed.
 (** Prove the following theorem with a one-shot proof, but this
     time, do not use [try]. *)
 
+(* ~3 min *)
 Theorem add_assoc' : forall n m p : nat,
     n + (m + p) = (n + m) + p.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. induction n; intros m p; [| simpl; rewrite IHn]; reflexivity.  Qed.
 
 (** [] *)
 
@@ -332,7 +340,7 @@ Qed.
 
 Theorem In10' : In 10 [1;2;3;4;5;6;7;8;9;10].
 Proof.
-  repeat (left; reflexivity).
+  repeat (left; reflexivity). (* fails immediately *)
   repeat (right; try (left; reflexivity)).
 Qed.
 
@@ -351,8 +359,9 @@ Qed.
 
     Prove that 100 is even. Your proof script should be quite short. *)
 
+(* 1 min *)
 Theorem ev100: ev 100.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. repeat constructor.  Qed.
 
 (** [] *)
 
@@ -380,6 +389,8 @@ Fixpoint re_opt {T:Type} (re: reg_exp T) : reg_exp T :=
   | Char x => Char x
   end.
 
+Compute re_opt (App (App EmptyStr EmptyStr) (Char 2)). (* needs another round *)
+
 (* Here is an incredibly tedious manual proof of (one direction of)
    its correctness: *)
 
@@ -395,7 +406,7 @@ Proof.
   - (* MEmpty *) simpl. apply MEmpty.
   - (* MChar *) simpl. apply MChar.
   - (* MApp *) simpl.
-    destruct re1.
+    destruct re1 eqn:Ere1.
     + inversion IH1.
     + inversion IH1. simpl. destruct re2.
       * apply IH2.
@@ -584,11 +595,54 @@ Qed.
    compiles. If it doesn't, undo the most recent changes you made
    until you get back to a compiling proof. *)
 
+(* this is a *refactoring* exercise, you do not have to reinvent the proof. Follow the hint. *)
+
+(* 1h24min - crashed 2 times oopsies, considerable waste of time *)
 Lemma re_opt_match' : forall T (re: reg_exp T) s,
   s =~ re -> s =~ re_opt re.
 Proof.
-(* FILL IN HERE *) Admitted.
-(* Do not modify the following line: *)
+  intros T re s M.
+  induction M
+    as [| x'
+        | s1 re1 s2 re2 Hmatch1 IH1 Hmatch2 IH2
+        | s1 re1 re2 Hmatch IH | re1 s2 re2 Hmatch IH
+        | re | s1 s2 re Hmatch1 IH1 Hmatch2 IH2];
+  simpl;
+  [ apply MEmpty
+  | apply MChar
+  | (* MApp *)
+    destruct re1 eqn:Ere1; 
+    [ inversion Hmatch1
+    | inversion Hmatch1; simpl; destruct re2; apply IH2
+    | | | | ];
+    try (
+      destruct re2 eqn:Ere2; 
+      [ inversion IH2 
+      | inversion IH2; rewrite app_nil_r; apply IH1
+      | | | | ];
+      try (apply MApp; [apply IH1 | apply IH2])
+    )
+  | (* MUnionL *)
+    destruct re1;
+    [ inversion IH | | | | | ];
+    try (destruct re2; try apply MUnionL; try apply IH)
+  | (* MUnionR *) 
+    destruct re1;
+    [ apply IH | | | | | ];
+    try (
+      destruct re2;
+      [inversion IH | | | | | ];
+      try (apply MUnionR; apply IH)
+    )
+  | (* MStar0 *) destruct re; try apply MEmpty; try apply MStar0
+  | (* MStarApp *) 
+    destruct re;
+    [ inversion IH1 
+    | inversion IH1; inversion IH2; apply MEmpty
+    | | | | ];
+    try (apply star_app; [ apply MStar1; apply IH1 | apply IH2 ])
+  ].
+
 Definition manual_grade_for_re_opt : option (nat*string) := None.
 (** [] *)
 

@@ -597,7 +597,7 @@ Qed.
 
 (* this is a *refactoring* exercise, you do not have to reinvent the proof. Follow the hint. *)
 
-(* 1h24min - crashed 2 times oopsies, considerable waste of time *)
+(* 1h24min, 42 lines - crashed 2 times oopsies, considerable waste of time *)
 Lemma re_opt_match' : forall T (re: reg_exp T) s,
   s =~ re -> s =~ re_opt re.
 Proof.
@@ -688,7 +688,7 @@ Qed.
     Anyway, unlike informal (good) mathematical proofs, Coq proof
     scripts are generally not that illuminating to readers. Worries
     about rich, self-documenting names for hypotheses might be
-    misplaced. *)
+    misplaced. (out of touch, lost) *)
 
 (* ================================================================= *)
 (** ** The [contradiction] tactic *)
@@ -851,7 +851,7 @@ Require Import Ring.
 Theorem mult_comm : forall (n m : nat),
     n * m = m * n.
 Proof.
-  intros n m. ring.
+  intros n m. ring. (* nats isn't even a group! *)
 Qed.
 
 (* ================================================================= *)
@@ -939,8 +939,12 @@ Proof. intuition. Qed.
 Theorem intuition_simplify1 : forall (P : Prop),
     ~~P -> P.
 Proof.
-  intuition. (* not a constructively valid formula *)
+  intuition. (* not a constructively valid formula - requires the excluded middle principle, as shown in Logic *)
 Abort.
+
+Theorem intuition_mine : forall (P : Prop),
+  P -> ~~P.
+Proof. intuition. Qed.
 
 Theorem intuition_simplify2 : forall (x y : nat) (P Q : nat -> Prop),
   x = y /\ (P x -> Q x) /\ P x -> Q y.
@@ -974,22 +978,24 @@ Qed.
     be provable with just a single invocation of an automatic
     solver. *)
 
+(* 1:01min *)
+
 Theorem plus_id_exercise_from_basics : forall n m o : nat,
   n = m -> m = o -> n + m = m + o.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. lia.  Qed.
 
 Theorem add_assoc_from_induction : forall n m p : nat,
     n + (m + p) = (n + m) + p.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. lia.  Qed.
 
 Theorem S_injective_from_tactics : forall (n m : nat),
   S n = S m ->
   n = m.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. congruence.  Qed.
 
 Theorem or_distributes_over_and_from_logic : forall P Q R : Prop,
     P \/ (Q /\ R) <-> (P \/ Q) /\ (P \/ R).
-Proof. (* FILL IN HERE *) Admitted.
+Proof. intuition.  Qed.
 
 (** [] *)
 

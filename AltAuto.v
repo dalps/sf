@@ -1053,7 +1053,9 @@ Example auto_example_2 : forall P Q R S T U : Prop,
   T ->
   P ->
   U.
-Proof. auto. Qed.
+Proof. 
+  (* intros. apply H2. apply H3. apply H. apply H5. apply H4. *)
+  auto. Qed.
 
 (** Proof search could, in principle, take an arbitrarily long time,
     so there are limits to how far [auto] will search by default. *)
@@ -1106,7 +1108,7 @@ Example auto_example_6 : forall n m p : nat,
   n <= p ->
   n = m.
 Proof.
-  auto using le_antisym.
+  info_auto using le_antisym.
 Qed.
 
 (** Of course, in any given development there will probably be
@@ -1134,7 +1136,7 @@ Example auto_example_6' : forall n m p : nat,
   n <= p ->
   n = m.
 Proof.
-  auto with le_db.
+  info_auto with le_db.
 Qed.
 
 (** As a shorthand, we can write
@@ -1194,10 +1196,49 @@ Qed.
     very long proof, and shorten it, rather than starting with
     [re_opt_match']; but, either way can work. *)
 
+(* ~23 min *)
+
+Create HintDb exp_db.
+Hint Constructors exp_match : exp_db.
+Hint Resolve star_app : exp_db.
+Hint Resolve app_nil_r : exp_db.
+
 Lemma re_opt_match'' : forall T (re: reg_exp T) s,
   s =~ re -> s =~ re_opt re.
 Proof.
-(* FILL IN HERE *) Admitted.
+  intros T re s M.
+  induction M
+    as [| x'
+        | s1 re1 s2 re2 Hmatch1 IH1 Hmatch2 IH2
+        | s1 re1 re2 Hmatch IH | re1 s2 re2 Hmatch IH
+        | re | s1 s2 re Hmatch1 IH1 Hmatch2 IH2];
+  simpl;
+  auto with exp_db;
+  [ (* MApp *)
+    destruct re1; 
+    [ inversion Hmatch1 | inversion Hmatch1 | | | | ];
+    try (
+      destruct re2;
+      [ inversion IH2 | inversion IH2; rewrite app_nil_r | | | | ]
+    )
+  | (* MUnionL *)
+    destruct re1;
+    [ inversion IH | | | | | ];
+    destruct re2
+  | (* MUnionR *) 
+    destruct re1;
+    try (
+      destruct re2;
+      [inversion IH | | | | | ]
+    )
+  | (* MStar0 *)
+    destruct re
+  | (* MStarApp *) 
+    destruct re;
+    [ inversion IH1 | inversion IH1; inversion IH2 | | | | ]
+  ];
+  auto with exp_db.
+
 (* Do not modify the following line: *)
 Definition manual_grade_for_re_opt_match'' : option (nat*string) := None.
 (** [] *)

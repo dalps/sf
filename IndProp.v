@@ -2287,18 +2287,19 @@ Lemma star_not_nil : forall T s ss (re : reg_exp T),
     pumping_constant re <= length (s ++ ss) ->
     s <> nil.
 Proof.
-  (* intros T s ss re Hmatch1 Hmatch2.
-  apply s_not_nil in Hmatch2.
-  induction Hmatch1
-    as [ | x | s1 re1 s2 re2 Hmatch1 IH1 Hmatch2 IH2
-       | s1 re1 re2 Hmatch IH | re1 s2 re2 Hmatch IH
-       | re | s1 s2 re Hmatch1 IH1 Hmatch2 IH2 ].
-  * intros H. simpl in *. inversion H.
-    intros F. inversion F.
-    inversion H2. apply star_empty in H3. rewrite H3. simpl.
-    intros F. inversion F.
-  * simpl. intros _ _ F. inversion F.
-  * simpl. intros Hm Hp. *)
+  intros T s ss re M1 M2. remember (Star re) as re' eqn:E.
+  generalize dependent s.
+  induction M2.
+  * inversion E.
+  * inversion E.
+  * inversion E.
+  * inversion E.
+  * inversion E.
+  * intros. injection E. intros. rewrite <- H0 in *. rewrite app_nil_r in H.
+    apply s_not_nil in H. destruct s. simpl in *. inversion H0. unfold not. intros. inversion H. unfold not. intros. inversion H1. apply M1.
+  * intros. inversion E. rewrite H1 in *. inversion M1.
+    + rewrite <- H2 in *. inversion M2_1. apply star_empty in M2_2. rewrite <- H0 in *. rewrite <- H3 in *. rewrite M2_2 in *. simpl in H. inversion H.
+    + unfold not. intros. inversion H3.
   Abort.
 
 (** Complete the proof below. Several of the lemmas about [le] that
@@ -2373,7 +2374,7 @@ Proof.
     apply (le_trans 1 (pumping_constant re) 0) in Hp1.
     inversion Hp1. apply contra.
   - (* MStarApp *)
-    intros H.
+    intros H. simpl in H.
     exists [], s1, s2. simpl. split.
       reflexivity.
       split.

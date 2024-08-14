@@ -1331,7 +1331,7 @@ Proof.
   intros a b c d H1 H2.
   eapply le_trans. (* 1 *)
   - apply H1. (* 2 *)
-  - simpl in H2. rewrite mul_comm. apply H2.
+  - simpl in H2. rewrite mul_comm. apply H2. (* 3 *)
 Qed.
 
 (** The [eapply H] tactic behaves just like [apply H] except
@@ -1471,15 +1471,18 @@ Qed.
     Re-prove the following theorem from [Basics], using only
     [intros] and [destructpf]. You should have a one-shot proof. *)
 
+(* 1:22m*)
 Theorem andb3_exchange :
   forall b c d, andb (andb b c) d = andb (andb b d) c.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. intros b c d; destructpf b; destructpf c; destructpf d.  Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard (andb_true_elim2)
 
     The following theorem from [Basics] can't be proved with
     [destructpf]. *)
+
+(* 15 min = 6 min - first do the extended proof, then factor it out; not the other way around *)
 
 Theorem andb_true_elim2 : forall b c : bool,
   andb b c = true -> c = true.
@@ -1495,16 +1498,17 @@ Qed.
     own, improved version of [destructpf]. Use it to prove the
     theorem. *)
 
-(*
-Ltac destructpf' x := ...
-*)
+
+Ltac destructpf' x := destruct x; simpl in *; try congruence.
+
+(* destructpf' x H := destruct x; simpl in H; try rewrite H; try reflexivity. *)
 
 (** Your one-shot proof should need only [intros] and
     [destructpf']. *)
 
 Theorem andb_true_elim2' : forall b c : bool,
     andb b c = true -> c = true.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. intros b c H; destructpf' b; destructpf' c.  Qed.
 
 (** Double-check that [intros] and your new [destructpf'] still
     suffice to prove this earlier theorem -- i.e., that your improved
@@ -1512,7 +1516,7 @@ Proof. (* FILL IN HERE *) Admitted.
 
 Theorem andb3_exchange' :
   forall b c d, andb (andb b c) d = andb (andb b d) c.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. intros b c d; destructpf' b; destructpf' c; destructpf' d.  Qed.
 (** [] *)
 
 (* ================================================================= *)

@@ -1648,7 +1648,8 @@ Theorem match_ex3 : forall (P : Prop), P -> P.
 Proof.
   intros P HP.
   match goal with
-  | [ H : _ |- _ ] => apply H
+  | [ H : _ |- _ ] => apply H (* matches a proof state containing
+   at least one hypothesis and any goal *)
   end.
 Qed.
 

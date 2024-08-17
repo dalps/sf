@@ -1815,9 +1815,9 @@ Qed.
 
 Ltac imp_intuition :=
   repeat match goal with
-         | [ H : ?P |- ?P ] => apply H
-         | [ |- forall _, _ ] => intro
-         | [ H1 : ?P -> ?Q, H2 : ?P |- _ ] => apply H1 in H2
+         | [ H : ?P |- ?P ] => idtac "branch 1: direct"; apply H
+         | [ |- forall _, _ ] => idtac "branch 2: intro"; intro
+         | [ H1 : ?P -> ?Q, H2 : ?P |- _ ] => idtac "branch 3: forward"; apply H1 in H2
          end.
 
 (** That tactic repeatedly matches against the goal until the match
@@ -1841,6 +1841,7 @@ Ltac imp_intuition :=
 
     Already we can prove many theorems with this tactic: *)
 
+(* read debug info from the bottom up *)
 Example imp1 : forall (P : Prop), P -> P.
 Proof. imp_intuition. Qed.
 
@@ -1858,6 +1859,8 @@ Inductive nor (P Q : Prop) :=
 
 (** Classically, [nor P Q] would be equivalent to [~(P \/ Q)].  But
     constructively, only one direction of that is provable. *)
+
+(* note: as usual, the other direction requires assuming the excluded middle *)
 
 Theorem nor_not_or : forall (P Q : Prop),
     nor P Q -> ~ (P \/ Q).
@@ -1895,7 +1898,22 @@ Qed.
     to expand it to handle conjunctions, negations, bi-implications,
     and [nor]. *)
 
-(* Ltac nor_intuition := ... *)
+(* 12:43 min + 6 min extra proof *)
+
+Ltac nor_intuition :=
+  repeat 
+    match goal with
+    | [ H : ?P |- ?P ] => idtac "branch 1: direct"; apply H
+    | [ |- forall _, _ ] => idtac "branch 2: intro"; intro
+    | [ H1 : ?P -> ?Q, H2 : ?P |- _ ] => idtac "branch 3: forward"; apply H1 in H2
+    | [ |- _ <-> _ ] => idtac "branch 4: split"; split
+    | [ H : nor ?P ?Q |- _ ] => idtac "branch 5: destruct nor"; destruct H
+    | [ |- nor ?P ?Q ] =>  idtac "branch 6: constructor"; apply stroke
+    | [ |- ~ ?P ] => idtac "branch 7: unfold not (goal)"; unfold not
+    | [ H : ~ ?P |- _ ] => idtac "branch 8: unfold not (hyp)"; unfold not in H
+    | [ H : ?P /\ ?Q |- _ ] => idtac "branch 9: destruct and (hyp)"; destruct H
+    | [ H : ?P \/ ?Q |- _ ] => idtac "branch 10: destruct or (hyp)"; destruct H
+    end.
 
 (** Each of the three theorems below, and many others involving these
     logical connectives, should be provable with just
@@ -1903,15 +1921,20 @@ Qed.
 
 Theorem nor_comm' : forall (P Q : Prop),
     nor P Q <-> nor Q P.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. nor_intuition.  Qed.
 
 Theorem nor_not' : forall (P : Prop),
     nor P P <-> ~P.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. nor_intuition.  Qed.
 
 Theorem nor_not_and' : forall (P Q : Prop),
     nor P Q -> ~ (P /\ Q).
-Proof. (* FILL IN HERE *) Admitted.
+Proof. nor_intuition.  Qed.
+
+Theorem nor_not_or' : forall (P Q : Prop),
+    nor P Q -> ~ (P \/ Q).
+Proof. nor_intuition.  Qed.
+
 (* Do not modify the following line: *)
 Definition manual_grade_for_nor_intuition : option (nat*string) := None.
 (** [] *)

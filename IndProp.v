@@ -3476,8 +3476,17 @@ Definition refl_matches_eps m :=
 
     Complete the definition of [match_eps] so that it tests if a given
     regex matches the empty string: *)
-Fixpoint match_eps (re: reg_exp ascii) : bool
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+
+(* 3:22 min + corrections during proof *)
+Fixpoint match_eps (re: reg_exp ascii) : bool :=
+  match re with
+  | EmptySet => false
+  | EmptyStr => true
+  | Char _ => false
+  | App re1 re2 => match_eps re1 && match_eps re2
+  | Union re1 re2 => match_eps re1 || match_eps re2
+  | Star re => true
+  end.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard, optional (match_eps_refl)
@@ -3485,10 +3494,58 @@ Fixpoint match_eps (re: reg_exp ascii) : bool
     Now, prove that [match_eps] indeed tests if a given regex matches
     the empty string.  (Hint: You'll want to use the reflection lemmas
     [ReflectT] and [ReflectF].) *)
+
+(* 40:38 min *)
 Lemma match_eps_refl : refl_matches_eps match_eps.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold refl_matches_eps.
+  induction re.
+  - apply ReflectF. unfold not. apply null_matches_none.
+  - apply ReflectT. apply empty_matches_eps. reflexivity.
+  - apply ReflectF. unfold not. intros. inversion H.
+  - inversion IHre1; inversion IHre2.
+    * assert ([] =~ App re1 re2)
+      by (apply (MApp [] re1 [] re2 H0 H2)).
+      apply ReflectT in H3. simpl.
+      rewrite <- H, <- H1. simpl.
+      apply H3.
+    * simpl. rewrite <- H, <- H1. simpl.
+      apply ReflectF.
+      unfold not in *. intros HApp.
+      apply app_exists in HApp.
+      destruct HApp as [s1 [s2 [E1 [E2 E3]]]].
+      apply H2. apply nil_app in E1.
+      destruct E1 as [_ Es2]. subst. assumption.
+    * simpl. rewrite <- H, <- H1. simpl.
+      apply ReflectF.
+      unfold not in *. intros HApp.
+      apply app_exists in HApp.
+      destruct HApp as [s1 [s2 [E1 [E2 E3]]]].
+      apply H0. apply nil_app in E1.
+      destruct E1 as [Es1 _]. subst. assumption.
+    * simpl. rewrite <- H, <- H1. simpl.
+      apply ReflectF.
+      unfold not in *. intros HApp.
+      apply app_exists in HApp.
+      destruct HApp as [s1 [s2 [E1 [E2 E3]]]].
+      apply H0. apply nil_app in E1.
+      destruct E1 as [Es1 Es2]. subst. assumption.
+  - simpl. inversion IHre1; inversion IHre2; simpl.
+    * apply ReflectT. apply MUnionL. apply H0.
+    * apply ReflectT. apply MUnionL. apply H0.
+    * apply ReflectT. apply MUnionR. apply H2.
+    * apply ReflectF. unfold not in *. intro HUn.
+      apply union_disj in HUn.
+      destruct HUn as [Hre1 | Hre2].
+      + apply H0. apply Hre1.
+      + apply H2. apply Hre2.
+  - simpl. apply ReflectT. apply MStar0.
+Qed.
+
 (** [] *)
+
+Compute match_eps (App EmptySet EmptyStr).
+Compute match_eps (App (Star EmptySet) EmptyStr).
 
 (** We'll define other functions that use [match_eps]. However, the
     only property of [match_eps] that you'll need to use in all proofs
@@ -3514,8 +3571,27 @@ Definition derives d := forall a re, is_der re a (d a re).
     Define [derive] so that it derives strings. One natural
     implementation uses [match_eps] in some cases to determine if key
     regex's match the empty string. *)
-Fixpoint derive (a : ascii) (re : reg_exp ascii) : reg_exp ascii
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+
+(* 48 min + *)
+Fixpoint derive (a : ascii) (re : reg_exp ascii) : reg_exp ascii :=
+  match re with
+  | EmptySet => EmptySet
+  | EmptyStr => EmptySet
+  | Char b => if eqb a b then EmptyStr else EmptySet
+  | App re1 re2 =>
+    let d1 := derive a re1 in
+    if match_eps d1
+    then (* [a] was derived from [re1] *) re2
+    else  let d2 := derive a re2 in
+          if match_eps d2
+          then (* [a] was derived from [re2] *) EmptyStr
+          else EmptySet
+  | Union re1 re2 =>
+    if match_eps (derive a re1) || match_eps (derive a re2)
+    then EmptyStr
+    else EmptySet
+  | Star re => derive a re
+  end.
 (** [] *)
 
 (** The [derive] function should pass the following tests. Each test
@@ -3528,45 +3604,52 @@ Example d := ascii_of_nat 100.
 
 (** "c" =~ EmptySet: *)
 Example test_der0 : match_eps (derive c (EmptySet)) = false.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
 (** "c" =~ Char c: *)
 Example test_der1 : match_eps (derive c (Char c)) = true.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
 (** "c" =~ Char d: *)
 Example test_der2 : match_eps (derive c (Char d)) = false.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
 (** "c" =~ App (Char c) EmptyStr: *)
 Example test_der3 : match_eps (derive c (App (Char c) EmptyStr)) = true.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
 (** "c" =~ App EmptyStr (Char c): *)
 Example test_der4 : match_eps (derive c (App EmptyStr (Char c))) = true.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 
 (** "c" =~ Star c: *)
 Example test_der5 : match_eps (derive c (Star (Char c))) = true.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. simpl (derive c _). reflexivity. Qed.
 
 (** "cd" =~ App (Char c) (Char d): *)
 Example test_der6 :
   match_eps (derive d (derive c (App (Char c) (Char d)))) = true.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. simpl (derive c _). simpl derive. reflexivity. Qed.
 
 (** "cd" =~ App (Char d) (Char c): *)
 Example test_der7 :
   match_eps (derive d (derive c (App (Char d) (Char c)))) = false.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. simpl (derive c _). reflexivity. Qed.
+
+(** "c" =~ Union (Char d) (Char c): *)
+Example test_der8 :
+  match_eps (derive c (Union (Char d) (Char c))) = true.
+Proof. simpl (derive c _). reflexivity. Qed.
+
+(** "d" =~ Union (Char d) (Char c): *)
+Example test_der9 :
+  match_eps (derive d (Union (Char d) (Char c))) = true.
+Proof. simpl (derive d _). reflexivity. Qed.
+
+(** "c" =~ Union (Char d) EmptyStr: *)
+Example test_der10 :
+  match_eps (derive c (Union (Char d) EmptyStr)) = false.
+Proof. simpl (derive c _). reflexivity. Qed.
 
 (** **** Exercise: 4 stars, standard, optional (derive_corr)
 
@@ -3591,7 +3674,35 @@ Proof.
     [Prop]'s naturally using [intro] and [destruct]. *)
 Lemma derive_corr : derives derive.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold derives, is_der. intros. split.
+  - intros.
+    generalize dependent s.
+    induction re; simpl; intros; inversion H.
+    * (* EmptyStr *) rewrite eqb_refl. apply MEmpty.
+    * (* App *) subst. apply app_ne in H.
+      destruct H as [[E1 E2] | [a1 [a2 [E1 [E2 E3]]]]].
+      apply ReflectT in E1.
+      About match_eps_refl.
+      (* need to review how [reflect] works *)
+      + apply IHre2 in E2. destruct (match_eps (derive a re1)) eqn:Ed.
+        destruct re1; inversion E1; simpl in *; try discriminate; simpl in *.
+
+    remember (a :: s) as w eqn:Ew.
+    generalize dependent s.
+    Print exp_match_ind.
+    induction H
+        as [ | | s1 re1 s2 re2 Hs1 IHs1 Hs2 IHs2 
+        | s1 re1 re2 Hs1 IH 
+        | re1 s2 re2 Hs2 IH
+        | re | s1 s2 re Hs1 IHs1 Hs2 IHs2 ];
+    intros; simpl.
+    * discriminate.
+    * inversion Ew. rewrite eqb_refl. apply MEmpty.
+    * symmetry in Ew. apply app_cases in Ew.
+      destruct Ew as [[E1 E2] | [a1 [a2 [E1 [E2 E3]]]]].
+      + symmetry in E2. apply IHs2 in E2.
+        destruct E2.
+    
 (** [] *)
 
 (** We'll define the regex matcher using [derive]. However, the only

@@ -3203,6 +3203,7 @@ Abort.
 
   l2 (labels)   [a;b;c]        [a]      [a;b] -- (in_split x) -> [a] 
 *)
+
 (* ================================================================= *)
 (** ** Extended Exercise: A Verified Regular-Expression Matcher *)
 
@@ -3252,6 +3253,8 @@ Definition string := list ascii.
     straightforward proofs, which have been given to you, although there
     are a few key lemmas that are left for you to prove. *)
 
+(* note: doing this section after finishing the book, so my proofs will feature tactics and tricks introduces later *)
+
 (** Each provable [Prop] is equivalent to [True]. *)
 Lemma provable_equiv_true : forall (P : Prop), P -> (P <-> True).
 Proof.
@@ -3275,7 +3278,7 @@ Lemma null_matches_none : forall (s : string), (s =~ EmptySet) <-> False.
 Proof.
   intros.
   apply not_equiv_false.
-  unfold not. intros. inversion H.
+  unfold not. intros. inversion H. (* [exp_match] doesn't have a case for [EmptySet] *)
 Qed.
 
 (** [EmptyStr] only matches the empty string. *)
@@ -3340,12 +3343,42 @@ Qed.
     critical observation behind the design of our regex matcher. So (1)
     take time to understand it, (2) prove it, and (3) look for how you'll
     use it later. *)
+
+(* ~1 h *)
+
+Search app.
+Lemma app_cases : forall {X} (x : X) l l1 l2,
+  x :: l = l1 ++ l2 ->
+  ([] = l1 /\ x :: l = l2) \/
+  exists a1 a2, x :: l = x :: a1 ++ a2 /\ x :: a1 = l1 /\ a2 = l2.
+Proof.
+  intros.
+  destruct l1, l2; try intuition.
+  - rewrite app_nil_r in H. inversion H.
+    right. exists l1, []; rewrite app_nil_r. split; split; auto. 
+  - right. simpl in H. inversion H. subst. exists l1, (x1 :: l2). auto.
+Qed.
+
+(* 50 min -> + 8 min <- *)
 Lemma app_ne : forall (a : ascii) s re0 re1,
   a :: s =~ (App re0 re1) <->
   ([ ] =~ re0 /\ a :: s =~ re1) \/
   exists s0 s1, s = s0 ++ s1 /\ a :: s0 =~ re0 /\ s1 =~ re1.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros. split; intros.
+  - apply app_exists in H. destruct H as [s0 [s1 [Happ [Hs0 Hs1]]]].
+    apply app_cases in Happ.
+    destruct Happ as [[Es0 Es1] | [a0 [a1 [E1 [E2 E3]]]]]; subst.
+    * left. auto.
+    * right. inversion E1. subst. clear E1. exists a0, s1. auto.
+  - destruct H as [[Es0 Es1] | [a0 [a1 [E1 [E2 E3]]]]].
+    * replace (a :: s) with ([] ++ a :: s) by reflexivity.
+      apply MApp; assumption.
+    * rewrite E1.
+      replace (a :: a0 ++ a1) with ((a :: a0) ++ a1) by reflexivity.
+      apply MApp; assumption.
+Qed.
+
 (** [] *)
 
 (** [s] matches [Union re0 re1] iff [s] matches [re0] or [s] matches [re1]. *)

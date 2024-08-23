@@ -1120,18 +1120,48 @@ Lemma le_S_l : forall n m, S n <= m -> n <= m.
 Proof.
   intros n m H. apply le_trans with (S n). apply le_S. apply le_n. apply H.  Qed.
 
-(* 2+ days *)
+(* 2+ days + 3 hours: took me a while to realize I needed the predecessor of [p] *)
+(* Lemma add_le_l : forall m p q,
+  m <= p + q -> m <= p \/ m <= q. (* silly *)
+Proof.
+  induction m as [| m' IH].
+  - intros. left. apply O_le_n.
+  - intros. destruct (IH (S p) (S q)).
+    + simpl. apply le_S. apply le_S in H. apply le_S in H. apply Sn_le_Sm__n_le_m in H. apply H. *)
+
 Theorem add_le_cases : forall n m p q,
   n + m <= p + q -> n <= p \/ m <= q.
   (** Hint: May be easiest to prove by induction on [n]. *)
 Proof.
   intros n. induction n as [| n' IH].
   * simpl. intros m p q Hmpq. left. apply O_le_n.
-  * intros m p q HS. destruct (p + q) as [| o] eqn:Eo.
-    + simpl in HS. inversion HS.
-    + apply plus_le in HS. destruct HS as [H1 H2].
-    (* simpl in HS. apply le_S_l in HS. apply IH in HS. destruct HS as [H1 | H2]. *)
-  Admitted.
+  * intros m p q HS.
+    destruct p as [| p'].
+    - simpl in HS. right. 
+      rewrite <- plus_Sn_m in HS.
+      apply plus_le in HS.
+      destruct HS. apply H0.
+    - destruct (IH m p' q).
+      + simpl in HS. apply Sn_le_Sm__n_le_m in HS. apply HS.
+      + left. apply n_le_m__Sn_le_Sm. apply H.
+      + right. apply H.
+Qed.
+    
+  (* replace (S n' + m) with (n' + S m) in HS.
+  
+  destruct HS as [HS1 | HS2].
+  + left. 
+  apply plus_le in HS. destruct HS as [HS1 HS2].
+  replace (S n') with (1 + n') in HS1 by reflexivity.
+  assert (HS' : n' + m < p + q) by (apply HS).
+  simpl in HS.
+  destruct (p + q) as [| o] eqn:Eo.
+  + simpl in HS. inversion HS.
+  + apply plus_le in HS. destruct HS as [H1 H2].
+  (* simpl in HS. apply le_S_l in HS. apply IH in HS. destruct HS as [H1 | H2]. *)
+
+    replace (S n' <= p) with (n' < p) by reflexivity.
+  simpl in HS. replace (S (n' + m) <= p + q) with (n' + m < p + q) in HS by reflexivity. *)
 
 (* 11 min *)
 Theorem plus_le_compat_l : forall n m p,

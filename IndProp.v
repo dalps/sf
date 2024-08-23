@@ -2064,8 +2064,7 @@ Qed.
     [MStar'] exercise above), shows that our definition of [exp_match]
     for [Star] is equivalent to the informal one given previously. *)
 
-(* 1h30min + 1h
-  I am so stuck... *)
+(* 1h30min + 1h + 30min solve 1 month later *)
 
 Lemma MStar'' : forall T (s : list T) (re : reg_exp T),
   s =~ Star re ->
@@ -2075,40 +2074,26 @@ Lemma MStar'' : forall T (s : list T) (re : reg_exp T),
 Proof.
   intros T s re H.
   remember (Star re) as re' eqn:Estar.
-  generalize dependent re. (* omg *)
-  induction H as [
-    | | | | | re'' | s1 s2 re'' Hmatch1 IH1 Hmatch2 IH2 
-  ].
-  * intros. discriminate Estar.
-  * intros. discriminate Estar.
-  * intros. discriminate Estar.
-  * intros. discriminate Estar.
-  * intros. discriminate Estar.
-  * intros. exists []. split.
+  induction H as [ | | | | | re'' | s1 s2 re'' Hmatch1 IH1 Hmatch2 IH2 ].
+  * discriminate.
+  * discriminate.
+  * discriminate.
+  * discriminate.
+  * discriminate.
+  * exists []. split.
     + reflexivity.
     + simpl. intros s' [].
-  * (* any list [s1;s2] is a subsequence of will do *)
-    exists [s1;s2].
+  * assert (Hre : re'' = re).
+    { injection Estar. intros. apply H. }
+    apply IH2 in Estar.
+    destruct Estar as [ss [Hfold HIn]].
+    exists (s1 :: ss). simpl. split.
+    + rewrite <- Hfold. reflexivity.
+    + intros s' [Hs' | HIn'].
+      - rewrite Hre,  Hs' in Hmatch1. apply Hmatch1.
+      - apply HIn. apply HIn'.
+Qed.
 
-    (* injection Estar as E. rewrite E in *. *)
-    simpl. split.
-    + simpl. rewrite app_assoc. rewrite app_nil_r. reflexivity.
-    (* gets stuck because I'm applyling [IH2] forward...
-        but how can I apply it backward? Is it possible to reshape the goal to move [s1] outside the exists, for it must match [IH2]'s conclusion.
-        Is the inductive hypothesis not sufficienlty general? I have no control over it, besides naming variables! *)
-    + intros s' HIn. 
-      destruct HIn as [HIns1 | [ HIns2 | contra]].
-      (* prove [s1 =~ re] *)
-      - rewrite <- HIns1. injection Estar. 
-        intros Hre. rewrite <- Hre. apply Hmatch1.
-      (* prove [s2 =~ re] given [s2 =~ Star re]
-        and [IH2] *)
-      - rewrite <- HIns2.
-        rewrite Estar in Hmatch2.
-        apply IH2 in Estar.
-        destruct Estar as [ss [Hfold Hall]].
-        (* stuck *)
-        Abort.
 (** [] *)
 
 Compute fold app [] [].

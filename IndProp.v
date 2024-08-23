@@ -3355,8 +3355,13 @@ Proof.
   intros.
   destruct l1, l2; try intuition.
   - rewrite app_nil_r in H. inversion H.
-    right. exists l1, []; rewrite app_nil_r. split; split; auto. 
-  - right. simpl in H. inversion H. subst. exists l1, (x1 :: l2). auto.
+    right. exists l1, []; rewrite app_nil_r.
+    split. reflexivity.
+    split. reflexivity. reflexivity.
+  - right. simpl in H. inversion H. subst.
+    exists l1, (x1 :: l2).
+    split. reflexivity.
+    split. reflexivity. reflexivity.
 Qed.
 
 (* 50 min -> + 8 min <- *)
@@ -3370,7 +3375,7 @@ Proof.
     apply app_cases in Happ.
     destruct Happ as [[Es0 Es1] | [a0 [a1 [E1 [E2 E3]]]]]; subst.
     * left. auto.
-    * right. inversion E1. subst. clear E1. exists a0, s1. auto.
+    * right. exists a0, s1. auto.
   - destruct H as [[Es0 Es1] | [a0 [a1 [E1 [E2 E3]]]]].
     * replace (a :: s) with ([] ++ a :: s) by reflexivity.
       apply MApp; assumption.
@@ -3410,11 +3415,54 @@ Qed.
     rephrase [a :: s =~ Star re] to be a [Prop] over general variables,
     using the [remember] tactic.  *)
 
+Print exp_match.
+
+(* +1h + 3 min *)
 Lemma star_ne : forall (a : ascii) s re,
   a :: s =~ Star re <->
   exists s0 s1, s = s0 ++ s1 /\ a :: s0 =~ re /\ s1 =~ Star re.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros. split; intros.
+  - remember (Star re) as star eqn:Estar.
+    remember (a :: s) as w eqn:Ew.
+    (* generalize dependent re.
+    generalize dependent a. *)
+    generalize dependent s.
+    induction H
+      as [ | | | | | | s1 s2 re' Hs1 IHs1 Hs2 IHs2].
+    * discriminate.
+    * discriminate.
+    * discriminate.
+    * discriminate.
+    * discriminate.
+    * discriminate.
+    * intros. assert (Hre : re' = re).
+      { inversion Estar. reflexivity. }
+      symmetry in Ew. apply app_cases in Ew.
+      destruct Ew as [[Es1 Es2] | [a1 [a2 [E1 [E2 E3]]]]].
+      + symmetry in Es2.
+        destruct (IHs2 Estar s Es2) as [b1 [b2]].
+        exists b1, b2. apply H.
+      + exists a1, a2.
+        split. apply E1.
+        split.
+        rewrite <- E2 in Hs1. rewrite <- Hre. apply Hs1.
+        rewrite <- E3 in Hs2. apply Hs2.
+  - destruct H as [s0 [s1 [E1 [E2 E3]]]].
+    rewrite E1.
+    replace (a :: s0 ++ s1) with ((a :: s0) ++ s1) by reflexivity. apply MStarApp; assumption.
+Qed.
+
+(* Attempts at [->]:
+  eapply IHexp_match2 in Estar.
+  destruct Estar as [a1 [a2 [Eapp [Ma1 Ma2]]]].
+  exists a1, a2.
+
+- induction s as [| b s' IH].
+* exists [], []. split. reflexivity. split.
+  inversion H. symmetry in H1.
+  apply app_cases in H1.
+  destruct H1 as [[E1 E2] | ]; subst. *)
 (** [] *)
 
 (** The definition of our regex matcher will include two fixpoint

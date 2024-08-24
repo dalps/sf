@@ -3672,24 +3672,58 @@ Proof. simpl (derive c _). reflexivity. Qed.
     regex's (e.g., [s =~ re0 \/ s =~ re1]) using lemmas given above
     that are logical equivalences. You can then reason about these
     [Prop]'s naturally using [intro] and [destruct]. *)
+(* 2 h + *)
 Lemma derive_corr : derives derive.
 Proof.
   unfold derives, is_der. intros. split.
+  - admit.
   - intros.
     generalize dependent s.
-    induction re; simpl; intros; inversion H.
-    * (* EmptyStr *) rewrite eqb_refl. apply MEmpty.
-    * (* App *) subst. apply app_ne in H.
-      destruct H as [[E1 E2] | [a1 [a2 [E1 [E2 E3]]]]].
-      apply ReflectT in E1.
-      About match_eps_refl.
-      (* need to review how [reflect] works *)
-      + apply IHre2 in E2. destruct (match_eps (derive a re1)) eqn:Ed.
-        destruct re1; inversion E1; simpl in *; try discriminate; simpl in *.
+    generalize dependent a.
+    induction re as [ | | | re1 IH1 re2 IH2 | re1 IH1 re2 IH2 | re IH ]; simpl; intros.
+    * apply null_matches_none in H. contradiction.
+    * apply null_matches_none in H. contradiction.
+    * destruct (eqb_spec a t).
+      + subst. rewrite char_eps_suffix. apply empty_matches_eps in H. apply H.
+      + inversion H.
+    * apply app_ne.
+      destruct (match_eps_refl (derive a re1));
+      simpl in H.
+      + (* [a] was derived from [re1] *)
+        right. exists [], s.
+        split. reflexivity.
+        split. apply IH1 in H0. apply H0.
+        apply H.
+      + destruct (match_eps_refl (derive a re2));
+        simpl in H.
+        -- (* [a] was derived from [re2] *)
+           apply empty_matches_eps in H. subst.
+           left. split.
+           ** (* stuck... *) 
+              admit.
+           ** apply IH2 in H1. apply H1.
+        -- inversion H.
+    * apply union_disj.
+      destruct (match_eps_refl (derive a re1));
+      destruct (match_eps_refl (derive a re2));
+      simpl in H.
+      + rewrite empty_matches_eps in H. subst.
+        left. apply (IH1 a [] H0).
+      + rewrite empty_matches_eps in H. subst.
+        left. apply (IH1 a [] H0).
+      + rewrite empty_matches_eps in H. subst.
+        right. apply (IH2 a [] H1).
+      + inversion H.
+    * apply star_ne.
+      exists s, []. rewrite app_nil_r.
+      apply IH in H.
+      split. reflexivity. split. apply H. apply MStar0.
 
-    remember (a :: s) as w eqn:Ew.
+
+  (* ### Approach 1: induction on evidence ### *)
+  - intro. remember (a :: s) as w eqn:Ew.
     generalize dependent s.
-    Print exp_match_ind.
+    generalize dependent a.
     induction H
         as [ | | s1 re1 s2 re2 Hs1 IHs1 Hs2 IHs2 
         | s1 re1 re2 Hs1 IH 
@@ -3701,8 +3735,32 @@ Proof.
     * symmetry in Ew. apply app_cases in Ew.
       destruct Ew as [[E1 E2] | [a1 [a2 [E1 [E2 E3]]]]].
       + symmetry in E2. apply IHs2 in E2.
+        destruct (match_eps_refl (derive a re1)).
         destruct E2.
+
+  (* === Approach 2: induction on [re] === *)
+  - generalize dependent a.
+    generalize dependent s.
+    induction re as [ | | | re1 IH1 re2 IH2 | re1 re2 IH1 IH2 | re IH ]; intros.
+    * (* EmptySet *) inversion H.
+    * (* EmptyStr *) inversion H.
+    * (* Char *) inversion H. simpl. rewrite eqb_refl. apply MEmpty.
+    * (* App *) simpl. apply app_ne in H.
+      destruct H as [[E1 E2] | [a1 [a2 [E1 [E2 E3]]]]].
+      destruct (match_eps_refl (derive a re1)).
+      + destruct re1; simpl in *.
+        -- inversion H.
+        -- inversion H.
+        -- inversion E1.
+        -- inversion E1. subst.
+
+      apply ReflectT in E1.
+      About match_eps_refl.
+      (* need to review how [reflect] works *)
+      + apply IHre2 in E2. destruct (match_eps (derive a re1)) eqn:Ed.
+        destruct re1; inversion E1; simpl in *; try discriminate; simpl in *.
     
+
 (** [] *)
 
 (** We'll define the regex matcher using [derive]. However, the only

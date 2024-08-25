@@ -3578,20 +3578,36 @@ Fixpoint derive (a : ascii) (re : reg_exp ascii) : reg_exp ascii :=
   | EmptySet => EmptySet
   | EmptyStr => EmptySet
   | Char b => if eqb a b then EmptyStr else EmptySet
-  | App re1 re2 =>
+
+  | App EmptySet _ => EmptySet
+  | App EmptyStr re' => derive a re'
+  | App ((Char _) as re1) re2 =>
+    if match_eps (derive a re1) then re2
+                                else EmptySet
+  | App ((Star _) as re1) re2 =>
     let d1 := derive a re1 in
-    if match_eps d1
-    then (* [a] was derived from [re1] *) re2
-    else  let d2 := derive a re2 in
-          if match_eps d2
-          then (* [a] was derived from [re2] *) EmptyStr
-          else EmptySet
+    match d1 with
+    | EmptySet => derive a re2
+    | _ => App d1 re2
+    end
+  | App re1 re2 => let d1 := derive a re1 in App d1 re2
+
+  | Union re' EmptySet | Union EmptySet re' => derive a re'
   | Union re1 re2 =>
-    if match_eps (derive a re1) || match_eps (derive a re2)
-    then EmptyStr
-    else EmptySet
-  | Star re => derive a re
+    let d1 := derive a re1 in
+    let d2 := derive a re2 in
+    if match_eps d1 || match_eps d2 then EmptyStr
+                                    else Union d1 d2
+    
+  | Star re' =>
+    let d := derive a re' in
+    match d with
+    | EmptySet => EmptySet
+    | _ => if match_eps d then Star re' else App d (Star re')
+    end
   end.
+
+(* For any regex [re] and character [a], [derive a re] returns [EmptySet] if no string starting with [a] could be derived from [re], otherwise it returns a regex different that [EmptySet]. This is [EmptyStr] in most cases, except when [re] is [App re1 re2] and [a] could be derived from [re1], in which case it returns [re2]. *)
 (** [] *)
 
 (** The [derive] function should pass the following tests. Each test
@@ -3601,6 +3617,68 @@ Fixpoint derive (a : ascii) (re : reg_exp ascii) : reg_exp ascii :=
     match fact that it reflects. *)
 Example c := ascii_of_nat 99.
 Example d := ascii_of_nat 100.
+
+Fixpoint regex_match (s : string) (re : reg_exp ascii) : bool :=
+  match s with
+  | nil => match_eps re
+  | a :: s' => regex_match s' (derive a re)
+  end.
+(** [] *)
+
+Require Coq.extraction.Extraction.
+Extraction Language OCaml.
+
+Print derive.
+Compute derive c (App (Char c) (Char c)).
+Compute derive c (App (App (Char c) (Char c)) (Char d)).
+
+Example e1 : match_eps (derive c (derive d (Union (App (Char d) (Char c)) (App (Char c) (Char d))))) = true.
+Proof.
+  simpl (derive d _). simpl (derive c _). simpl. reflexivity. Qed.
+
+Example e2 : match_eps (derive d (derive c (App (Char c) (App EmptyStr (Char d))))) = true.
+Proof.
+  simpl (derive c _). simpl (derive d _). simpl. reflexivity. Qed.
+
+Example e3 : match_eps (derive d (derive c ( derive c (App (Star (Char c)) (Char d))))) = true.
+Proof. simpl (derive c _). simpl (derive d _). reflexivity. Qed.
+
+Example e4 : match_eps (derive d (derive c ( derive c (Star (Union (Char c) (Char d)))))) = true.
+Proof. simpl (derive c _). simpl (derive d _). reflexivity. Qed.
+
+Example e5 : match_eps (derive d (derive c (Star (App (Char c) (Char d))))) = true.
+Proof. simpl (derive c _). simpl (derive d _). simpl. reflexivity. Qed.
+
+
+Compute derive c (Star (App (Char c) (Char d))).
+
+Compute regex_match [ ] (App EmptyStr EmptyStr).
+Compute regex_match [ c ] (App EmptyStr (Char c)).
+Compute regex_match [ c ] (App (Char c) EmptyStr).
+Compute regex_match [ c ; c ; d ] (App (App (Char c) (Char c)) (Char d)).
+Compute regex_match [ d ; c ; c ; d ] (App (App (Char d) (Char c)) (App (Char c) (Char d))).
+Compute regex_match [ d ; c ] (Union (App (Char d) (Char c)) (App (Char c) (Char d))).
+Compute regex_match [ d ; c ] (Union (App (Char d) (Union (Char d) (Char c))) (App (Char c) (Char d))).
+Compute regex_match [ d ; d ] (Union (App (Char d) (Union (Char d) (Char c))) (App (Char c) (Char d))).
+Compute regex_match [ d ; d ] (Union (App (Char d) (Union (Char d) EmptySet)) EmptySet).
+Compute regex_match [ c ; c ; d ] (App (Char c) (App (Char c) (Char d))).
+Compute regex_match [ c ] (Char c).
+Compute regex_match [ c ; d ] (App (Char c) (App EmptyStr (Char d))).
+Compute regex_match [ c ; d ] (App (Char c) (App EmptyStr (Char d))).
+Compute regex_match [ c ; d ] (App (App EmptyStr (Char c)) (App EmptyStr (Char d))).
+Compute regex_match [ c ; d ] (App (App (Char c) EmptyStr) (App EmptyStr (Char d))).
+
+Compute regex_match [ ] (Star (Char c)).
+Compute regex_match [ c ] (Star (Char c)).
+Compute regex_match [ c ; c ; c ; c ] (Star (Char c)).
+Compute regex_match [ c ; d ] (App (Star (Char c)) (Char d)).
+Compute regex_match [ c ; d ; d ; d ] (App (Char c) (Star (Char d))).
+Compute regex_match [ d ] (App (Star (Char c)) (Char d)).
+Compute regex_match [ c ; d ; c ; d ; c ; d ] (Star (App (Char c) (Char d))).
+Compute regex_match [ c ; c ; c ; c ; c ; d ] (App (Star (Char c)) (Char d)).
+Compute regex_match [ c ; c ; d ; c ; d ; c ; d ] (App (Char c) (Star (App (Char c) (Char d)))).
+Compute regex_match [ c ; d ; c ] (App (Char c) (Star (Union (Char c) (Char d)))).
+Compute regex_match [ c ; d ] (Star (Union (Char c) (Char d))).
 
 (** "c" =~ EmptySet: *)
 Example test_der0 : match_eps (derive c (EmptySet)) = false.
@@ -3651,6 +3729,23 @@ Example test_der10 :
   match_eps (derive c (Union (Char d) EmptyStr)) = false.
 Proof. simpl (derive c _). reflexivity. Qed.
 
+(** "c" =~ App EmptySet (Char c): *)
+Example test_der11 : match_eps (derive c (App EmptySet (Char c))) = false.
+Proof. simpl (derive c _). reflexivity. Qed.
+
+(** "c" =~ App EmptySet (Char c): *)
+Example test_der12 : match_eps (derive c (App (Char c) EmptySet)) = false.
+Proof. simpl (derive c _). reflexivity. Qed.
+
+Example m1 : [c] =~ App (Char c) EmptyStr.
+Proof. rewrite <- (app_nil_r ascii [c]). eapply MApp; constructor. Qed.
+
+Example m2 : ~ ([c] =~ App (Char c) EmptySet).
+Proof. unfold not. intros. inversion H. apply null_matches_none in H4. destruct H4. Qed.
+
+Example m3 : ~ ([c] =~ App EmptySet (Char c)).
+Proof. unfold not. intros. inversion H. apply null_matches_none in H3. destruct H3. Qed.
+
 (** **** Exercise: 4 stars, standard, optional (derive_corr)
 
     Prove that [derive] in fact always derives strings.
@@ -3672,11 +3767,65 @@ Proof. simpl (derive c _). reflexivity. Qed.
     regex's (e.g., [s =~ re0 \/ s =~ re1]) using lemmas given above
     that are logical equivalences. You can then reason about these
     [Prop]'s naturally using [intro] and [destruct]. *)
-(* 2 h + *)
+
+(* Lemma fuck_shit_ass : forall s a re,
+  s =~ derive a re -> [] =~ derive a re -> s =~ EmptyStr.
+Proof.
+  intros. induction re; simpl in *.
+  - inversion H0.
+  - inversion H0.
+  - destruct (eqb_spec a t).
+    + apply H.
+    + inversion H0. *)
+
+(* 2 days + *)
+Lemma derive_match_eps : forall a re,
+  re <> EmptySet -> ~ ( [] =~ derive a re ) -> [] =~ re.
+Proof.
+  intros. induction re; simpl in H; unfold not in *.
+  - exfalso. apply H. reflexivity. 
+  - apply MEmpty.
+  - destruct (eqb_spec a t); subst; simpl in H0.
+    + rewrite eqb_refl in H0. exfalso. apply H0. apply MEmpty.
+    + apply eqb_neq in n. rewrite n in H0.
+Abort.
+    
 Lemma derive_corr : derives derive.
 Proof.
   unfold derives, is_der. intros. split.
-  - admit.
+  (* - generalize dependent a.
+    generalize dependent s.
+    induction re as [ | | | re1 IH1 re2 IH2 | re1 IH1 re2 IH2 | re IH ]; intros.
+    * (* EmptySet *) inversion H.
+    * (* EmptyStr *) inversion H.
+    * (* Char *) inversion H. simpl. rewrite eqb_refl. apply MEmpty.
+    * (* App *) admit.
+    * simpl.
+      destruct (match_eps_refl (derive a re1));
+      destruct (match_eps_refl (derive a re2)); simpl;
+      apply union_disj in H; destruct H as [M1 | M2].
+      + apply IH1 in M1.  *)
+
+  - intro. remember (a :: s) as w eqn:Ew.
+    generalize dependent s.
+    generalize dependent a.
+    induction H
+        as [ | | s1 re1 s2 re2 Hs1 IHs1 Hs2 IHs2 
+        | s1 re1 re2 Hs1 IH 
+        | re1 s2 re2 Hs2 IH
+        | re | s1 s2 re Hs1 IHs1 Hs2 IHs2 ];
+    intros; simpl.
+    * discriminate.
+    * inversion Ew. rewrite eqb_refl. apply MEmpty.
+    * admit.
+      (* symmetry in Ew. apply app_cases in Ew.
+      destruct Ew as [[E1 E2] | [a1 [a2 [E1 [E2 E3]]]]].
+      + symmetry in E2. apply IHs2 in E2.
+        destruct (match_eps_refl (derive a re1)).
+        destruct E2. *)
+    * destruct (match_eps_refl (derive a re1));
+      destruct (match_eps_refl (derive a re2)); simpl.
+      + apply IH in Ew.
   - intros.
     generalize dependent s.
     generalize dependent a.
@@ -3693,16 +3842,20 @@ Proof.
         right. exists [], s.
         split. reflexivity.
         split. apply IH1 in H0. apply H0.
+        destruct re1; [inversion H | | | | | ];
         apply H.
       + destruct (match_eps_refl (derive a re2));
         simpl in H.
         -- (* [a] was derived from [re2] *)
-           apply empty_matches_eps in H. subst.
-           left. split.
-           ** (* stuck... *) 
-              admit.
-           ** apply IH2 in H1. apply H1.
-        -- inversion H.
+           left; split.
+           ** admit.
+              (* destruct re1; [inversion H | | | | | ];
+              apply empty_matches_eps in H; subst; try constructor.
+              ++ exfalso. apply H0. simpl. *)
+           ** destruct re1; [inversion H | | | | | ];
+              apply empty_matches_eps in H; subst;
+              apply IH2 in H1; apply H1.
+        -- destruct re1; [inversion H | | | | | ]; inversion H.
     * apply union_disj.
       destruct (match_eps_refl (derive a re1));
       destruct (match_eps_refl (derive a re2));
@@ -3759,7 +3912,7 @@ Proof.
       (* need to review how [reflect] works *)
       + apply IHre2 in E2. destruct (match_eps (derive a re1)) eqn:Ed.
         destruct re1; inversion E1; simpl in *; try discriminate; simpl in *.
-    
+  Abort.
 
 (** [] *)
 
@@ -3777,9 +3930,33 @@ Definition matches_regex m : Prop :=
 
     Complete the definition of [regex_match] so that it matches
     regexes. *)
-Fixpoint regex_match (s : string) (re : reg_exp ascii) : bool
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+(* 3 min, pretty straightforward and helped me correct definition of [derive] *)
+Fixpoint regex_match (s : string) (re : reg_exp ascii) : bool :=
+  match s with
+  | nil => match_eps re
+  | a :: s' => regex_match s' (derive a re)
+  end.
 (** [] *)
+
+Print derive.
+Compute derive c (App (Char c) (Char c)).
+Compute derive c (App (App (Char c) (Char c)) (Char d)).
+
+Compute regex_match [ ] (App EmptyStr EmptyStr).
+Compute regex_match [ ] (Star (Char c)).
+Compute regex_match [ c ] (App (Char c) EmptyStr).
+Compute regex_match [ c ; c ; d ] (App (App (Char c) (Char c)) (Char d)).
+Compute regex_match [ c ; c ; d ] (App (Char c) (App (Char c) (Char d))).
+Compute regex_match [ c ] (Char c).
+Compute regex_match [ c ; d ] (App (Star (Char c)) (Char d)).
+Compute regex_match [ c ; c ] (App (Star (Char c)) (Char c)).
+Compute regex_match [ c ; d ] (App (Char c) (App EmptyStr (Char d))).
+Compute regex_match [ c ] (Star (Char c)).
+Compute derive c (Star (App (Char c) (Char d))).
+Compute regex_match [ c ; d ] (Star (App (Char c) (Char d))).
+Compute regex_match [ d ] (App (Star (Char c)) (Char d)).
+Compute regex_match [ c ; c ; c ; c ; c ; d ] (App (Star (Char c)) (Char d)).
+Compute regex_match [ c ; c ; c ; c ; c ; d ] (App (Char c) (Star (Char d))).
 
 (** **** Exercise: 3 stars, standard, optional (regex_match_correct)
 

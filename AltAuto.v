@@ -642,6 +642,7 @@ Proof.
     | | | | ];
     try (apply star_app; [ apply MStar1; apply IH1 | apply IH2 ])
   ].
+Qed.
 
 Definition manual_grade_for_re_opt : option (nat*string) := None.
 (** [] *)
@@ -1238,6 +1239,7 @@ Proof.
     [ inversion IH1 | inversion IH1; inversion IH2 | | | | ]
   ];
   auto with exp_db.
+Qed.
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_re_opt_match'' : option (nat*string) := None.

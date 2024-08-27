@@ -2787,7 +2787,7 @@ Qed.
 Lemma subseq_filter_all : forall (test : nat -> bool) (s l : list nat),
   subseq s (filter test l) -> All (fun x => test x = true) s.
 Proof.
-  intros test s l E.
+  (* intros test s l E.
   generalize dependent s.
   induction l.
   - intros. simpl in E. inversion E. simpl. apply I.
@@ -2809,7 +2809,7 @@ Proof.
       + apply (IH (y :: l')). 
    apply IH. (* [remember] complicates things ugh!!! *)
   * simpl. split.
-    - (* stuck... I lost the information about filter *)
+    - stuck... I lost the information about filter *)
 Abort.
 
 (* 17 min in one go *)
@@ -3695,7 +3695,7 @@ Proof.
 Lemma derive_match_eps : forall a re,
   re <> EmptySet -> ~ ( [] =~ derive a re ) -> [] =~ re.
 Proof.
-  intros. induction re; simpl in H; unfold not in *.
+  (* intros. induction re; simpl in H; unfold not in *.
   - exfalso. apply H. reflexivity. 
   - apply MEmpty.
   - destruct (eqb_spec a t); subst; simpl in H0.
@@ -3825,7 +3825,7 @@ Proof.
       About match_eps_refl.
       (* need to review how [reflect] works *)
       + apply IHre2 in E2. destruct (match_eps (derive a re1)) eqn:Ed.
-        destruct re1; inversion E1; simpl in *; try discriminate; simpl in *.
+        destruct re1; inversion E1; simpl in *; try discriminate; simpl in *. *)
   Abort.
 
 (** [] *)

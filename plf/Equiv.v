@@ -115,7 +115,9 @@ Theorem aequiv_example:
     <{ X - X }>
     <{ 0 }>.
 Proof.
-  intros st. simpl. lia.
+  intros st. simpl.
+  (* induction (st X); try reflexivity; simpl; rewrite IHn; reflexivity. *)
+  lia.
 Qed.
 
 Theorem bequiv_example:
@@ -181,12 +183,17 @@ Qed.
     Prove that adding a [skip] after a command results in an
     equivalent program *)
 
+(* 3:42 min *)
 Theorem skip_right : forall c,
   cequiv
     <{ c ; skip }>
     c.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros c st st'. split; intros H.
+  - inversion H. subst.
+    inversion H5. subst. assumption.
+  - eapply E_Seq; [ | constructor]; assumption.
+Qed.
 (** [] *)
 
 (** Similarly, here is a simple equivalence that optimizes [if]
@@ -272,13 +279,25 @@ Proof.
     apply Hb. Qed.
 
 (** **** Exercise: 2 stars, standard, especially useful (if_false) *)
+
+(* 5:09 min *)
 Theorem if_false : forall b c1 c2,
   bequiv b <{false}> ->
   cequiv
     <{ if b then c1 else c2 end }>
     c2.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros b c1 c2 Hb.
+  unfold bequiv in Hb; simpl in Hb.
+  split; intro H.
+  - (* -> *)
+    inversion H.
+    + simpl in Hb. rewrite Hb in H5. discriminate.
+    + subst. assumption.
+  - (* <- *)
+    apply E_IfFalse; [ | assumption ]; rewrite Hb; reflexivity.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 3 stars, standard (swap_if_branches)
@@ -291,7 +310,23 @@ Theorem swap_if_branches : forall b c1 c2,
     <{ if b then c1 else c2 end }>
     <{ if ~ b then c2 else c1 end }>.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros b c1 c2. split; intro H;
+  inversion H; subst; 
+  [ apply E_IfFalse | apply E_IfTrue |
+    apply E_IfFalse | apply E_IfTrue ];
+  try assumption;
+  try (simpl; rewrite H5; reflexivity);
+  simpl in H5; destruct beval; try discriminate; reflexivity.
+Qed.
+
+  (* Too much compression? Original:
+  - inversion H; subst; [ apply E_IfFalse | apply E_IfTrue ];
+    try assumption;
+    simpl; rewrite H5; reflexivity.
+  - inversion H; subst; [ apply E_IfFalse | apply E_IfTrue ];
+    try assumption;
+    simpl in H5; destruct beval; try discriminate; reflexivity. *)
+
 (** [] *)
 
 (** For [while] loops, we can give a similar pair of theorems.  A loop
@@ -321,9 +356,25 @@ Proof.
 
 (** **** Exercise: 2 stars, advanced, optional (while_false_informal)
 
+28:09 min
+
     Write an informal proof of [while_false].
 
-(* FILL IN HERE *)
+  _Theorem_: If [b] is equivalent to [false], then the command [while b do c end] is equivalent to [skip].
+
+  _Proof_:
+
+    - ([->]) We must show, for all [st] and [st'], that [st =[ while b do c end ]=> st'] implies [st =[ skip ]=> st'], provided that [bequiv b <{ false }>].
+
+    Proceed by case analysis on the constructors that could have been used to derive [st =[ while b do c end ]=> st']. There are two:
+
+      - Suppose [E_WhileFalse] was the final rule used to derive [st =[ while b do c end ]=> st']. By the premises of [E_WhileFalse], we then have that [st = st'] (the loop was never executed). Under this assumption, we can apply [E_Skip] to derive [st' =[ skip ]=> st'].
+
+      - Conversely, suppose the final rule in the derivation of [st =[ while b do c end ]=> st'] is [E_WhileTrue]. This rule assumes that [beval st b = true]. However, recall that we also have that [bequiv b <{ false }>], which ultimately entails [beval st b = false]. Since we have a contradiction, [st =[ while b do c end ]=> st'] could not have been derived with [E_WhileTrue].
+
+    - ([<-]) We must show, for all [st] and [st'], that if we have [bequal b <{false}>] and [st =[ skip ]=> st'], then [st =[ while b do c end ]=> st'].
+
+      The only rule that could have been used to derive [st =[ skip ]=> st'] is [E_Skip], which means that [st = st']. But then the thesis follows from the rule [E_WhileFalse] and the hypothesis that [b] is equivalent to [false] are equivalent.
 *)
 (** [] *)
 
@@ -356,6 +407,9 @@ Proof.
 
       We obtain a contradiction by 2 and 3. [] *)
 
+Print E_WhileTrue.
+Print ceval_ind.
+
 Lemma while_true_nonterm : forall b c st st',
   bequiv b <{true}> ->
   ~( st =[ while b do c end ]=> st' ).
@@ -377,9 +431,11 @@ Proof.
 
 (** **** Exercise: 2 stars, standard, optional (while_true_nonterm_informal)
 
+~5 min
+
     Explain what the lemma [while_true_nonterm] means in English.
 
-(* FILL IN HERE *)
+    A [while] command whose guard neven ceases to evaluate to [true] doesn't terminate. Specifically, this means that there is no pair of states [st] and [st'] nor a command [c] such that executing [while b do c end] on [st] yields [st'], or [st =[ while b do c end ]=> st'] never holds for any [c], [st] and [st'].
 *)
 (** [] *)
 
@@ -388,13 +444,18 @@ Proof.
     Prove the following theorem. _Hint_: You'll want to use
     [while_true_nonterm] here. *)
 
+(* 7:40 min *)
 Theorem while_true : forall b c,
   bequiv b <{true}>  ->
   cequiv
     <{ while b do c end }>
     <{ while true do skip end }>.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros b c Hb. split; intros contra;
+  apply while_true_nonterm in contra;
+  try contradiction; try assumption;
+  unfold bequiv; reflexivity.
+Qed.
 (** [] *)
 
 (** A more interesting fact about [while] commands is that any number

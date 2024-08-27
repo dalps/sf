@@ -3852,10 +3852,14 @@ Fixpoint regex_match (s : string) (re : reg_exp ascii) : bool :=
   end.
 (** [] *)
 
+Definition a := ascii_of_nat 98.
+
 (* These should all be [true] *)
 Compute regex_match [ ] (App EmptyStr EmptyStr).
 Compute regex_match [ c ] (App EmptyStr (Char c)).
 Compute regex_match [ c ] (App (Char c) EmptyStr).
+Compute regex_match [ c ; d ; d ] (App (App (Char c) (Char d)) (Char d)).
+Compute regex_match [ a ; d ] (App (Union (Char a) (Char c)) (Char d)).
 Compute regex_match [ c ; c ; d ] (App (App (Char c) (Char c)) (Char d)).
 Compute regex_match [ d ; c ; c ; d ] (App (App (Char d) (Char c)) (App (Char c) (Char d))).
 Compute regex_match [ d ; c ] (Union (App (Char d) (Char c)) (App (Char c) (Char d))).

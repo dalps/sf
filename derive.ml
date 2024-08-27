@@ -20,7 +20,6 @@ let rec match_eps = function
 let rec derive (a : char) = function
 | Char b -> if a = b then EmptyStr else EmptySet
 | App (re1, re2) ->
-  print_endline "hello";
   (match re1 with
    | EmptySet -> EmptySet
    | EmptyStr -> derive a re2
@@ -28,15 +27,11 @@ let rec derive (a : char) = function
       if match_eps (derive a re1)
         then re2
         else EmptySet
-   | Star _ ->
-      print_endline "in star";
-      let d1 = derive a re1 in
-      print_endline "derived re1, let's see #####";
-      (match d1 with
-      | EmptySet -> print_endline "nope, shouldn't have gone star"; derive a re2
-      | _ -> App (d1, re2))
    | _ ->
-      let d1 = derive a re1 in App (d1, re2))
+      let d1 = derive a re1 in
+      (match d1 with
+      | EmptySet -> derive a re2
+      | _ -> App (d1, re2)))
 | Union (re, EmptySet) | Union (EmptySet, re) -> derive a re
 | Union (re1, re2) ->
   let d1 = derive a re1 in
@@ -69,3 +64,4 @@ let match_string s = regex_match (s |> String.to_seq |> List.of_seq);;
 let a, b, c, d = 'a', 'b', 'c', 'd';;
 let m1 s = match_string s (App (Star (Char c), Char d));;
 let m2 s = match_string s (Star (Union (Char c, App (Char a, Char d))))
+let m4 s = match_string s (Star (App (Union (Char c, Char d), Star (Char a))));;

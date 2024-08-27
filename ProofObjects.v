@@ -852,8 +852,7 @@ Fail Fixpoint infinite_loop {X : Type} (n : nat) {struct n} : X :=
 
 Fail Definition falso : False := infinite_loop 0.
 
-(** Recursive function [infinite_loop] purports to return a
-    value of any type [X] that you would like.  (The [struct]
+(**    (The [struct]
     annotation on the function tells Coq that it recurses on argument
     [n], not [X].)  Were Coq to allow [infinite_loop], then [falso]
     would be definable, thus giving evidence for [False].  So Coq rejects
@@ -1057,7 +1056,7 @@ Proof.
   destruct pf1. destruct pf2. reflexivity.  Qed.
 
   (* A few attempts:
-    * destruct (pe_implies_true_eq Pe P). - adds an extra goal that can be avoided by proving [pf1] as argument
+    * destruct (pe_implies_true_eq Pe P). - adds an extra goal that can be avoided by supplying either evidence [pf1] or [pf2] as argument
     * destruct (Pe P True). - doesn't rewrite the type in the generated subgoal 
     * apply (pe_implies_true_eq Pe P) in pf1. *)
 (** [] *)

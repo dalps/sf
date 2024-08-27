@@ -1120,20 +1120,12 @@ Lemma le_S_l : forall n m, S n <= m -> n <= m.
 Proof.
   intros n m H. apply le_trans with (S n). apply le_S. apply le_n. apply H.  Qed.
 
-(* 2+ days + 3 hours: took me a while to realize I needed the predecessor of [p] *)
-(* Lemma add_le_l : forall m p q,
-  m <= p + q -> m <= p \/ m <= q. (* silly *)
-Proof.
-  induction m as [| m' IH].
-  - intros. left. apply O_le_n.
-  - intros. destruct (IH (S p) (S q)).
-    + simpl. apply le_S. apply le_S in H. apply le_S in H. apply Sn_le_Sm__n_le_m in H. apply H. *)
-
+(* 2+ days + 3 hours: took me a long time to realize I needed the predecessor of [p] *)
 Theorem add_le_cases : forall n m p q,
   n + m <= p + q -> n <= p \/ m <= q.
   (** Hint: May be easiest to prove by induction on [n]. *)
 Proof.
-  intros n. induction n as [| n' IH].
+  intros n. induction n as [| n' IH]. 
   * simpl. intros m p q Hmpq. left. apply O_le_n.
   * intros m p q HS.
     destruct p as [| p'].
@@ -1146,22 +1138,6 @@ Proof.
       + left. apply n_le_m__Sn_le_Sm. apply H.
       + right. apply H.
 Qed.
-    
-  (* replace (S n' + m) with (n' + S m) in HS.
-  
-  destruct HS as [HS1 | HS2].
-  + left. 
-  apply plus_le in HS. destruct HS as [HS1 HS2].
-  replace (S n') with (1 + n') in HS1 by reflexivity.
-  assert (HS' : n' + m < p + q) by (apply HS).
-  simpl in HS.
-  destruct (p + q) as [| o] eqn:Eo.
-  + simpl in HS. inversion HS.
-  + apply plus_le in HS. destruct HS as [H1 H2].
-  (* simpl in HS. apply le_S_l in HS. apply IH in HS. destruct HS as [H1 | H2]. *)
-
-    replace (S n' <= p) with (n' < p) by reflexivity.
-  simpl in HS. replace (S (n' + m) <= p + q) with (n' + m < p + q) in HS by reflexivity. *)
 
 (* 11 min *)
 Theorem plus_le_compat_l : forall n m p,
@@ -2125,12 +2101,7 @@ Proof.
 Qed.
 
 (** [] *)
-
-Compute fold app [] [].
-Compute fold app [[]] [].
-Compute fold app [[];[]] [].
-Compute fold app [[1];[]] [].
-
+ 
 (** **** Exercise: 5 stars, advanced (weak_pumping)
 
     One of the first really interesting theorems in the theory of
@@ -2817,12 +2788,26 @@ Lemma subseq_filter_all : forall (test : nat -> bool) (s l : list nat),
   subseq s (filter test l) -> All (fun x => test x = true) s.
 Proof.
   intros test s l E.
-  (* remember (filter test l) as f.
-  generalize dependent l. *)
+  generalize dependent s.
+  induction l.
+  - intros. simpl in E. inversion E. simpl. apply I.
+  - intros. simpl in E. destruct (test x).
+    + inversion E.
+      * simpl. apply I.
+      * subst. apply IHl in H0. apply H0.
+      * subst. 
+  remember (filter test l) as f.
+  
   induction E
     as [f | y s f' H IH | x y s' f' Heq H IH ].
-  * simpl. apply I.
-  * apply IH. (* [remember] complicates things ugh!!! *)
+  * intros. simpl. apply I.
+  * intros.
+    destruct l as [| x l'].
+    - simpl in Heqf. discriminate.
+    - simpl in Heqf. destruct (test x) eqn:Etx.
+      + inversion Heqf. apply IH in H2. apply H2.
+      + apply (IH (y :: l')). 
+   apply IH. (* [remember] complicates things ugh!!! *)
   * simpl. split.
     - (* stuck... I lost the information about filter *)
 Abort.
@@ -3350,7 +3335,7 @@ Search app.
 Lemma app_cases : forall {X} (x : X) l l1 l2,
   x :: l = l1 ++ l2 ->
   ([] = l1 /\ x :: l = l2) \/
-  exists a1 a2, x :: l = x :: a1 ++ a2 /\ x :: a1 = l1 /\ a2 = l2.
+  exists a1 a2, l = a1 ++ a2 /\ x :: a1 = l1 /\ a2 = l2.
 Proof.
   intros.
   destruct l1, l2; try intuition.
@@ -3415,8 +3400,6 @@ Qed.
     rephrase [a :: s =~ Star re] to be a [Prop] over general variables,
     using the [remember] tactic.  *)
 
-Print exp_match.
-
 (* +1h + 3 min *)
 Lemma star_ne : forall (a : ascii) s re,
   a :: s =~ Star re <->
@@ -3425,17 +3408,10 @@ Proof.
   intros. split; intros.
   - remember (Star re) as star eqn:Estar.
     remember (a :: s) as w eqn:Ew.
-    (* generalize dependent re.
-    generalize dependent a. *)
     generalize dependent s.
     induction H
-      as [ | | | | | | s1 s2 re' Hs1 IHs1 Hs2 IHs2].
-    * discriminate.
-    * discriminate.
-    * discriminate.
-    * discriminate.
-    * discriminate.
-    * discriminate.
+      as [ | | | | | | s1 s2 re' Hs1 IHs1 Hs2 IHs2];
+    try discriminate.
     * intros. assert (Hre : re' = re).
       { inversion Estar. reflexivity. }
       symmetry in Ew. apply app_cases in Ew.
@@ -3443,26 +3419,13 @@ Proof.
       + symmetry in Es2.
         destruct (IHs2 Estar s Es2) as [b1 [b2]].
         exists b1, b2. apply H.
-      + exists a1, a2.
-        split. apply E1.
-        split.
-        rewrite <- E2 in Hs1. rewrite <- Hre. apply Hs1.
-        rewrite <- E3 in Hs2. apply Hs2.
+      + exists a1, a2. subst. intuition.
   - destruct H as [s0 [s1 [E1 [E2 E3]]]].
     rewrite E1.
-    replace (a :: s0 ++ s1) with ((a :: s0) ++ s1) by reflexivity. apply MStarApp; assumption.
+    replace (a :: s0 ++ s1) with ((a :: s0) ++ s1) by reflexivity.
+    apply MStarApp; assumption.
 Qed.
 
-(* Attempts at [->]:
-  eapply IHexp_match2 in Estar.
-  destruct Estar as [a1 [a2 [Eapp [Ma1 Ma2]]]].
-  exists a1, a2.
-
-- induction s as [| b s' IH].
-* exists [], []. split. reflexivity. split.
-  inversion H. symmetry in H1.
-  apply app_cases in H1.
-  destruct H1 as [[E1 E2] | ]; subst. *)
 (** [] *)
 
 (** The definition of our regex matcher will include two fixpoint
@@ -3578,27 +3541,24 @@ Fixpoint derive (a : ascii) (re : reg_exp ascii) : reg_exp ascii :=
   | EmptySet => EmptySet
   | EmptyStr => EmptySet
   | Char b => if eqb a b then EmptyStr else EmptySet
-
-  | App EmptySet _ => EmptySet
-  | App EmptyStr re' => derive a re'
-  | App ((Char _) as re1) re2 =>
-    if match_eps (derive a re1) then re2
-                                else EmptySet
-  | App ((Star _) as re1) re2 =>
-    let d1 := derive a re1 in
-    match d1 with
-    | EmptySet => derive a re2
-    | _ => App d1 re2
+  | App re1 re2 =>
+    match re1 with
+    | EmptySet => EmptySet
+    | Char _ =>
+      if match_eps (derive a re1)
+        then re2
+        else EmptySet
+    | _ =>
+      let d1 := derive a re1 in
+      match d1 with
+      | EmptySet => derive a re2
+      | _ => App d1 re2
+      end
     end
-  | App re1 re2 => let d1 := derive a re1 in App d1 re2
-
   | Union re' EmptySet | Union EmptySet re' => derive a re'
   | Union re1 re2 =>
     let d1 := derive a re1 in
-    let d2 := derive a re2 in
-    if match_eps d1 || match_eps d2 then EmptyStr
-                                    else Union d1 d2
-    
+    let d2 := derive a re2 in Union d1 d2
   | Star re' =>
     let d := derive a re' in
     match d with
@@ -3617,68 +3577,6 @@ Fixpoint derive (a : ascii) (re : reg_exp ascii) : reg_exp ascii :=
     match fact that it reflects. *)
 Example c := ascii_of_nat 99.
 Example d := ascii_of_nat 100.
-
-Fixpoint regex_match (s : string) (re : reg_exp ascii) : bool :=
-  match s with
-  | nil => match_eps re
-  | a :: s' => regex_match s' (derive a re)
-  end.
-(** [] *)
-
-Require Coq.extraction.Extraction.
-Extraction Language OCaml.
-
-Print derive.
-Compute derive c (App (Char c) (Char c)).
-Compute derive c (App (App (Char c) (Char c)) (Char d)).
-
-Example e1 : match_eps (derive c (derive d (Union (App (Char d) (Char c)) (App (Char c) (Char d))))) = true.
-Proof.
-  simpl (derive d _). simpl (derive c _). simpl. reflexivity. Qed.
-
-Example e2 : match_eps (derive d (derive c (App (Char c) (App EmptyStr (Char d))))) = true.
-Proof.
-  simpl (derive c _). simpl (derive d _). simpl. reflexivity. Qed.
-
-Example e3 : match_eps (derive d (derive c ( derive c (App (Star (Char c)) (Char d))))) = true.
-Proof. simpl (derive c _). simpl (derive d _). reflexivity. Qed.
-
-Example e4 : match_eps (derive d (derive c ( derive c (Star (Union (Char c) (Char d)))))) = true.
-Proof. simpl (derive c _). simpl (derive d _). reflexivity. Qed.
-
-Example e5 : match_eps (derive d (derive c (Star (App (Char c) (Char d))))) = true.
-Proof. simpl (derive c _). simpl (derive d _). simpl. reflexivity. Qed.
-
-
-Compute derive c (Star (App (Char c) (Char d))).
-
-Compute regex_match [ ] (App EmptyStr EmptyStr).
-Compute regex_match [ c ] (App EmptyStr (Char c)).
-Compute regex_match [ c ] (App (Char c) EmptyStr).
-Compute regex_match [ c ; c ; d ] (App (App (Char c) (Char c)) (Char d)).
-Compute regex_match [ d ; c ; c ; d ] (App (App (Char d) (Char c)) (App (Char c) (Char d))).
-Compute regex_match [ d ; c ] (Union (App (Char d) (Char c)) (App (Char c) (Char d))).
-Compute regex_match [ d ; c ] (Union (App (Char d) (Union (Char d) (Char c))) (App (Char c) (Char d))).
-Compute regex_match [ d ; d ] (Union (App (Char d) (Union (Char d) (Char c))) (App (Char c) (Char d))).
-Compute regex_match [ d ; d ] (Union (App (Char d) (Union (Char d) EmptySet)) EmptySet).
-Compute regex_match [ c ; c ; d ] (App (Char c) (App (Char c) (Char d))).
-Compute regex_match [ c ] (Char c).
-Compute regex_match [ c ; d ] (App (Char c) (App EmptyStr (Char d))).
-Compute regex_match [ c ; d ] (App (Char c) (App EmptyStr (Char d))).
-Compute regex_match [ c ; d ] (App (App EmptyStr (Char c)) (App EmptyStr (Char d))).
-Compute regex_match [ c ; d ] (App (App (Char c) EmptyStr) (App EmptyStr (Char d))).
-
-Compute regex_match [ ] (Star (Char c)).
-Compute regex_match [ c ] (Star (Char c)).
-Compute regex_match [ c ; c ; c ; c ] (Star (Char c)).
-Compute regex_match [ c ; d ] (App (Star (Char c)) (Char d)).
-Compute regex_match [ c ; d ; d ; d ] (App (Char c) (Star (Char d))).
-Compute regex_match [ d ] (App (Star (Char c)) (Char d)).
-Compute regex_match [ c ; d ; c ; d ; c ; d ] (Star (App (Char c) (Char d))).
-Compute regex_match [ c ; c ; c ; c ; c ; d ] (App (Star (Char c)) (Char d)).
-Compute regex_match [ c ; c ; d ; c ; d ; c ; d ] (App (Char c) (Star (App (Char c) (Char d)))).
-Compute regex_match [ c ; d ; c ] (App (Char c) (Star (Union (Char c) (Char d)))).
-Compute regex_match [ c ; d ] (Star (Union (Char c) (Char d))).
 
 (** "c" =~ EmptySet: *)
 Example test_der0 : match_eps (derive c (EmptySet)) = false.
@@ -3746,6 +3644,21 @@ Proof. unfold not. intros. inversion H. apply null_matches_none in H4. destruct 
 Example m3 : ~ ([c] =~ App EmptySet (Char c)).
 Proof. unfold not. intros. inversion H. apply null_matches_none in H3. destruct H3. Qed.
 
+Example e1 : match_eps (derive c (derive d (Union (App (Char d) (Char c)) (App (Char c) (Char d))))) = true.
+Proof. simpl (derive d _). simpl (derive c _). simpl. reflexivity. Qed.
+
+Example e2 : match_eps (derive d (derive c (App (Char c) (App EmptyStr (Char d))))) = true.
+Proof. simpl (derive c _). simpl (derive d _). simpl. reflexivity. Qed.
+
+Example e3 : match_eps (derive d (derive c ( derive c (App (Star (Char c)) (Char d))))) = true.
+Proof. simpl (derive c _). simpl (derive d _). reflexivity. Qed.
+
+Example e4 : match_eps (derive d (derive c ( derive c (Star (Union (Char c) (Char d)))))) = true.
+Proof. simpl (derive c _). simpl (derive d _). reflexivity. Qed.
+
+Example e5 : match_eps (derive d (derive c (Star (App (Char c) (Char d))))) = true.
+Proof. simpl (derive c _). simpl (derive d _). simpl. reflexivity. Qed.
+
 (** **** Exercise: 4 stars, standard, optional (derive_corr)
 
     Prove that [derive] in fact always derives strings.
@@ -3793,19 +3706,6 @@ Abort.
 Lemma derive_corr : derives derive.
 Proof.
   unfold derives, is_der. intros. split.
-  (* - generalize dependent a.
-    generalize dependent s.
-    induction re as [ | | | re1 IH1 re2 IH2 | re1 IH1 re2 IH2 | re IH ]; intros.
-    * (* EmptySet *) inversion H.
-    * (* EmptyStr *) inversion H.
-    * (* Char *) inversion H. simpl. rewrite eqb_refl. apply MEmpty.
-    * (* App *) admit.
-    * simpl.
-      destruct (match_eps_refl (derive a re1));
-      destruct (match_eps_refl (derive a re2)); simpl;
-      apply union_disj in H; destruct H as [M1 | M2].
-      + apply IH1 in M1.  *)
-
   - intro. remember (a :: s) as w eqn:Ew.
     generalize dependent s.
     generalize dependent a.
@@ -3817,12 +3717,26 @@ Proof.
     intros; simpl.
     * discriminate.
     * inversion Ew. rewrite eqb_refl. apply MEmpty.
-    * admit.
-      (* symmetry in Ew. apply app_cases in Ew.
-      destruct Ew as [[E1 E2] | [a1 [a2 [E1 [E2 E3]]]]].
-      + symmetry in E2. apply IHs2 in E2.
-        destruct (match_eps_refl (derive a re1)).
-        destruct E2. *)
+    * (* MApp *)
+      symmetry in Ew. apply app_cases in Ew.
+      destruct re1 eqn:Ere1; simpl in *.
+      + (* EmptySet *) inversion Hs1.
+      + (* EmptyStr *)
+        apply empty_matches_eps in Hs1. subst.
+        destruct Ew as [[E1 E2] | [a1 [a2 [E1 [E2 E3]]]]].
+        -- symmetry in E2. apply IHs2 in E2. apply E2.
+        -- discriminate.
+      + (* Char *) inversion Hs1. subst.
+        destruct (eqb_spec a t); simpl in *;
+        destruct Ew as [[E1 E2] | [a1 [a2 [E1 [E2 E3]]]]]; try discriminate; subst.
+        -- inversion E2. apply Hs2.
+        -- apply eqb_neq in n. symmetry in E2. 
+          apply (IHs1 a a1) in E2. rewrite n in E2. inversion E2.
+      + (* App *)
+        apply app_exists in Hs1.
+        destruct Hs1 as [a1 [a2 [Eapp [E1 E2]]]].
+        
+
     * destruct (match_eps_refl (derive a re1));
       destruct (match_eps_refl (derive a re2)); simpl.
       + apply IH in Ew.
@@ -3938,25 +3852,35 @@ Fixpoint regex_match (s : string) (re : reg_exp ascii) : bool :=
   end.
 (** [] *)
 
-Print derive.
-Compute derive c (App (Char c) (Char c)).
-Compute derive c (App (App (Char c) (Char c)) (Char d)).
-
+(* These should all be [true] *)
 Compute regex_match [ ] (App EmptyStr EmptyStr).
-Compute regex_match [ ] (Star (Char c)).
+Compute regex_match [ c ] (App EmptyStr (Char c)).
 Compute regex_match [ c ] (App (Char c) EmptyStr).
 Compute regex_match [ c ; c ; d ] (App (App (Char c) (Char c)) (Char d)).
+Compute regex_match [ d ; c ; c ; d ] (App (App (Char d) (Char c)) (App (Char c) (Char d))).
+Compute regex_match [ d ; c ] (Union (App (Char d) (Char c)) (App (Char c) (Char d))).
+Compute regex_match [ d ; c ] (Union (App (Char d) (Union (Char d) (Char c))) (App (Char c) (Char d))).
+Compute regex_match [ d ; d ] (Union (App (Char d) (Union (Char d) (Char c))) (App (Char c) (Char d))).
+Compute regex_match [ d ; d ] (Union (App (Char d) (Union (Char d) EmptySet)) EmptySet).
 Compute regex_match [ c ; c ; d ] (App (Char c) (App (Char c) (Char d))).
 Compute regex_match [ c ] (Char c).
-Compute regex_match [ c ; d ] (App (Star (Char c)) (Char d)).
-Compute regex_match [ c ; c ] (App (Star (Char c)) (Char c)).
 Compute regex_match [ c ; d ] (App (Char c) (App EmptyStr (Char d))).
+Compute regex_match [ c ; d ] (App (Char c) (App EmptyStr (Char d))).
+Compute regex_match [ c ; d ] (App (App EmptyStr (Char c)) (App EmptyStr (Char d))).
+Compute regex_match [ c ; d ] (App (App (Char c) EmptyStr) (App EmptyStr (Char d))).
+Compute regex_match [ ] (Star (Char c)).
 Compute regex_match [ c ] (Star (Char c)).
-Compute derive c (Star (App (Char c) (Char d))).
-Compute regex_match [ c ; d ] (Star (App (Char c) (Char d))).
+Compute regex_match [ c ; c ; c ; c ] (Star (Char c)).
+Compute regex_match [ c ; d ] (App (Star (Char c)) (Char d)).
+Compute regex_match [ c ; d ; d ; d ] (App (Char c) (Star (Char d))).
 Compute regex_match [ d ] (App (Star (Char c)) (Char d)).
+Compute regex_match [ c ; d ; c ; d ; c ; d ] (Star (App (Char c) (Char d))).
 Compute regex_match [ c ; c ; c ; c ; c ; d ] (App (Star (Char c)) (Char d)).
-Compute regex_match [ c ; c ; c ; c ; c ; d ] (App (Char c) (Star (Char d))).
+Compute regex_match [ c ; c ; d ; c ; d ; c ; d ] (App (Char c) (Star (App (Char c) (Char d)))).
+Compute regex_match [ c ; d ; c ] (App (Char c) (Star (Union (Char c) (Char d)))).
+Compute regex_match [ c ; d ] (Star (Union (Char c) (Char d))).
+Compute regex_match [ c; c; c ] (Union (Star (Char c)) (Star (Char d))).
+Compute regex_match [ c ; d ; d ; d ; d ; d ] (App (Char c) (Star (Char d))).
 
 (** **** Exercise: 3 stars, standard, optional (regex_match_correct)
 

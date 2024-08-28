@@ -496,10 +496,30 @@ Proof.
       inversion H5; subst. apply E_WhileFalse. assumption.  Qed.
 
 (** **** Exercise: 2 stars, standard, optional (seq_assoc) *)
+
+(* 11:57 min *)
 Theorem seq_assoc : forall c1 c2 c3,
   cequiv <{(c1;c2);c3}> <{c1;(c2;c3)}>.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros c1 c2 c3. split; intros Hc.
+  - (* -> *)
+    inversion Hc; subst.
+    inversion H1; subst.
+    eapply E_Seq.
+    * apply H2.
+    * eapply E_Seq.
+      + apply H6.
+      + apply H4.
+  - (* <- *)
+    inversion Hc; subst.
+    inversion H4; subst.
+    eapply E_Seq.
+    * eapply E_Seq.
+      + apply H1.
+      + apply H2.
+    * apply H6.
+Qed.
+
 (** [] *)
 
 (** Proving program properties involving assignments is one place
@@ -524,11 +544,24 @@ Proof.
 Qed.
 
 (** **** Exercise: 2 stars, standard, especially useful (assign_aequiv) *)
+
+(* 33 min - informal proof sketch took most of the time *)
 Theorem assign_aequiv : forall (X : string) (a : aexp),
   aequiv <{ X }> a ->
   cequiv <{ skip }> <{ X := a }>.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold aequiv. intros X a HXa.
+  split; intro Hc.
+  - (* -> *)
+    inversion Hc; subst.
+    assert (Hx : st' =[ X := a ]=> (X !-> aeval st' a ; st'))
+    by (apply E_Asgn; reflexivity).
+    rewrite <- HXa, t_update_same in Hx. assumption.
+  - (* <- *)
+    inversion Hc; subst.
+    rewrite <- HXa, t_update_same. apply E_Skip.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 2 stars, standard (equiv_classes) *)
@@ -544,6 +577,8 @@ Proof.
 
     Write down your answer below in the definition of
     [equiv_classes]. *)
+
+(* 22:35 min *)
 
 Definition prog_a : com :=
   <{ while X > 0 do
@@ -592,8 +627,12 @@ Definition prog_i : com :=
        X := Y + 1
      end }>.
 
-Definition equiv_classes : list (list com)
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Definition equiv_classes : list (list com) :=
+  [ [ prog_b ; prog_e ] ; (* always converge in the same state *)
+    [ prog_c ; prog_h ] ; (* loop never executes *)
+    [ prog_a ; prog_d ; prog_i ] ; (* guard might be false in the beginning, otherwise divergent behavior *)
+    [ prog_f ; prog_g ] (* guards is always true, program always diverges *)
+  ].
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_equiv_classes : option (nat*string) := None.
@@ -709,6 +748,27 @@ Proof.
     inversion Hceval. subst. apply E_Asgn.
     rewrite Heqv. reflexivity.  Qed.
 
+(* 7:18 min - Added by me, just for the sake of exercise *)
+Theorem CSeq_congurence : forall c1 c2 c1' c2',
+  cequiv c1 c1' -> cequiv c2 c2' -> cequiv <{ c1 ; c2 }> <{ c1' ; c2' }>.
+Proof.
+  intros c1 c2 c1' c2' Heq1 Heq2.
+  unfold cequiv in *.
+  split; intros Hc.
+  - (* -> *)
+    inversion Hc; subst.
+    rewrite (Heq1 st st'0) in H1.
+    rewrite (Heq2 st'0 st') in H4.
+    eapply E_Seq; eassumption.
+  - (* <- *)
+    inversion Hc; subst.
+    erewrite <- Heq1 in H1.
+    erewrite <- Heq2 in H4.
+    eapply E_Seq; eassumption.
+Qed.
+
+Print ceval_ind.
+
 (** The congruence property for loops is a little more interesting,
     since it requires induction.
 
@@ -782,20 +842,50 @@ Proof.
 Qed.
 
 (** **** Exercise: 3 stars, standard, optional (CSeq_congruence) *)
+
+(* ~ 8 min - little did I know they'd give it later as an exercise *)
 Theorem CSeq_congruence : forall c1 c1' c2 c2',
   cequiv c1 c1' -> cequiv c2 c2' ->
   cequiv <{ c1;c2 }> <{ c1';c2' }>.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  assert (A: forall c1 c1' c2 c2', 
+    cequiv c1 c1' -> cequiv c2 c2' ->
+    forall st st', st =[ c1 ; c2 ]=> st' -> st =[ c1' ; c2' ]=> st'
+  ).
+  { intros c1 c1' c2 c2' Heq1 Heq2 st st' Hc.
+    inversion Hc; subst.
+    rewrite (Heq1 st st'0) in H1;
+    rewrite (Heq2 st'0 st') in H4.
+    eapply E_Seq; eassumption. }
+
+  intros. split.
+  - apply A; assumption.
+  - apply A; apply sym_cequiv; assumption.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 3 stars, standard (CIf_congruence) *)
+
+(* 10:33 min *)
 Theorem CIf_congruence : forall b b' c1 c1' c2 c2',
   bequiv b b' -> cequiv c1 c1' -> cequiv c2 c2' ->
   cequiv <{ if b then c1 else c2 end }>
          <{ if b' then c1' else c2' end }>.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  assert (A: forall b b' c1 c1' c2 c2' st st',
+    bequiv b b' -> cequiv c1 c1' -> cequiv c2 c2' ->
+    st =[ if b then c1 else c2 end ]=> st' ->
+    st =[ if b' then c1' else c2' end ]=> st'
+  ).
+  { intros b b' c1 c1' c2 c2' st st' Heqb Heq1 Heq2 Hc.
+    inversion Hc; subst; [ apply E_IfTrue | apply E_IfFalse ];
+    try (rewrite <- Heqb; assumption).
+    - rewrite <- (Heq1 st st'). assumption.
+    - rewrite <- (Heq2 st st'). assumption. }
+  
+  intros. split; apply A; auto using sym_cequiv, sym_bequiv.
+Qed.
 (** [] *)
 
 (** For example, here are two equivalent programs and a proof of their
@@ -830,6 +920,14 @@ Qed.
     that it is an equivalence but not a congruence. *)
 
 (* FILL IN HERE *)
+
+Inductive crel : com -> com -> Prop :=
+  | SameX : forall c1 c2 st st' st'' x,
+    st =[ c1 ]=> st' ->
+    st =[ c2 ]=> st'' ->
+    st' x = st'' x -> crel c1 c2.
+
+
 (* Do not modify the following line: *)
 Definition manual_grade_for_not_congr : option (nat*string) := None.
 (** [] *)

@@ -921,12 +921,44 @@ Qed.
 
 (* FILL IN HERE *)
 
-Inductive crel : com -> com -> Prop :=
-  | SameX : forall c1 c2 st st' st'' x,
+Definition refl (R : com -> com -> Prop) := forall c, R c c.
+Definition sym R := forall (c1 c2 : com), R c1 c2 -> R c2 c1.
+Definition trans R := forall (c1 c2 c3 : com), R c1 c2 -> R c2 c3 -> R c1 c3.
+
+(* Haven't really thought out whether this is not a congruence, just winging it. *)
+Definition crel c1 c2 : Prop :=
+  forall st st' st'',
     st =[ c1 ]=> st' ->
     st =[ c2 ]=> st'' ->
-    st' x = st'' x -> crel c1 c2.
+    forall x, st' x = st'' x.
 
+Theorem refl_crel : refl crel.
+Proof.
+  intros c st st' st'' Hst' Hst'' x.
+  assert (Heqst : st' = st'') by (apply (ceval_deterministic c st st' st'' Hst' Hst'')). rewrite Heqst. reflexivity.  Qed.
+
+Theorem sym_crel : sym crel.
+Proof.
+  unfold crel, sym. intros. rewrite (H st st'' st' H1 H0); reflexivity.  Qed.
+
+Theorem trans_crel : trans crel.
+Proof.
+  unfold crel. intros c1 c2 c3 Hc12 Hc23 st st' st'' Hc1 Hc2 x.
+  rewrite (Hc12 st st' st'').
+  - reflexivity.
+  - apply Hc1.
+  - (* stuck... how do I prove anything about [c2]? *)
+Abort.
+
+(** You could proceed like this:
+      [assert (Hc2 : exist st'0, st =[ c2 ]=> st'0) by (...).]
+    But you can't, because [c2] might diverge (loop endlessly).
+    Since you can't really know how [c2] behaves, transitivity is not
+    provable, and therefore [crel] is _not_ an equivalence.
+    
+    Come up with another relation to solve the exercise.
+    Nonetheless, this helped me understand why [cequiv] was defined
+    in a different way. *)
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_not_congr : option (nat*string) := None.

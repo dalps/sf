@@ -1044,6 +1044,8 @@ Proof. reflexivity. Qed.
     [BEq], [BNeq], and [BLe] cases); we can also look for constant
     _boolean_ expressions and evaluate them in-place as well. *)
 
+Print beval.
+Print bexp_ind.
 Fixpoint fold_constants_bexp (b : bexp) : bexp :=
   match b with
   | <{true}>        => <{true}>
@@ -1274,9 +1276,18 @@ Proof.
 
        completing the case.  [] *)
 
+(* ~1:15 min - Uh-oh... I did look at the formal proof beforehand. Is that failing the exercise? At best, I made it 1 star now. At worst, I have defeated its purpose. *)
+
+Print beval.
+Print BEq.
+
 Theorem fold_constants_bexp_sound:
   btrans_sound fold_constants_bexp.
 Proof.
+  (* Bad attempt at shortening the proof. Perhaps Ltac is more suited for this case.
+  assert (A : forall (op : nat -> nat -> bool) (constr : aexp -> aexp -> bexp) (a1 a2 : aexp) (st : state),
+    beval st (constr a1 a2) = beval st (fold_constants_bexp (constr a1 a2))
+  ). {  } *)
   unfold btrans_sound. intros b. unfold bequiv. intros st.
   induction b;
     (* true and false are immediate *)
@@ -1306,30 +1317,53 @@ Proof.
        become constants after folding *)
       simpl. destruct (n =? n0); reflexivity.
   - (* BLe *)
-    (* FILL IN HERE *) admit.
-  - (* BGt *)
-    (* FILL IN HERE *) admit.
+    simpl.
+    remember (fold_constants_aexp a1) as a1' eqn:Ea1'.
+    remember (fold_constants_aexp a2) as a2' eqn:Ea2'.
+    replace (aeval st a1) with (aeval st a1')
+      by (rewrite Ea1'; rewrite <- fold_constants_aexp_sound; reflexivity).
+    replace (aeval st a2) with (aeval st a2')
+      by (rewrite Ea2'; rewrite <- fold_constants_aexp_sound; reflexivity).
+    destruct a1', a2';
+      (* Most cases are immediate *) try reflexivity.
+      (* The interesting case is when both [a1] and [a2] are folded into constants. *)
+        simpl. destruct (n <=? n0); reflexivity.
+  - (* BGt - exactly the same *)
+    simpl.
+    remember (fold_constants_aexp a1) as a1' eqn:Ea1'.
+    remember (fold_constants_aexp a2) as a2' eqn:Ea2'.
+    replace (aeval st a1) with (aeval st a1')
+      by (rewrite Ea1'; rewrite <- fold_constants_aexp_sound; reflexivity).
+    replace (aeval st a2) with (aeval st a2')
+      by (rewrite Ea2'; rewrite <- fold_constants_aexp_sound; reflexivity).
+    destruct a1', a2';
+      (* Most cases are immediate *) try reflexivity.
+      (* The interesting case is when both [a1] and [a2] are folded into constants. *)
+        simpl. destruct (n <=? n0); reflexivity.
   - (* BNot *)
     simpl. remember (fold_constants_bexp b) as b' eqn:Heqb'.
     rewrite IHb.
     destruct b'; reflexivity.
   - (* BAnd *)
-    simpl.
+    simpl. (* breaks down product scrutinees *)
     remember (fold_constants_bexp b1) as b1' eqn:Heqb1'.
     remember (fold_constants_bexp b2) as b2' eqn:Heqb2'.
     rewrite IHb1. rewrite IHb2.
     destruct b1'; destruct b2'; reflexivity.
-(* FILL IN HERE *) Admitted.
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard (fold_constants_com_sound)
 
     Complete the [while] case of the following proof. *)
 
+(* 19:45 min to internalize proof + 4:32 min for while *)
+Print fold_constants_com.
+
 Theorem fold_constants_com_sound :
   ctrans_sound fold_constants_com.
 Proof.
-  unfold ctrans_sound. intros c.
+  unfold ctrans_sound, cequiv. intros c.
   induction c; simpl.
   - (* skip *) apply refl_cequiv.
   - (* := *) apply CAsgn_congruence.
@@ -1337,10 +1371,10 @@ Proof.
   - (* ; *) apply CSeq_congruence; assumption.
   - (* if *)
     assert (bequiv b (fold_constants_bexp b)). {
-      apply fold_constants_bexp_sound. }
+      apply fold_constants_bexp_sound. } (* pronounce: [b] and [fold_constants_bexp b] are equivalent by the soundness of the transformation on boolean expressions. *)
     destruct (fold_constants_bexp b) eqn:Heqb;
       try (apply CIf_congruence; assumption).
-      (* (If the optimization doesn't eliminate the if, then the
+      (* ^ (If the optimization doesn't eliminate the if, then the
           result is easy to prove from the IH and
           [fold_constants_bexp_sound].) *)
     + (* b always true *)
@@ -1350,7 +1384,13 @@ Proof.
       apply trans_cequiv with c2; try assumption.
       apply if_false; assumption.
   - (* while *)
-    (* FILL IN HERE *) Admitted.
+    assert (Heqb : bequiv b (fold_constants_bexp b))
+      by (apply fold_constants_bexp_sound).
+    destruct (fold_constants_bexp b);
+    [ apply while_true; assumption
+    | apply while_false; assumption | | | | | | ];
+    apply CWhile_congruence; assumption.
+Qed.
 (** [] *)
 
 (* ================================================================= *)

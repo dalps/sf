@@ -1426,40 +1426,113 @@ Qed.
      optimize_0plus_com
 *)
 
-Fixpoint optimize_0plus_aexp (a : aexp) : aexp
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Print aexp.
 
-Fixpoint optimize_0plus_bexp (b : bexp) : bexp
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+(* 11:39 min *)
+Fixpoint optimize_0plus_aexp (a : aexp) : aexp :=
+  match a with
+  | ANum n => ANum n
+  | AId x => AId x
+  | <{ 0 + a2 }> => optimize_0plus_aexp a2
+  | <{ a1 + a2 }> =>
+      <{ optimize_0plus_aexp a1 + optimize_0plus_aexp a2 }>
+  | <{ a1 - a2 }> =>
+      <{ optimize_0plus_aexp a1 - optimize_0plus_aexp a2 }>
+  | <{ a1 * a2 }> =>
+      <{ optimize_0plus_aexp a1 * optimize_0plus_aexp a2 }>
+  end.
 
-Fixpoint optimize_0plus_com (c : com) : com
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Fixpoint optimize_0plus_bexp (b : bexp) : bexp :=
+  match b with
+  | <{ true }> => <{ true }>
+  | <{ false }> => <{ false }>
+  | <{ a1 = a2 }> =>
+      <{ optimize_0plus_aexp a1 = optimize_0plus_aexp a2 }>
+  | <{ a1 <> a2 }> =>
+      <{ optimize_0plus_aexp a1 <> optimize_0plus_aexp a2 }>
+  | <{ a1 <= a2 }> =>
+      <{ optimize_0plus_aexp a1 <= optimize_0plus_aexp a2 }>
+  | <{ a1 > a2 }> =>
+      <{ optimize_0plus_aexp a1 > optimize_0plus_aexp a2 }>
+  | <{ ~b }> =>
+      <{ ~ optimize_0plus_bexp b }>
+  | <{ a1 && a2 }> =>
+      <{ optimize_0plus_bexp a1 && optimize_0plus_bexp a2 }>
+  end.
+
+Fixpoint optimize_0plus_com (c : com) : com :=
+  match c with
+  | <{ skip }> => <{ skip }>
+  | <{ x := a }> => <{ x := optimize_0plus_aexp a }>
+  | <{ c1 ; c2 }> =>
+      <{ optimize_0plus_com c1 ; optimize_0plus_com c2 }>
+  | <{ if b then c1 else c2 end }> =>
+      <{  if optimize_0plus_bexp b
+          then optimize_0plus_com c1
+          else optimize_0plus_com c2 end }>
+  | <{ while b do c end }> =>
+      <{  while optimize_0plus_bexp b
+          do optimize_0plus_com c end }>
+  end.
 
 Example test_optimize_0plus:
     optimize_0plus_com
        <{ while X <> 0 do X := 0 + X - 1 end }>
   =    <{ while X <> 0 do X := X - 1 end }>.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  simpl. reflexivity. Qed.
 
 (** Prove that these three functions are sound, as we did for
     [fold_constants_*].  Make sure you use the congruence lemmas in the
     proof of [optimize_0plus_com] -- otherwise it will be _long_! *)
 
+(* 18:24 min *)
 Theorem optimize_0plus_aexp_sound:
   atrans_sound optimize_0plus_aexp.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold atrans_sound. induction a; simpl;
+  (* ANum and AId *)
+  try (apply refl_aequiv); unfold aequiv in *;
+  try (intro; simpl; rewrite <- IHa1, <- IHa2; reflexivity).
+  - (* APlus *)
+    destruct a1 eqn:Ea1; simpl in *; intro.
+    * destruct n; simpl; rewrite <- IHa2; reflexivity.
+    * rewrite <- IHa2; reflexivity.
+    * simpl. rewrite <- IHa1. rewrite <- IHa2. reflexivity.
+    * simpl. rewrite <- IHa1. rewrite <- IHa2. reflexivity.
+    * simpl. rewrite <- IHa1. rewrite <- IHa2. reflexivity.
+Qed.
 
+(* 12:21 min *)
 Theorem optimize_0plus_bexp_sound :
   btrans_sound optimize_0plus_bexp.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intro b. induction b; simpl;
+  try (apply refl_bequiv);
+  unfold bequiv in *; intro st; simpl; 
+  try rewrite <- IHb1;
+  try rewrite <- IHb2;
+  try rewrite <- IHb;
+  try reflexivity;
+  rewrite <- optimize_0plus_aexp_sound;
+  rewrite <- optimize_0plus_aexp_sound; reflexivity.
+Qed.
 
+(* 8 min circa *)
 Theorem optimize_0plus_com_sound :
   ctrans_sound optimize_0plus_com.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros c. induction c; intros st st'.
+  - apply refl_cequiv.
+  - apply CAsgn_congruence.
+    unfold aequiv. intro. rewrite optimize_0plus_aexp_sound.
+    reflexivity.
+  - apply CSeq_congruence; unfold cequiv in *; intros.
+    + rewrite IHc1. reflexivity.
+    + rewrite IHc2. reflexivity.
+  - apply CIf_congruence; auto using optimize_0plus_bexp_sound.
+  - apply CWhile_congruence; auto using optimize_0plus_bexp_sound.
+Qed.
 
 (** Finally, let's define a compound optimizer on commands that first
     folds constants (using [fold_constants_com]) and then eliminates
@@ -1469,10 +1542,16 @@ Definition optimizer (c : com) := optimize_0plus_com (fold_constants_com c).
 
 (** Prove that this optimizer is sound. *)
 
+(* 10:34 min *)
 Theorem optimizer_sound :
   ctrans_sound optimizer.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros c. unfold optimizer. 
+  apply trans_cequiv with (fold_constants_com c).
+  - apply fold_constants_com_sound.
+  - apply optimize_0plus_com_sound.
+Qed.
+
 (** [] *)
 
 (* ################################################################# *)

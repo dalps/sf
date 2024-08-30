@@ -1580,6 +1580,16 @@ Qed.
     Clearly, this _particular_ [c1] and [c2] are equivalent.  Is this
     true in general? *)
 
+    (* No. These [c1] and [c2] are not equivalent:
+    
+       c1  =  (X := X + 42 + 53;
+               Y := Y + X)
+       c2  =  (X := X + 42 + 53;
+               Y := [X -> a1]a2
+                    Y + (X + 42 + 53))
+
+    Generally, when [a1] references [X], [c1] and [c2] are not equivalent. This is _not> because the substitution keeps replacing [X] infinitely often, but because [X] has different values when it is evaluated in [a1] and [a2']. *)
+
 (** We will see in a moment that it is not, but it is worthwhile
     to pause, now, and see if you can find a counter-example on your
     own. *)
@@ -1606,6 +1616,8 @@ Example subst_aexp_ex :
   subst_aexp X <{42 + 53}> <{Y + X}>
   = <{ Y + (42 + 53)}>.
 Proof. simpl. reflexivity. Qed.
+
+Compute subst_aexp X <{X + 42}> <{Y + X}>.
 
 (** And here is the property we are interested in, expressing the
     claim that commands [c1] and [c2] as described above are
@@ -1658,6 +1670,8 @@ Proof.
        apply E_Asgn; reflexivity).
   clear Heqc1 Heqc2.
 
+  unfold cequiv in *.
+
   apply H in H1.
   clear H.
 
@@ -1678,6 +1692,9 @@ Proof.
     just need to exclude the case where the variable [X] occurs in the
     right-hand side of the first assignment statement. *)
 
+(* The transformation function is unchanged. All occurrences of a variable that doesn't reference itself in its definition are good to be replaced. *)
+
+(* A property on aexps: [a] does not contain the string [x] *)
 Inductive var_not_used_in_aexp (x : string) : aexp -> Prop :=
   | VNUNum : forall n, var_not_used_in_aexp x (ANum n)
   | VNUId : forall y, x <> y -> var_not_used_in_aexp x (AId y)
@@ -1694,27 +1711,91 @@ Inductive var_not_used_in_aexp (x : string) : aexp -> Prop :=
       var_not_used_in_aexp x a2 ->
       var_not_used_in_aexp x (<{ a1 * a2 }>).
 
+(* If [a] doesn't reference the variable [x], the evaluation of [a] in [st] is indifferent of the value of [x] in [st]. *)
+
+(* 27:03 min *)
 Lemma aeval_weakening : forall x st a ni,
   var_not_used_in_aexp x a ->
   aeval (x !-> ni ; st) a = aeval st a.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros x st a ni Hvnu.
+  induction Hvnu; simpl;
+  (* Most cases follow from the properties of [aeval] and the IH *)
+  auto;
+  (* [VNUId] is the only interesting case *)
+  apply t_update_neq; assumption.
+Qed.
+
 
 (** Using [var_not_used_in_aexp], formalize and prove a correct version
     of [subst_equiv_property]. *)
 
-(* FILL IN HERE
+(* ~ 1h 20min (includes lunch break) *)
+Theorem subst_equiv_property' : forall x1 a1 x2 a2,
+  var_not_used_in_aexp x1 a1 ->
+  cequiv
+    <{ x1 := a1 ; x2 := a2 }>
+    <{ x1 := a1 ; x2 := subst_aexp x1 a1 a2 }>.
+Proof.
+  intros x1 a1 x2 a2 Hvnu st st'. split; intros Hc;
+  inversion Hc; subst; inversion H1; subst.
+  - eapply E_Seq.
+    + apply H1.
+    + inversion H4; subst. eapply E_Asgn.
+      clear Hc H4 H1 x2.
+      induction a2;
+      try reflexivity;
+      try (simpl; rewrite IHa2_1, IHa2_2; reflexivity).
+      * (* AId *) simpl. destruct (x1 =? x)%string eqn:Evar;
+        try reflexivity.
+        apply String.eqb_eq in Evar. subst x.
+        rewrite t_update_eq.
+        (* Cool, does ever [a1] mention [x]? No. *)
+        apply aeval_weakening. assumption.
+  - eapply E_Seq.
+    + apply H1.
+    + inversion H4; subst. eapply E_Asgn.
+      clear Hc H4 H1 x2.
+      symmetry.
+      induction a2;
+      try reflexivity;
+      try (simpl; rewrite IHa2_1, IHa2_2; reflexivity).
+      * (* AId *) simpl. destruct (x1 =? x)%string eqn:Evar;
+        try reflexivity.
+        apply String.eqb_eq in Evar. subst x.
+        rewrite t_update_eq.
+        apply aeval_weakening. assumption.
+Qed.
 
-    [] *)
+  (* First tempting attempt:
+  
+  apply CSeq_congruence.
+  - apply refl_cequiv.
+  - apply CAsgn_congruence. intro st''.
+    clear x2 st st'. rename st'' into st.
+    induction a2.
+    * (* ANum *) reflexivity.
+    * (* AId *) simpl. destruct (x1 =? x)%string eqn:Evar;
+      try reflexivity.
+      apply String.eqb_eq in Evar. subst x.
+      nope *)
+(** [] *)
 
 (** **** Exercise: 3 stars, standard (inequiv_exercise)
 
     Prove that an infinite loop is not equivalent to [skip] *)
 
+(* 6:52 min *)
 Theorem inequiv_exercise:
   ~ cequiv <{ while true do skip end }> <{ skip }>.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros contra.
+  edestruct contra.
+  assert (H1 : empty_st =[ skip ]=> empty_st) by (apply E_Skip).
+  apply H0 in H1. apply loop_never_stops in H1.
+  contradiction.
+Qed.
+
 (** [] *)
 
 (* ################################################################# *)

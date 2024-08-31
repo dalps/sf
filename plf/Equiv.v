@@ -1882,6 +1882,8 @@ Notation "'while' x 'do' y 'end'" :=
    semantics. What rule(s) must be added to the definition of [ceval]
    to formalize the behavior of the [HAVOC] command? *)
 
+(* 8:31 min *)
+
 Reserved Notation "st '=[' c ']=>' st'"
          (at level 40, c custom com at level 99, st constr,
           st' constr at next level).
@@ -1912,7 +1914,8 @@ Inductive ceval : com -> state -> state -> Prop :=
       st  =[ c ]=> st' ->
       st' =[ while b do c end ]=> st'' ->
       st  =[ while b do c end ]=> st''
-(* FILL IN HERE *)
+  | E_Havoc : forall st n x,
+      st =[ havoc x ]=> (x !-> n ; st)
 
   where "st =[ c ]=> st'" := (ceval c st st').
 
@@ -1920,13 +1923,11 @@ Inductive ceval : com -> state -> state -> Prop :=
     your definition: *)
 
 Example havoc_example1 : empty_st =[ havoc X ]=> (X !-> 0).
-Proof.
-(* FILL IN HERE *) Admitted.
+Proof. constructor. Qed.
 
 Example havoc_example2 :
   empty_st =[ skip; havoc Z ]=> (Z !-> 42).
-Proof.
-(* FILL IN HERE *) Admitted.
+Proof. eapply E_Seq; constructor. Qed.
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_Check_rule_for_HAVOC : option (nat*string) := None.
@@ -1953,13 +1954,48 @@ Definition pYX :=
 (** If you think they are equivalent, prove it. If you think they are
     not, prove that. *)
 
+(* 57:03 min *)
 Theorem pXY_cequiv_pYX :
   cequiv pXY pYX \/ ~cequiv pXY pYX.
 Proof.
+  left. intros st st'; unfold pXY, pYX. split; intro Hc;
+  inversion Hc; subst;
+  inversion H1; subst;
+  inversion H4; subst;
+  clear Hc H1 H4.
+  - apply E_Seq with (st' := (Y !-> n0 ; st)).
+    + apply E_Havoc.
+    + rewrite t_update_permute.
+      * apply E_Havoc.
+      * apply String.eqb_neq. reflexivity.
+  - apply E_Seq with (st' := (X !-> n0 ; st)).
+    + apply E_Havoc.
+    + rewrite t_update_permute.
+      * apply E_Havoc.
+      * apply String.eqb_neq. reflexivity.
+Qed.
+
+  (* I thought they weren't equivalent  at first...
+     I'm still not convinced they are.\
+     
+  right. unfold cequiv, pXY, pYX. intros Hequiv.
+  assert (A : forall x y, exists nx ny,
+    empty_st =[ havoc x ; havoc y ]=> (y !-> ny ; x !-> nx ; empty_st)).
+  {
+    intros x y. exists 1, 0. eapply E_Seq.
+    - apply E_Havoc with (n := 1).
+    - apply E_Havoc with (n := 0).
+  }
+  destruct (A X Y) as [nx [ny H]].
+  destruct (A Y X) as [nx' [ny' H']].
+  apply Hequiv in H.
+
+  You don't have [ceval_deterministic] in Himp! *)
+
   (* Hint: You may want to use [t_update_permute] at some point,
      in which case you'll probably be left with [X <> Y] as a
      hypothesis. You can use [discriminate] to discharge this. *)
-  (* FILL IN HERE *) Admitted.
+
 (** [] *)
 
 (** **** Exercise: 4 stars, standard, optional (havoc_copy)
@@ -1976,9 +2012,66 @@ Definition pcopy :=
     are not, then prove that.  (Hint: You may find the [assert] tactic
     useful.) *)
 
+Lemma stupid : ~ forall n, n = 1.
+Proof. unfold not. intros Contra. assert (0 = 1) by (apply Contra). discriminate. Qed.
+
+Lemma inane : ~ forall n, ~ n = 1.
+Proof. intro Contra. assert (1 <> 1) by (apply Contra). contradiction. Qed.
+
+(* + 1:10 hour + 2 hour - I acted very retardedly in this one *)
 Theorem ptwice_cequiv_pcopy :
   cequiv ptwice pcopy \/ ~cequiv ptwice pcopy.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. 
+  unfold cequiv, ptwice, pcopy.
+  right. intros Contra.
+  assert (A :
+    empty_st =[ havoc X ; havoc Y ]=> (Y !-> 1 ; X !-> 0)
+  ) by (eauto using E_Seq, E_Havoc).
+  apply Contra in A.
+  inversion A; subst.
+  inversion H1; subst.
+  inversion H4; subst.
+  simpl in H5. rewrite t_update_eq in H5. (* I'm so blind *)
+  remember (Y !-> n; X !-> n) as st1.
+  remember (Y !-> 1; X !-> 0) as st2.
+  assert (Hn1 : st1 X = st2 X) by (rewrite H5; reflexivity).
+  assert (Hn2 : st1 Y = st2 Y) by (rewrite H5; reflexivity).
+  rewrite Heqst1, Heqst2 in Hn1, Hn2.
+  rewrite 2 t_update_eq in Hn2.
+  rewrite t_update_permute in Hn1; try discriminate.
+  rewrite t_update_eq in Hn1.
+  rewrite t_update_permute in Hn1; try discriminate.
+  rewrite t_update_eq in Hn1.
+  rewrite Hn1 in Hn2. discriminate.
+Qed.
+  
+  (* assert (B : empty_st =[ havoc X ]=> (X !-> 0)) by (auto using E_Havoc).
+  apply (E_Seq) with (c1 :=) in B .
+  apply Contra in A.
+  clear Contra.
+  inversion A; subst. inversion H4. *)
+
+  (* inversion A; subst.
+  inversion H1; subst.
+  inversion H4; subst.
+  simpl in H5. rewrite t_update_same, t_update_eq in H5.
+  clear H1 H4 A.
+  assert (B : (Y !-> n; X !-> n) Y = (Y !-> 1) Y).
+  { rewrite H5. reflexivity. }
+  rewrite 2 t_update_eq in B. clear H5.
+  generalize dependent n. apply stupid. *)
+
+Print t_update.
+
+  (* See why -> is unprovable?
+  left. intros st st'. split; intros Hc;
+  inversion Hc; subst;
+  inversion H1; subst;
+  inversion H4; subst;
+  clear Hc H1 H4.
+  - apply E_Seq with (st' := (X !-> n0 ; st)).
+    + apply E_Havoc.
+    + apply E_Asgn. <-- stuck *)
 (** [] *)
 
 (** The definition of program equivalence we are using here has some

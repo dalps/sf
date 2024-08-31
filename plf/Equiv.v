@@ -2012,58 +2012,33 @@ Definition pcopy :=
     are not, then prove that.  (Hint: You may find the [assert] tactic
     useful.) *)
 
-Lemma stupid : ~ forall n, n = 1.
-Proof. unfold not. intros Contra. assert (0 = 1) by (apply Contra). discriminate. Qed.
-
-Lemma inane : ~ forall n, ~ n = 1.
-Proof. intro Contra. assert (1 <> 1) by (apply Contra). contradiction. Qed.
-
-(* + 1:10 hour + 2 hour - I acted very retardedly in this one *)
+(* ~ 4:20 hours (shave off ~1:30 of lunch) - Not proud of this one *)
 Theorem ptwice_cequiv_pcopy :
   cequiv ptwice pcopy \/ ~cequiv ptwice pcopy.
 Proof. 
   unfold cequiv, ptwice, pcopy.
   right. intros Contra.
-  assert (A :
-    empty_st =[ havoc X ; havoc Y ]=> (Y !-> 1 ; X !-> 0)
-  ) by (eauto using E_Seq, E_Havoc).
+  assert (empty_st =[ havoc X ; havoc Y ]=> (Y !-> 1 ; X !-> 0))
+    as A by (eauto using E_Seq, E_Havoc).
   apply Contra in A.
   inversion A; subst.
   inversion H1; subst.
   inversion H4; subst.
-  simpl in H5. rewrite t_update_eq in H5. (* I'm so blind *)
-  remember (Y !-> n; X !-> n) as st1.
-  remember (Y !-> 1; X !-> 0) as st2.
-  assert (Hn1 : st1 X = st2 X) by (rewrite H5; reflexivity).
-  assert (Hn2 : st1 Y = st2 Y) by (rewrite H5; reflexivity).
-  rewrite Heqst1, Heqst2 in Hn1, Hn2.
-  rewrite 2 t_update_eq in Hn2.
-  rewrite t_update_permute in Hn1; try discriminate.
-  rewrite t_update_eq in Hn1.
-  rewrite t_update_permute in Hn1; try discriminate.
-  rewrite t_update_eq in Hn1.
-  rewrite Hn1 in Hn2. discriminate.
+  clear A H1 H4 Contra. rename H5 into Contra.
+  simpl in Contra.
+  rewrite t_update_eq in Contra. (* I'm so blind *)
+  assert (Hn1 : (X !-> n ; Y !-> n) X = (X !-> 0 ; Y !-> 1) X).
+  { rewrite
+      t_update_permute,
+      t_update_permute with (v1 := 0);
+    try discriminate;
+    congruence. }
+  assert (Hn2 : (Y !-> n; X !-> n) Y = (Y !-> 1; X !-> 0) Y) by congruence.
+  rewrite 2 t_update_eq in Hn1, Hn2.
+  congruence.
 Qed.
-  
-  (* assert (B : empty_st =[ havoc X ]=> (X !-> 0)) by (auto using E_Havoc).
-  apply (E_Seq) with (c1 :=) in B .
-  apply Contra in A.
-  clear Contra.
-  inversion A; subst. inversion H4. *)
 
-  (* inversion A; subst.
-  inversion H1; subst.
-  inversion H4; subst.
-  simpl in H5. rewrite t_update_same, t_update_eq in H5.
-  clear H1 H4 A.
-  assert (B : (Y !-> n; X !-> n) Y = (Y !-> 1) Y).
-  { rewrite H5. reflexivity. }
-  rewrite 2 t_update_eq in B. clear H5.
-  generalize dependent n. apply stupid. *)
-
-Print t_update.
-
-  (* See why -> is unprovable?
+  (* See why [(->)] is unprovable?
   left. intros st st'. split; intros Hc;
   inversion Hc; subst;
   inversion H1; subst;

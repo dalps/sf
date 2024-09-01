@@ -2150,6 +2150,9 @@ Qed.
 
 (** [] *)
 
+Lemma t_empty_0 : forall x, empty_st x = 0.
+Proof. reflexivity. Qed.
+
 (** **** Exercise: 4 stars, advanced (p3_p4_inequiv)
 
     Prove that the following programs are _not_ equivalent.  (Hint:
@@ -2167,8 +2170,48 @@ Definition p4 : com :=
   <{ X := 0;
      Z := 1 }>.
 
+(* 1:19:06 hours - pats on the back for not reading the hint! *)
 Theorem p3_p4_inequiv : ~ cequiv p3 p4.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  unfold cequiv, p3, p4. intro Contra.
+
+  assert (A :
+    (X !-> 1) =[ p3 ]=> (Z !-> 2 ; X !-> 0 ; Z !-> 1 ; X !-> 1)).
+  { unfold p3. eapply E_Seq.
+    - apply E_Asgn. simpl. reflexivity.
+    - apply E_WhileTrue with (st' := (Z !-> 2 ; X !-> 0 ; Z !-> 1 ; X !-> 1)).
+      + reflexivity.
+      + apply E_Seq with (st' := (X !-> 0 ; Z !-> 1 ; X !-> 1)).
+        * apply (E_Havoc (Z !-> 1; X !-> 1) 0).
+        * apply E_Havoc.
+      + apply E_WhileFalse. reflexivity. }
+
+  apply Contra in A.
+
+  assert (M :
+    (Z !-> 2; X !-> 0; Z !-> 1; X !-> 1) = (Z !-> 2; X !-> 0; X !-> 1)).
+  { clear Contra A.
+    rewrite t_update_permute; try discriminate.
+    replace (Z !-> 2; X !-> 0; X !-> 1)
+      with (X !-> 0 ; Z !-> 2; X !-> 1)
+      by (rewrite t_update_permute; [ reflexivity | discriminate ]).
+    f_equal. rewrite t_update_shadow. reflexivity. }
+
+  rewrite M in A.
+
+  clear Contra M.
+  inversion A; subst.
+  inversion H1; subst.
+  inversion H4; subst.
+  
+  clear A H1 H4.
+  simpl in H5.
+  assert (Contra :
+    (Z !-> 1; X !-> 0; X !-> 1) Z = (Z !-> 2; X !-> 0; X !-> 1) Z)
+    by congruence.
+  cbn in Contra. discriminate.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 5 stars, advanced, optional (p5_p6_equiv)

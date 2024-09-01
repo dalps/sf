@@ -1976,7 +1976,9 @@ Proof.
 Qed.
 
   (* I thought they weren't equivalent  at first...
-     I'm still not convinced they are.\
+     I'm still not convinced they are.
+
+    ~~~ I know understand: [cequiv c1 c2] for Himp states that the commands [c1] and [c2] share the same _set_ of terminating outcomes. Every state resulting from the execution of [c1] is included in the possibe states resulting from [c2] and vice-reversa!
      
   right. unfold cequiv, pXY, pYX. intros Hequiv.
   assert (A : forall x y, exists nx ny,
@@ -2015,7 +2017,7 @@ Definition pcopy :=
 (* ~ 4:20 hours (shave off ~1:30 of lunch) - Not proud of this one *)
 Theorem ptwice_cequiv_pcopy :
   cequiv ptwice pcopy \/ ~cequiv ptwice pcopy.
-Proof. 
+Proof.
   unfold cequiv, ptwice, pcopy.
   right. intros Contra.
   assert (empty_st =[ havoc X ; havoc Y ]=> (Y !-> 1 ; X !-> 0))
@@ -2080,14 +2082,52 @@ Definition p2 : com :=
     started in.  We can capture the termination behavior of [p1] and
     [p2] individually with these lemmas: *)
 
+(* 38:46 min *)
 Lemma p1_may_diverge : forall st st', st X <> 0 ->
   ~ st =[ p1 ]=> st'.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  unfold p1. intros st st' Hx Contra.
+  remember (<{ while ~ X = 0 do havoc Y; X := X + 1 end }> )
+    as cwhile eqn:Ecwhile.
+  induction Contra; try discriminate; inversion Ecwhile; subst.
+  - (* E_WhileFalse *)
+    simpl in H.
+    apply negb_false_iff, eqb_eq in H.
+    contradiction.
+  - (* E_WhileTrue *)
+    clear H IHContra1.
+    (* the loop condition holds after running the body *)
+    inversion Contra1; subst.
+    inversion H1; subst.
+    inversion H4; subst.
+    remember (X !-> aeval (Y !-> n; st) <{ X + 1 }>; Y !-> n; st) as st' eqn:Est'.
+    simpl in Est'.
+    assert (A : st' X <> 0).
+    { rewrite Est', t_update_eq, t_update_neq;
+      try discriminate.
+      rewrite add_comm; discriminate. }
+    auto.
+Qed.
 
+(* 8:07 min *)
 Lemma p2_may_diverge : forall st st', st X <> 0 ->
   ~ st =[ p2 ]=> st'.
 Proof.
-(* FILL IN HERE *) Admitted.
+  unfold p2.
+  intros st st' Hx Contra.
+  remember (<{ while ~ X = 0 do skip end }>) as cwhile eqn:Ecwhile.
+  induction Contra; try discriminate; inversion Ecwhile; subst.
+  - (* E_WhileFalse *)
+    simpl in H.
+    apply negb_false_iff, eqb_eq in H.
+    contradiction.
+  - (* E_WhileTrue *)
+    clear H IHContra1.
+    (* [skip] has no effect on the loop guard *)
+    inversion Contra1; subst.
+    auto.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 4 stars, advanced (p1_p2_equiv)
@@ -2095,8 +2135,28 @@ Proof.
     Use these two lemmas to prove that [p1] and [p2] are actually
     equivalent. *)
 
+(* 10:56 min (->) + 7:15 min (<-) (spent some time trying to golf) *)
 Theorem p1_p2_equiv : cequiv p1 p2.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  unfold p1, p2. intros st st'. split; intros Hc.
+  - (* -> *)
+    destruct (st X =? 0) eqn:EstX.
+    + inversion Hc; subst.
+      * apply E_WhileFalse. assumption.
+      * simpl in H1. rewrite EstX in H1. discriminate.
+    + apply eqb_neq in EstX.
+      apply (p1_may_diverge st st') in EstX.
+      apply EstX in Hc. contradiction.
+  - (* <- *)
+    destruct (st X =? 0) eqn:EstX.
+    + inversion Hc; subst.
+      * apply E_WhileFalse. assumption.
+      * simpl in H1. rewrite EstX in H1. discriminate.
+    + apply eqb_neq in EstX.
+      apply (p2_may_diverge st st') in EstX.
+      apply EstX in Hc. contradiction.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 4 stars, advanced (p3_p4_inequiv)

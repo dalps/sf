@@ -2138,23 +2138,14 @@ Qed.
 (* 10:56 min (->) + 7:15 min (<-) (spent some time trying to golf) *)
 Theorem p1_p2_equiv : cequiv p1 p2.
 Proof.
-  unfold p1, p2. intros st st'. split; intros Hc.
-  - (* -> *)
-    destruct (st X =? 0) eqn:EstX.
-    + inversion Hc; subst.
-      * apply E_WhileFalse. assumption.
-      * simpl in H1. rewrite EstX in H1. discriminate.
-    + apply eqb_neq in EstX.
-      apply (p1_may_diverge st st') in EstX.
-      apply EstX in Hc. contradiction.
-  - (* <- *)
-    destruct (st X =? 0) eqn:EstX.
-    + inversion Hc; subst.
-      * apply E_WhileFalse. assumption.
-      * simpl in H1. rewrite EstX in H1. discriminate.
-    + apply eqb_neq in EstX.
-      apply (p2_may_diverge st st') in EstX.
-      apply EstX in Hc. contradiction.
+  unfold p1, p2. intros st st'. split; intros Hc;
+  destruct (eqb_spec (st X) 0) as [HX | HX]; (* don't specify an equation when you destruct a [reflect] lemma *)
+  try (inversion Hc; subst;
+      [ apply E_WhileFalse; assumption
+      | simpl in H1; rewrite HX in H1; discriminate ]);
+  [ apply (p1_may_diverge st st') in HX
+  | apply (p2_may_diverge st st') in HX ];
+  apply HX in Hc; contradiction.
 Qed.
 
 (** [] *)

@@ -2228,12 +2228,113 @@ Definition p5 : com :=
   <{ while X <> 1 do
        havoc X
      end }>.
+(* Eventually, X will take on 1, and the loop will break. *)
 
 Definition p6 : com :=
   <{ X := 1 }>.
 
+(* ~ 5 min - quick sanity check *)
+Lemma p5_terminates : forall st, exists st',
+  st =[ p5 ]=> st' /\ st' X = 1.
+Proof.
+  intros st.
+  destruct (eqb_spec (st X) 1).
+  - exists st. split.
+    + apply E_WhileFalse. simpl. rewrite negb_false_iff, eqb_eq. assumption.
+    + assumption.
+  - exists (X !-> 1 ; st). split.
+    + apply E_WhileTrue with (st' := (X !-> 1 ; st)).
+      * simpl. rewrite negb_true_iff, eqb_neq. assumption.
+      * apply E_Havoc.
+      * apply E_WhileFalse. reflexivity.
+    + reflexivity. 
+Qed.
+
+(* ~ 30 min *)
+Lemma p5_outcome : forall st st',
+  st =[ p5 ]=> st' -> st' X = 1 /\ (forall y, X <> y -> st' y = st y).
+Proof.
+  unfold p5. intros st st' Hp5.
+  remember (<{ while X <> 1 do havoc X end }>) as p5 eqn:Ep5.
+  induction Hp5
+    as [ | | | | | | st st' st'' b c Hb Hbody _ Hwhile IH | ];
+  try discriminate; inversion Ep5; subst.
+  - (* E_WhileFalse *)
+    split.
+    + simpl in H. rewrite negb_false_iff, eqb_eq in H. assumption.
+    + intros y Hy. reflexivity.
+  - (* E_WhileTrue *)
+    (* Note: if the conclusion talks about [st], then the second IH is going to mention the outcome of the loop body [st'] in place of [st]. *)
+    split.
+    + apply IH. reflexivity.
+    + (* the body doesn't touch any name other than X *)
+      intros y Hy.
+      inversion Hbody.
+      assert (Hsty : st y = st' y)
+        by (rewrite <- H2; rewrite (t_update_neq nat st X y n Hy); f_equal).
+      rewrite Hsty.
+      apply IH; assumption.
+Qed.
+
+(* 12:18 min *)
+Lemma t_update_only_X : forall st st',
+  st' X = 1 /\ (forall y, X <> y -> st' y = st y) -> st' = (X !-> 1 ; st).
+Proof.
+  intros st st' [HX Hy].
+  apply functional_extensionality.
+  intros x.
+  destruct (String.eqb_spec X x); subst.
+  + rewrite t_update_eq. assumption.
+  + rewrite t_update_neq; try apply Hy; assumption.
+Qed.
+
+(* ~3:38 hours (->) + 15:17 min (<-)
+   +10000 social credit for not reading the hint *)
 Theorem p5_p6_equiv : cequiv p5 p6.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  intros st st'. unfold p5, p6.
+  split; [intro Hp5 | intro Hp6].
+  - (* -> *)
+    apply p5_outcome in Hp5.
+    apply t_update_only_X in Hp5; subst.
+    apply E_Asgn. reflexivity.
+  - (* <- *)
+    inversion Hp6; subst; simpl.
+    destruct (eqb_spec (st X) 1) as [HX | HX].
+    + rewrite <- HX, t_update_same.
+      apply E_WhileFalse.
+      simpl. rewrite eqb_refl. reflexivity.
+    + apply E_WhileTrue with (st' := (X !-> 1 ; st)).
+      * simpl. rewrite negb_true_iff, eqb_neq; assumption.
+      * apply E_Havoc.
+      * apply E_WhileFalse. reflexivity.
+Qed.
+
+  (* Initial attempt at (->):
+    
+    rewrite <- t_update_same with (x := X).
+
+    (* nope, st' is way too general, could have messed up other variables (however, p5 doesn't touch other names). *)
+
+    remember (<{ while X <> 1 do havoc X end }>) as p5 eqn:Ep5.
+    induction Hp5
+    as [ | | | | | | st st' st'' b c Hb Hbody _ Hwhile IH | ]
+    ; try discriminate; subst; inversion Ep5; subst.
+    + (* E_WhileFalse *)
+      simpl in H. rewrite negb_false_iff, eqb_eq in H.
+      rewrite <- t_update_same with (x := X). (* how does it know to replace the second instance of st'!? o_o *)
+      apply E_Asgn. simpl. congruence.
+    + (* E_WhileTrue *)
+      inversion Hbody; subst.
+      destruct (eqb_spec n 1) as [Hn | Hn].
+      * (* Entering the loop with X <> 1,
+          havoc X drew 1 -> st'' = (X !-> 1; st). *)
+        admit.
+      * simpl in Hb.
+        rewrite negb_true_iff, eqb_neq in Hb.
+         (* Entering the loop with X <> 1,
+          havoc X drew something else.
+          Can you prove st = (X !-> n; st)? No... *) *)
 (** [] *)
 
 End Himp.

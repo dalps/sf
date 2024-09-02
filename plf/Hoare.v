@@ -105,13 +105,21 @@ Definition Assertion := state -> Prop.
     Paraphrase the following assertions in English (or your favorite
     natural language). *)
 
+(* 13:38 min *)
 Module ExAssertions.
+(* The set of states where the value of [X] is less than or equal to the value of [Y] *)
 Definition assertion1 : Assertion := fun st => st X <= st Y.
+
+(* The states where either the value of [X] is [3] or the value of [X] is less than or equal to the value of [Y]. *)
 Definition assertion2 : Assertion :=
   fun st => st X = 3 \/ st X <= st Y.
+
+(* Holds for [st] in which the value of [X] lies in between the square of [st Z] (included) and the square of [(st Z) + 1] (excluded). *)
 Definition assertion3 : Assertion :=
   fun st => st Z * st Z <= st X /\
             ~ (((S (st Z)) * (S (st Z))) <= st X).
+
+(* Characterizes the states where [Z] is bound to the greatest among the values of [X] and [Y]. *)
 Definition assertion4 : Assertion :=
   fun st => st Z = max (st X) (st Y).
 (* FILL IN HERE *)
@@ -280,70 +288,91 @@ End ExamplePrettyAssertions.
 
     Paraphrase the following in English.
 
+    14:47 min
+
      1) {{True}} c {{X = 5}}
+        
+        Starting from any initial state, if [c] terminates in some final state, then in this final state [X] is bound to [5].
 
      2) forall m, {{X = m}} c {{X = m + 5)}}
 
+        For any natural number [m], if [c] begins execution in a state where
+        [X] is equal to [m], and if [c] terminates in some final state, then in this final state [X] will have the value of [m] incremented by [5].
+
      3) {{X <= Y}} c {{Y <= X}}
 
+        If [c] begins execution in a state where [X] is less than or equal to [Y], and if [c] terminates in some final state, then in this final [c] will have swapped the order of [X] and [Y].
+
      4) {{True}} c {{False}}
+
+        [c] never halts.
 
      5) forall m,
           {{X = m}}
           c
           {{Y = real_fact m}}
 
+        For any natural [m], if [c] starts in a state where [X] has the value of [m] and if [c] terminates, then in the outcome of its execution [Y] will be equal to [real_fact m].
+
      6) forall m,
           {{X = m}}
           c
           {{(Z * Z) <= m /\ ~ (((S Z) * (S Z)) <= m)}}
-*)
-(* FILL IN HERE
 
-    [] *)
+        For any natural [m], if [c] begins execution in a state where [X] has the value of [m] and if [c] terminates, then in the resulting state the value of [Z] will lie in the range [ [ Z^2 , (Z+1)^2 ) ].
+*)
+(** [] *)
 
 (** **** Exercise: 1 star, standard, optional (valid_triples)
 
     Which of the following Hoare triples are _valid_ -- i.e., the
     claimed relation between [P], [c], and [Q] is true?
 
-   1) {{True}} X := 5 {{X = 5}}
+  8:11 min
 
-   2) {{X = 2}} X := X + 1 {{X = 3}}
+   Y 1) {{True}} X := 5 {{X = 5}}
 
-   3) {{True}} X := 5; Y := 0 {{X = 5}}
+   Y 2) {{X = 2}} X := X + 1 {{X = 3}}
 
-   4) {{X = 2 /\ X = 3}} X := 5 {{X = 0}}
+   Y 3) {{True}} X := 5; Y := 0 {{X = 5}}
 
-   5) {{True}} skip {{False}}
+   Y 4) {{X = 2 /\ X = 3}} X := 5 {{X = 0}}
+   (premise is impossible)
 
-   6) {{False}} skip {{True}}
+   N 5) {{True}} skip {{False}}
+   (skip always terminates)
 
-   7) {{True}} while true do skip end {{False}}
+   Y 6) {{False}} skip {{True}}
+   (precondition is impossible)
 
-   8) {{X = 0}}
+   Y 7) {{True}} while true do skip end {{False}}
+   (this loop never terminates)
+
+   Y 8) {{X = 0}}
         while X = 0 do X := X + 1 end
       {{X = 1}}
 
-   9) {{X = 1}}
+   N 9) {{X = 1}}
         while X <> 0 do X := X + 1 end
       {{X = 100}}
+   (this loop never terminates in the given precondition)
 *)
-(* FILL IN HERE
-
-    [] *)
+(** [] *)
 
 (* ################################################################# *)
 (** * Hoare Triples, Formally *)
 
 (** We can formalize valid Hoare triples in Coq as follows: *)
 
+(* note: A valid Hoare triple is a proposition parameterized on two assertions [P] and [Q] and on a command [c]. *)
 Definition valid_hoare_triple
            (P : Assertion) (c : com) (Q : Assertion) : Prop :=
   forall st st',
      st =[ c ]=> st' ->
      P st  ->
      Q st'.
+
+(* note: The order in which the first two premises are stated is not important, since since [and] is commutative (assuming the excluded middle...?). *)
 
 Notation "{{ P }} c {{ Q }}" :=
   (valid_hoare_triple P c Q)
@@ -356,11 +385,13 @@ Check ({{True}} X := 0 {{True}}).
 (** Prove that if [Q] holds in every state, then any triple with [Q]
     as its postcondition is valid. *)
 
+(* 2:12 min *)
 Theorem hoare_post_true : forall (P Q : Assertion) c,
   (forall st, Q st) ->
   {{P}} c {{Q}}.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros P Q c HQ st st' Hc HP.
+  apply HQ. Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard (hoare_pre_false) *)
@@ -368,11 +399,13 @@ Proof.
 (** Prove that if [P] holds in no state, then any triple with [P] as
     its precondition is valid. *)
 
+(* 2:33 min *)
 Theorem hoare_pre_false : forall (P Q : Assertion) c,
   (forall st, ~ (P st)) ->
   {{P}} c {{Q}}.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros P Q c HP st st' Hc Contra.
+  apply HP in Contra. contradiction. Qed.
 (** [] *)
 
 (* ################################################################# *)

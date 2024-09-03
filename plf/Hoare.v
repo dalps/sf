@@ -548,6 +548,13 @@ Qed.
     Nonetheless, it's also possible to formulate a "forward" assignment
     rule.  We'll do that later in some exercises. *)
 
+(* note: Also, starting from a fixed postcondition allows us to nail down one
+   single precondition, the one which states what _suffices_, or the required
+   bare minimum, for the postcondition to hold.
+   If we were to start from a fixed precondition instead, there'd be too many
+   options for a valid postcondition, depending on what we're trying to prove
+   (in forward reasoning the goal is unclear!). *)
+
 (** Here are some valid instances of the assignment rule:
 
       {{ (X <= 5) [X |-> X + 1] }}   (that is, X + 1 <= 5)
@@ -576,6 +583,8 @@ Qed.
     ([subst_aexp] and friends). The difference is that, here,
     [P] is an arbitrary Coq assertion, so we can't directly
     "edit" its text. *)
+
+(* note: we cannot pattern-match on [Assertion]s! *)
 
 (** However, we can achieve the same effect by evaluating [P] in an
     updated state: *)
@@ -646,6 +655,10 @@ Notation "P [ X |-> a ]" := (assertion_sub X a P)
       {{Q [X |-> a]}} X := a {{Q}}
 *)
 
+(* note: the rule for assignment states that the command [X := a] takes us
+   from a state where [Q], with every occurrence of [X] substituted for [a],
+   holds to a state where [Q] holds. *)
+
 (** We can prove formally that this rule is indeed valid. *)
 
 Theorem hoare_asgn : forall Q X a,
@@ -677,22 +690,34 @@ Proof.
     hoare_asgn]. If you find that tactic doesn't suffice, double check
     that you have completed the triple properly. *)
 (** **** Exercise: 2 stars, standard, optional (hoare_asgn_examples1) *)
+
+(* There exists an assertion [P], such that beginning execution from a
+   state where [P] holds, the command [X := 2 * X] terminates in a state
+   where [X <= 10] holds. *)
+
+(* ~2 min - spent about 7 min figuring out notation *)
 Example hoare_asgn_examples1 :
   exists P,
     {{ P }}
       X := 2 * X
     {{ X <= 10 }}.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* exists (X <= 5)%assertion. *)
+  exists ((X <= 10) [X |-> 2 * X]).
+  apply hoare_asgn.  Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (hoare_asgn_examples2) *)
+
+(* 1:32 min *)
 Example hoare_asgn_examples2 :
   exists P,
     {{ P }}
       X := 3
     {{ 0 <=  X /\ X <= 5 }}.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  exists ((0 <=  X /\ X <= 5) [X |-> 3]).
+  apply hoare_asgn.  Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, especially useful (hoare_asgn_wrong)
@@ -711,13 +736,18 @@ Proof. (* FILL IN HERE *) Admitted.
     arithmetic expression [a], and your counterexample needs to
     exhibit an [a] for which the rule doesn't work.) *)
 
+(* 23:16 min - without hint! *)
 Theorem hoare_asgn_wrong : exists a:aexp,
   ~ {{ True }} X := a {{ X = a }}.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(* FILL IN HERE
-
-    [] *)
+  exists (<{ X + 1 }>).
+  simpl. intro Contra.
+  unfold valid_hoare_triple in Contra.
+  assert (empty_st =[ X := X + 1 ]=> (X !-> 1))
+    by (apply E_Asgn; reflexivity).
+  apply Contra in H; try trivial.
+  rewrite t_update_eq in H. discriminate.  Qed.
+(** [] *)
 
 (** **** Exercise: 3 stars, advanced (hoare_asgn_fwd)
 
@@ -738,6 +768,12 @@ Proof.
 
     Prove that this rule is correct. *)
 
+(* paraphrae: beginning execution from a state where [P] holds and [X]
+   has the value [m], the command [X := a] terminates in a state [st'] where [P] holds on a new state where [X] is bound to its old value [m] on top of [st'], and where [X] has now the value of [a], evaluated 
+   on a new state where [X] is bound to its old value [m] on top of [st'].
+*)
+
+(* 14:35 min - properties of total maps FTW! *)
 Theorem hoare_asgn_fwd :
   forall m a P,
   {{fun st => P st /\ st X = m}}
@@ -745,7 +781,12 @@ Theorem hoare_asgn_fwd :
   {{fun st => P (X !-> m ; st)
            /\ st X = aeval (X !-> m ; st) a }}.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros m a P st st' HE [HPst HXst].
+  inversion HE; subst. split;
+  rewrite t_update_shadow, t_update_same.
+  - assumption.
+  - rewrite t_update_eq. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, advanced, optional (hoare_asgn_fwd_exists)
@@ -761,6 +802,7 @@ Proof.
                      st X = aeval (X !-> m ; st) a }}
 *)
 
+(* 10:53 min - used [revert] for the first time! *)
 Theorem hoare_asgn_fwd_exists :
   forall a P,
   {{fun st => P st}}
@@ -768,7 +810,12 @@ Theorem hoare_asgn_fwd_exists :
   {{fun st => exists m, P (X !-> m ; st) /\
                 st X = aeval (X !-> m ; st) a }}.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros a P st st' HE HP.
+  exists (st X).
+  apply conj with (B := st X = st X) in HP; try reflexivity.
+  revert HE HP.
+  apply hoare_asgn_fwd.
+Qed.
 (** [] *)
 
 (* ================================================================= *)
@@ -803,6 +850,11 @@ Proof.
                 {{P}} c {{Q}}
 *)
 
+(* paraphrase: if [c] takes execution from a state where [P'] holds
+   to a state where [Q] holds, and if [P] and [P'] are logically
+   equivalent, then [c] also takes execution from a state where [P]
+   holds to a state where [Q] holds. *)
+
 (** Taking this line of thought a bit further, we can see that
     strengthening the precondition or weakening the postcondition of a
     valid triple always produces another valid triple. This
@@ -813,11 +865,16 @@ Proof.
          -----------------------------   (hoare_consequence_pre)
                 {{P}} c {{Q}}
 
+(* What direction "strengthens"? If [P] is stronger than [P'], then I was wrong in assuming that forward reasoning produces stronger hypotheses. Here strengthening [P'] corresponds to deriving it from [P]. I'm confused *)
+
                 {{P}} c {{Q'}}
                   Q' ->> Q
          -----------------------------    (hoare_consequence_post)
                 {{P}} c {{Q}}
 *)
+
+(* note: going forward in the precondition --> strenghtening
+   going backward in the postcondition --> weakening *)
 
 (** Here are the formal versions: *)
 
@@ -862,7 +919,7 @@ Proof.
   eapply hoare_consequence_pre.
   - apply hoare_asgn.
   - unfold "->>", assertion_sub, t_update.
-    intros st _. simpl. reflexivity.
+    intros st _. simpl. reflexivity. (* notice the notation quirk *)
 Qed.
 
 (** We can also use it to prove the example mentioned earlier.
@@ -875,7 +932,7 @@ Qed.
    Or, formally ... *)
 
 Example assertion_sub_example2 :
-  {{X < 4}}
+  {{X < 4}} (* this is the _strengthened_ condition! *)
     X := X + 1
   {{X < 5}}.
 Proof.
@@ -895,6 +952,8 @@ Qed.
          -----------------------------   (hoare_consequence)
                 {{P}} c {{Q}}
 *)
+
+(* note: It's not clear to me yet what logically "strong" or "weak" mean. What is logical strenght and how do you measure it? *)
 
 Theorem hoare_consequence : forall (P P' Q Q' : Assertion) c,
   {{P'}} c {{Q'}} ->

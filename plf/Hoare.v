@@ -1769,8 +1769,9 @@ Qed.
 (* aside: sometimes [aexp]s appear before a state in the proof state because
    we've lifted (coerced) them to [Assertion]s. *)
 
-(* 26:59 min *)
-Example hoare_if1_good :
+(* 26:59 min - I didn't realize this was the next exercise.
+  The previous comment is a bit disorienting (I think they meant to say _informally_) *)
+Example hoare_if1_good' :
   {{ X + Y = Z }}
     if1 Y <> 0 then
       X := X + Y
@@ -1827,13 +1828,43 @@ Qed.
     definition or theorem [e.g., hoare_skip] from above this exercise
     without re-proving it for the new version of Imp with if1. *)
 
+(* 11:14 min (did most of the lifting in the previous exercise, without
+  useful rules) + 9:24 min developing one-shot Ltac tactic *)
+
+Theorem hoare_skip : forall P,
+  {{P}} skip {{P}}.
+Proof.
+  intros P st st' Heval Hpre.
+  inversion Heval; subst. assumption.
+Qed.
+
+Ltac assertion_auto :=
+  unfold "->>", assertion_sub, t_update, bassertion;
+  intros; simpl in *;
+  repeat match goal with
+  | [ H : ?P /\ ?Q |- _ ] => destruct H
+  | [ H : negb (_ =? _) <> true |- _ ] => apply eq_true_negb_classical in H
+  end;
+  try rewrite -> eqb_eq in *;
+  try rewrite -> leb_le in *;
+  auto; try lia.
+  
 Lemma hoare_if1_good :
   {{ X + Y = Z }}
     if1 Y <> 0 then
       X := X + Y
     end
   {{ X = Z }}.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  apply hoare_if1.
+  - eapply hoare_consequence_pre.
+    + apply hoare_asgn.
+    + assertion_auto.
+  - eapply hoare_consequence_pre.
+    + apply hoare_skip.
+    + assertion_auto.
+Qed.
+
 (** [] *)
 
 End If1.
@@ -1853,6 +1884,9 @@ End If1.
     holds.  Note that the command invariant might temporarily become
     false in the middle of executing [c], but by the end of [c] it
     must be restored. *)
+
+(* paraphrase: if [P] holds before and after executing [c], then [P] is an
+   invariant of [c] *)
 
 (**  As a first attempt at a [while] rule, we could try:
 
@@ -1880,6 +1914,10 @@ End If1.
       {{P} while b do c end {{P /\ ~b}}
 *)
 
+(* paraphrase: if [P] and the guard [b] holds on entry to the loop body [c] and
+   [P] holds on exit, then if [P] holds at the start and [while b do c end]
+   terminates, [P /\ ~b] will hold on exit to the loop. *)
+
 (** That is the Hoare [while] rule.  Note how it combines
     aspects of [skip] and conditionals:
 
@@ -1902,6 +1940,18 @@ Proof.
      otherwise, it would be lost in the [induction]. By using [inversion]
      we clear away all the cases except those involving [while]. *)
   remember <{while b do c end}> as original_command eqn:Horig.
+
+  (* induction Heval; inversion Horig; subst; clear Horig.
+  - assertion_auto.
+  - (* We get the thesis by providing evidence for [P] holding of [st'].
+       This evidence can be reconstructed by having [P] holding of [st] in the
+       context and the premise [P] is a command invariant of [c] together with 
+       [b] holding in the precondition. *)
+    unfold valid_hoare_triple in Hhoare.
+    eapply IHHeval2 in Hhoare; try assumption; try reflexivity.
+    + apply Heval1.
+    + intuition. *)
+    
   induction Heval;
     try (inversion Horig; subst; clear Horig);
     eauto.
@@ -1949,15 +1999,17 @@ Example while_example :
     end
   {{X = 3}}.
 Proof.
-  eapply hoare_consequence_post.
+  eapply hoare_consequence_post. (* [X <= 3 /\ X > 2 ->> X = 3] *)
   - apply hoare_while.
-    eapply hoare_consequence_pre.
+    eapply hoare_consequence_pre. (* [X <= 3 /\ X <= 2 ->> (X <= 3) [X |-> X + 1]] *)
     + apply hoare_asgn.
     + assertion_auto''.
   - assertion_auto''.
 Qed.
 
 (** If the loop never terminates, any postcondition will work. *)
+
+(* note: ex falso quodlibet *)
 
 Theorem always_loop_hoare : forall Q,
   {{True}} while true do skip end {{Q}}.
@@ -2034,6 +2086,7 @@ Notation "'while' x 'do' y 'end'" :=
     should always execute at least once, and that the loop ends when
     the guard becomes true. *)
 
+(* ~12 min *)
 Inductive ceval : state -> com -> state -> Prop :=
   | E_Skip : forall st,
       st =[ skip ]=> st
@@ -2060,7 +2113,15 @@ Inductive ceval : state -> com -> state -> Prop :=
       st  =[ c ]=> st' ->
       st' =[ while b do c end ]=> st'' ->
       st  =[ while b do c end ]=> st''
-(* FILL IN HERE *)
+  | E_RepeatStop : forall st st' b c,
+      st =[ c ]=> st' ->
+      beval st' b = true ->
+      st =[ repeat c until b end ]=> st'
+  | E_Repeat : forall st st' st'' b c,
+      st  =[ c ]=> st' ->
+      beval st' b = false ->
+      st' =[ repeat c until b end ]=> st'' ->
+      st  =[ repeat c until b end ]=> st''
 
 where "st '=[' c ']=>' st'" := (ceval st c st').
 
@@ -2086,13 +2147,47 @@ Definition ex1_repeat :=
 Theorem ex1_repeat_works :
   empty_st =[ ex1_repeat ]=> (Y !-> 1 ; X !-> 1).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  eapply E_RepeatStop.
+  - apply E_Seq with (X !-> 1);
+    apply E_Asgn; auto.
+  - reflexivity.
+Qed.
 
 (** Now state and prove a theorem, [hoare_repeat], that expresses an
     appropriate proof rule for [repeat] commands.  Use [hoare_while]
     as a model, and try to make your rule as precise as possible. *)
 
-(* FILL IN HERE *)
+(*
+              {{P}} c {{P /\ ~b}}
+      ------------------------------------  (hoare_repeat)
+      {{P}} repeat c until b end {{P /\ b}}
+
+    If [P] is an invariant of [c] while [~b] holds in its aftermath,
+    then [P] is an invariant of [repeat c until b end] when [b] holds at 
+    the beginning.
+ *)
+
+(* 11:04 min to formalize + 23:29 to prove (made the error of asserting [b] in the precondition of the conclusion) *)
+Theorem hoare_repeat : forall P (b:bexp) (c:com),
+  {{P}} c {{P /\ ~b}} ->
+  {{P}} repeat c until b end {{P /\ b}}.
+Proof.
+  unfold valid_hoare_triple.
+  intros P b c Hinv st st' Heval Hpre.
+  simpl in *.
+  
+  remember <{repeat c until b end}> as crepeat eqn:Eorig.
+
+  (* Proof: by induction on a derivation of
+    st =[ crepeat ]=> st' *)
+  induction Heval; inversion Eorig; subst; clear Eorig.
+  - (* E_RepeatStop *)
+    destruct (Hinv st st'); try split; try assumption.
+  - (* E_Repeat *)
+    clear IHHeval1.
+    destruct (Hinv st st'); try assumption.
+    auto.
+Qed.
 
 (** For full credit, make sure (informally) that your rule can be used
     to prove the following valid Hoare triple:
@@ -2104,6 +2199,93 @@ Proof.
     until X = 0 end
   {{ X = 0 /\ Y > 0 }}
 *)
+
+(* need to restate a few things myself... *)
+Hint Constructors ceval : core.
+Hint Unfold valid_hoare_triple : core.
+
+Theorem hoare_consequence_pre : forall (P P' Q : Assertion) c,
+  {{P'}} c {{Q}} ->
+  P ->> P' ->
+  {{P}} c {{Q}}.
+Proof. eauto. Qed.
+
+Theorem hoare_consequence_post : forall (P Q Q' : Assertion) c,
+  {{P}} c {{Q'}} ->
+  Q' ->> Q ->
+  {{P}} c {{Q}}.
+Proof. eauto. Qed.
+
+Theorem hoare_asgn : forall Q X a,
+  {{Q [X |-> a]}} (X := a) {{Q}}.
+Proof.
+  intros Q X a st st' Heval HQ.
+  inversion Heval; subst.
+  auto.
+Qed.
+
+Theorem hoare_seq : forall P Q R c1 c2,
+     {{Q}} c2 {{R}} ->
+     {{P}} c1 {{Q}} ->
+     {{P}} c1; c2 {{R}}.
+Proof.
+  unfold valid_hoare_triple.
+  intros P Q R c1 c2 H1 H2 st st' H12 Pre.
+  inversion H12; subst.
+  eauto.
+Qed.
+
+Theorem hoare_consequence : forall (P P' Q Q' : Assertion) c,
+  {{P'}} c {{Q'}} ->
+  P ->> P' ->
+  Q' ->> Q ->
+  {{P}} c {{Q}}.
+Proof.
+  intros P P' Q Q' c Htriple Hpre Hpost.
+  apply hoare_consequence_pre with (P' := P').
+  - apply hoare_consequence_post with (Q' := Q').
+    + assumption.
+    + assumption.
+  - assumption.
+Qed.
+
+
+(*
+                (X > 0) ->>
+                (X - 1 > 0)
+  Y := X
+                (X - 1 > 0) ->>
+                (X > 0 [X |-> X - 1])
+  X := X - 1
+                (X > 0) ->>
+                (X > 0 /\ ~ X = 0)
+*)
+(* +1:16 hour *)
+Example hoare_repeat_good :
+  {{ X > 0 }}
+    repeat
+      Y := X;
+      X := X - 1
+    until X = 0 end
+  {{ X = 0 /\ Y > 0 }}.
+Proof.
+  (* eapply hoare_consequence with (P' := (X > 1)%assertion). *)
+  eapply hoare_consequence_post.
+  - apply hoare_repeat.
+    apply hoare_seq with (Q := (X - 1 > 0)%assertion).
+    + apply hoare_consequence with (P' := ((X > 0) [X |-> X - 1])%assertion) (Q' := (X > 0)%assertion).
+      * apply hoare_asgn.
+      * assertion_auto.
+      * assertion_auto''.
+    + eapply hoare_consequence_pre.
+      * apply hoare_asgn.
+      * admit. (* unprovable *)
+  - assertion_auto''. (* exfalso *)
+Abort.
+
+(* Is [X < 0] an invariant of the body? *)
+
+
 
 End RepeatExercise.
 

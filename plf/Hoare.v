@@ -2033,6 +2033,23 @@ Qed.
     commands must terminate. Total correctness is out of the scope of
     this textbook. *)
 
+Example while_example' :
+  {{ X > 0 }}
+    while ~ X = 0 do
+      X := X - 1
+    end
+  {{ X = 0 }}.
+Proof.
+  eapply hoare_consequence with
+    (P' := (X >= 0)%assertion) (* the loop invariant *).
+  - apply hoare_while; try asgn_pre_auto.
+  - assertion_auto''.
+  - assertion_auto''. (* the smarter version was defined in If1 module :/ *)
+    destruct H.
+    apply eq_true_negb_classical, eqb_eq in H0.
+    assumption.
+Qed.
+
 (* ----------------------------------------------------------------- *)
 (** *** Exercise: [REPEAT] *)
 
@@ -2249,7 +2266,6 @@ Proof.
   - assumption.
 Qed.
 
-
 (*
                 (X > 0) ->>
                 (X - 1 > 0)
@@ -2259,19 +2275,59 @@ Qed.
   X := X - 1
                 (X > 0) ->>
                 (X > 0 /\ ~ X = 0)
+                
+  (X > 0) is _not_ a loop invariant, silly!
+
+  Whatever new invariant I choose, it must be derived from (X > 0).
+
+
+                (X > 0) ->>
+                (<invariant>)
+  Y := X
+                (...)
+  X := X - 1
+                (<invariant> /\ ~ X = 0)
+
+                (X > 0) ->>
+                (X >= 0) ->>
+                (X - 1 >= 0 /\ X >= 0)
+  Y := X
+                (X - 1 >= 0 /\ Y >= 0)
+  X := X - 1
+                (X >= 0 /\ Y >= 0)
 *)
-(* +1:16 hour *)
-Example hoare_repeat_good :
+
+Example hoare_repeat_test :
   {{ X > 0 }}
+    repeat
+      X := X - 1
+    until X = 0 end
+  {{ X = 0 }}.
+Proof.
+  eapply hoare_consequence with
+    (P' := (X >= 0)%assertion). (* the loop invariant *)
+  - apply hoare_repeat.
+    eapply hoare_consequence_pre.
+    + apply hoare_asgn.
+    + assertion_auto''.
+Abort.
+
+(* +1:16:29 hour - Wasted much time fiddling with an unsound loop invariant.
+   (~2 hours later) Still can't find one.  *)
+Example hoare_repeat_good :
+  {{ X > 0 }} (* How can I infer anything about Y from this??? I can't use it as a loop invariant, as it contrasts with the loop guard, so applying [hoare_repeat] right away is not an option. The only way to build a proof is to derive something from this with [hoare_consequence_pre], then work with [hoare_repeat] with a stronger precondition, but this assumption is way too weak to say anything about Y. *)
     repeat
       Y := X;
       X := X - 1
     until X = 0 end
   {{ X = 0 /\ Y > 0 }}.
 Proof.
-  (* eapply hoare_consequence with (P' := (X > 1)%assertion). *)
-  eapply hoare_consequence_post.
+  eapply hoare_consequence with
+    (P' := (X >= 0 /\ Y >= 0)%assertion).
   - apply hoare_repeat.
+    admit.
+  - admit.
+  - simpl. 
     apply hoare_seq with (Q := (X - 1 > 0)%assertion).
     + apply hoare_consequence with (P' := ((X > 0) [X |-> X - 1])%assertion) (Q' := (X > 0)%assertion).
       * apply hoare_asgn.
@@ -2282,10 +2338,6 @@ Proof.
       * admit. (* unprovable *)
   - assertion_auto''. (* exfalso *)
 Abort.
-
-(* Is [X < 0] an invariant of the body? *)
-
-
 
 End RepeatExercise.
 
@@ -2439,13 +2491,22 @@ Proof. eauto. Qed.
 (** Complete the Hoare rule for [HAVOC] commands below by defining
     [havoc_pre], and prove that the resulting rule is correct. *)
 
-Definition havoc_pre (X : string) (Q : Assertion) (st : total_map nat) : Prop
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+(* think: [Q] equal to [X = 2] won't produce a valid triple.
+   [Q] = [X <> 2] neither (havoc could generate 2!).
+   Is [Q] sensible to the value of [X]?
+   Let's check for insensibility. *)
 
+(* 18:21 min - I'm slow *)
+Definition havoc_pre (X : string) (Q : Assertion) (st : total_map nat) : Prop :=
+  forall m, Q (X !-> m; st).
+
+(* 3:21 min *)
 Theorem hoare_havoc : forall (Q : Assertion) (X : string),
   {{ havoc_pre X Q }} havoc X {{ Q }}.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold havoc_pre, valid_hoare_triple.
+  intros Q X st st' Heval HQ.
+  inversion Heval; subst. auto.  Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, advanced (havoc_post)
@@ -2458,12 +2519,18 @@ Proof.
     Hint: the [assertion_auto] tactics we've built won't help you here.
     You need to proceed manually. *)
 
+(* 9:25 min *)
 Theorem havoc_post : forall (P : Assertion) (X : string),
   {{ P }} havoc X {{ fun st => exists (n:nat), P [X |-> n] st }}.
 Proof.
   intros P X. eapply hoare_consequence_pre.
   - apply hoare_havoc.
-  - (* FILL IN HERE *) Admitted.
+  - unfold havoc_pre, assertion_sub, assert_implies.
+    intros st HP m. simpl.
+    exists (st X).
+    rewrite t_update_shadow, t_update_same.
+    assumption.
+Qed.
 
 (** [] *)
 
@@ -2545,7 +2612,7 @@ Inductive ceval : com -> state -> result -> Prop :=
       st' =[ c2 ]=> r ->
       st  =[ c1 ; c2 ]=> r
   | E_SeqError : forall c1 c2 st,
-      st =[ c1 ]=> RError ->
+      st =[ c1 ]=> RError -> (* an error in the first subcommand cascades to the whole sequence *)
       st =[ c1 ; c2 ]=> RError
   | E_IfTrue : forall st r b c1 c2,
       beval st b = true ->
@@ -2565,7 +2632,7 @@ Inductive ceval : com -> state -> result -> Prop :=
       st  =[ while b do c end ]=> r
   | E_WhileTrueError : forall st b c,
       beval st b = true ->
-      st =[ c ]=> RError ->
+      st =[ c ]=> RError -> (* bail out if an error in the body occurs *)
       st =[ while b do c end ]=> RError
   (* Rules for Assert and Assume *)
   | E_AssertTrue : forall st b,
@@ -2599,19 +2666,61 @@ Notation "{{ P }}  c  {{ Q }}" :=
     precondition and postcondition that are satisfied by the [assume]
     statement but not by the [assert] statement. *)
 
+(* think: when [b] holds in [P], both [assert b] and [assume b] end normally,
+   plus they don't modify the state, so [Q] must hold for the triple to hold.
+   
+   When [b] doesn't hold in [P], [assume b] doesn't evaluate, so the first
+   premise of the left triple doesn't hold and anything can be said about Q;
+   the triple is true. On the other hand, [assert b] does evaluate, and likewise
+   it doesn't modify the state, however its result is an error, contradicting
+   the conclusion of the triple. *)
+
+(* 37:18 min - I'm particularly slow today *)
 Theorem assert_assume_differ : exists (P:Assertion) b (Q:Assertion),
        ({{P}} assume b {{Q}})
   /\ ~ ({{P}} assert b {{Q}}).
-(* FILL IN HERE *) Admitted.
+Proof.
+  exists (X = 0)%assertion, <{X = 1}>, (X = 1)%assertion.
+  unfold valid_hoare_triple, not. split.
+  - intros st r Heval Hb. inversion Heval; subst. simpl in *.
+    rewrite Hb in H0. discriminate.
+  - intros H. simpl in *.
+    
+    assert (Contra :
+      (X !-> 0) =[ assert (X = 1) ]=> RError) by (constructor; reflexivity).
+    
+    apply H in Contra; try reflexivity.
+
+    destruct Contra as [st [Bogus _]]. discriminate.
+Qed.
 
 (** Then prove that any triple for an [assert] also works when
     [assert] is replaced by [assume]. *)
 
+(** Proof: by case analysis on a derivation of [st =[ assume b ]=> r].
+    There's only one case: [b] is true and [assume b] results in a normal result
+    carrying a state [st'], which equals [st].
+
+    We must show that there exists a state [st''] such that
+       r = RNormal st' /\ Q st'.
+       
+    It is easy to see that this state is exactly [st].
+    The left prop is trivial, and the right proposition about [Q] follows
+    from [Hassert] and the fact that the evaluation of [b] is true.
+*)
+
+(* ~12 min *)
 Theorem assert_implies_assume : forall P b Q,
      ({{P}} assert b {{Q}})
   -> ({{P}} assume b {{Q}}).
 Proof.
-(* FILL IN HERE *) Admitted.
+  unfold valid_hoare_triple.
+  intros P b Q Hassert st r Heval HP.
+  inversion Heval; subst.
+  apply (Hassert st).
+  + apply E_AssertTrue; try assumption.
+  + assumption.
+Qed.
 
 (** Next, here are proofs for the old hoare rules adapted to the new
     semantics.  You don't need to do anything with these. *)

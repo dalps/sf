@@ -2179,7 +2179,7 @@ Qed.
       ------------------------------------  (hoare_repeat)
       {{P}} repeat c until b end {{P /\ b}}
 
-    If [P] is an invariant of [c] while [~b] holds in its aftermath,
+    If [P] is an invariant of [c] and [~b] holds in its after executing [c],
     then [P] is an invariant of [repeat c until b end] when [b] holds at 
     the beginning.
  *)
@@ -2204,6 +2204,22 @@ Proof.
     clear IHHeval1.
     destruct (Hinv st st'); try assumption.
     auto.
+Qed.
+
+Theorem hoare_repeat_weak : forall P (b:bexp) (c:com),
+  {{P}} c {{P}} ->
+  {{P}} repeat c until b end {{P /\ b}}.
+Proof.
+  unfold valid_hoare_triple.
+  intros P b c Hinv st st' Heval Hpre.
+  simpl in *.  
+  remember <{repeat c until b end}> as crepeat eqn:Eorig.
+  induction Heval; inversion Eorig; subst; clear Eorig.
+  - (* E_RepeatStop *)
+    apply Hinv in Heval; auto.
+  - (* E_Repeat *)
+    clear IHHeval1.
+    apply Hinv in Heval1; auto.
 Qed.
 
 (** For full credit, make sure (informally) that your rule can be used
@@ -2266,38 +2282,45 @@ Proof.
   - assumption.
 Qed.
 
+Theorem hoare_while : forall P (b:bexp) c,
+  {{P /\ b}} c {{P}} ->
+  {{P}} while b do c end {{P /\ ~ b}}.
+Proof.
+  intros P b c Hhoare st st' Heval HP.
+  remember <{while b do c end}> as original_command eqn:Horig.    
+  induction Heval;
+    try (inversion Horig; subst; clear Horig);
+    eauto.
+Qed.
+
+Ltac assertion_auto :=
+  unfold "->>", assertion_sub, t_update, bassertion;
+  intros; simpl in *;
+  repeat match goal with
+  | [ |- _ /\ _ ] => split
+  | [ H : ?P /\ ?Q |- _ ] => destruct H
+  | [ H : negb (_ =? _) <> true |- _ ] => apply eq_true_negb_classical in H
+  | [ H : negb _ = false |- _ ] => rewrite -> negb_false_iff in H
+  | [ H : negb _ = true |- _ ] => rewrite -> negb_true_iff in H
+  end;
+  try rewrite -> eqb_eq in *;
+  try rewrite -> eqb_neq in *;
+  try rewrite -> leb_le in *;
+  auto; try lia.
+
 (*
-                (X > 0) ->>
-                (X - 1 > 0)
-  Y := X
-                (X - 1 > 0) ->>
-                (X > 0 [X |-> X - 1])
-  X := X - 1
-                (X > 0) ->>
-                (X > 0 /\ ~ X = 0)
-                
-  (X > 0) is _not_ a loop invariant, silly!
-
-  Whatever new invariant I choose, it must be derived from (X > 0).
-
-
-                (X > 0) ->>
-                (<invariant>)
-  Y := X
-                (...)
-  X := X - 1
-                (<invariant> /\ ~ X = 0)
-
-                (X > 0) ->>
-                (X >= 0) ->>
-                (X - 1 >= 0 /\ X >= 0)
-  Y := X
-                (X - 1 >= 0 /\ Y >= 0)
-  X := X - 1
-                (X >= 0 /\ Y >= 0)
+                        X > 0 ->>
+                        X >= 0
+  repeat
+                        X >= 0 ->>
+                        X - 1 >= 0
+    X := X - 1
+                        X >= 0
+  until X = 0 end
+                        X >= 0 /\ X = 0 ->>
+                        X = 0
 *)
-
-Example hoare_repeat_test :
+Example hoare_repeat_example1 :
   {{ X > 0 }}
     repeat
       X := X - 1
@@ -2306,16 +2329,142 @@ Example hoare_repeat_test :
 Proof.
   eapply hoare_consequence with
     (P' := (X >= 0)%assertion). (* the loop invariant *)
-  - apply hoare_repeat.
+  - apply hoare_repeat_weak.
     eapply hoare_consequence_pre.
     + apply hoare_asgn.
-    + assertion_auto''.
-Abort.
+    + (* weirdly enough, this is true for nats: any nat is greater than 0! *)
+      unfold assertion_sub, assert_implies, t_update. simpl.
+      intros. assertion_auto''.
+  - assertion_auto''.
+  - assertion_auto''.
+Qed.
+
+(** I wasn't getting anywhere with my weak rule, so I cheated:
+    https://cs.stackexchange.com/questions/40265/finding-a-hoare-logic-correctness-proof-for-a-repeat-until-loop
+
+    Takeaways:
+    - [repeat c until b end] is just sugar for [c ; while ~b do c end].
+      I should've approached this exercise from this fact.
+    - The correct rule needs to reflect the sequence induced by the
+      [while] translation.
+    - My rule isn't strong enough to prove the assigned program. The problem is
+      that it doesn't take precisely encode the fact that [c] is executed at 
+      least once, and that first execution has an effect on the initial 
+      assertion that influences the loop invariant.
+
+    Here's the stronger rule:
+
+               {{P}} c {{R}}
+               R /\ ~b ->> P
+               R /\ b  ->> Q
+    ------------------------------------ (hoare_repeat_correct)
+      {{P}} repeat c until b end {{Q}}
+
+    See the proof for it below.
+*)
+
+Definition cseq := <{ Y := X; X := X - 1 }>.
+
+Theorem cseq_fact :
+  {{ X > 0 }} cseq {{ X >= 0 /\ Y = X + 1 }}.
+Proof.
+  unfold cseq.
+  apply hoare_seq with (Q := (X > 0 /\ Y = X)%assertion).
+  - eapply hoare_consequence_pre.
+    + apply hoare_asgn.
+    + assertion_auto.
+  - eapply hoare_consequence_pre.
+    + apply hoare_asgn.
+    + assertion_auto.
+Qed.
+
+(*
+                        X > 0 ->>
+                        X > 0 /\ X = X
+  Y := X;
+                        X > 0 /\ Y = X ->>
+                        X - 1 >= 0 /\ Y = X - 1 + 1
+  X := X - 1
+                        X >= 0 /\ Y = X + 1 ->>
+                        Y = X + 1 (loop invariant)
+  while ~ (X = 0) do
+                        Y = X + 1 /\ ~ X = 0 ->>
+                        X > 0
+    Y := X;
+                        ...
+    X := X - 1
+                        Y = X + 1 (by [cseq_fact])
+  end
+                        Y = X + 1 /\ X = 0 ->>
+                        X = 0 /\ Y > 0
+*)
+
+(* ~1:30 hour *)
+Example hoare_repeat_example2_desugar :
+  {{ X > 0 }}
+    cseq;
+    while ~ X = 0 do cseq end
+  {{ X = 0 /\ Y > 0 }}.
+Proof.
+  apply hoare_seq with (Q := (Y = X + 1)%assertion).
+  - eapply hoare_consequence_post.
+    + apply hoare_while.
+      eapply hoare_consequence with
+      (P' := (X > 0)%assertion).
+      * apply cseq_fact.
+      * assertion_auto.
+      * assertion_auto.
+    + simpl. assertion_auto.
+  - eapply hoare_consequence_post.
+    + apply cseq_fact.
+    + assertion_auto.
+Qed.
+
+(* ~10 min E_RepeatStop + 2:25 min *)
+Theorem hoare_repeat_correct: forall P Q R (b:bexp) (c:com),
+  {{P}} c {{R}} ->
+  (R /\ ~b)%assertion ->> P ->
+  (R /\  b)%assertion ->> Q ->
+  {{P}} repeat c until b end {{Q}}.
+Proof.
+  unfold valid_hoare_triple, assert_implies.
+  intros P Q R b c HPR Hcontn Hstop st st' Heval Hpre.
+
+  remember <{repeat c until b end}> as rcom eqn:Ercom.
+
+  induction Heval; try discriminate; inversion Ercom; subst; clear Ercom.
+  - (* E_RepeatStop: Q is derived from the second hypothesis *)
+    clear IHHeval.
+    apply Hstop; split; try assumption.
+    apply (HPR st st'); assumption.
+  - (* E_Repeat: Q is derived from the first hypothesis *)
+    clear IHHeval1.
+    apply IHHeval2; try reflexivity; clear IHHeval2.
+    apply Hcontn; split; try auto using bexp_eval_false.
+    apply (HPR st st'); assumption.
+Qed.
+
+(* 4:41 min - This is the most beautiful thing ever. :') *)
+Example hoare_repeat_example2 :
+  {{ X > 0 }}
+    repeat
+      Y := X;
+      X := X - 1
+    until X = 0 end
+  {{ X = 0 /\ Y > 0 }}.
+Proof.
+  apply hoare_repeat_correct with (R := (Y = X + 1)%assertion).
+  - eapply hoare_consequence_post.
+    * apply cseq_fact.
+    * assertion_auto.
+  - assertion_auto.
+  - assertion_auto.
+Qed. 
 
 (* +1:16:29 hour - Wasted much time fiddling with an unsound loop invariant.
    (~2 hours later) Still can't find one.  *)
-Example hoare_repeat_good :
-  {{ X > 0 }} (* How can I infer anything about Y from this??? I can't use it as a loop invariant, as it contrasts with the loop guard, so applying [hoare_repeat] right away is not an option. The only way to build a proof is to derive something from this with [hoare_consequence_pre], then work with [hoare_repeat] with a stronger precondition, but this assumption is way too weak to say anything about Y. *)
+Example hoare_repeat_example2_firsttry :
+  {{ X > 0 }}
     repeat
       Y := X;
       X := X - 1
@@ -2325,9 +2474,6 @@ Proof.
   eapply hoare_consequence with
     (P' := (X >= 0 /\ Y >= 0)%assertion).
   - apply hoare_repeat.
-    admit.
-  - admit.
-  - simpl. 
     apply hoare_seq with (Q := (X - 1 > 0)%assertion).
     + apply hoare_consequence with (P' := ((X > 0) [X |-> X - 1])%assertion) (Q' := (X > 0)%assertion).
       * apply hoare_asgn.

@@ -2658,6 +2658,11 @@ Definition valid_hoare_triple
      st =[ c ]=> r  -> P st  ->
      (exists st', r = RNormal st' /\ Q st').
 
+(* why not state it like this? *)
+Definition valid_hoare_triple'
+           (P : Assertion) (c : com) (Q : Assertion) : Prop :=
+  forall st st', st =[ c ]=> RNormal st' -> P st -> Q st'.
+
 Notation "{{ P }}  c  {{ Q }}" :=
   (valid_hoare_triple P c Q) (at level 90, c custom com at level 99)
   : hoare_spec_scope.
@@ -2680,19 +2685,29 @@ Theorem assert_assume_differ : exists (P:Assertion) b (Q:Assertion),
        ({{P}} assume b {{Q}})
   /\ ~ ({{P}} assert b {{Q}}).
 Proof.
-  exists (X = 0)%assertion, <{X = 1}>, (X = 1)%assertion.
+  exists (True)%assertion, <{false}>, (34 = 42)%assertion.
   unfold valid_hoare_triple, not. split.
-  - intros st r Heval Hb. inversion Heval; subst. simpl in *.
-    rewrite Hb in H0. discriminate.
+  - intros st r Heval Hb. inversion Heval; subst. simpl in *. discriminate.
   - intros H. simpl in *.
     
     assert (Contra :
-      (X !-> 0) =[ assert (X = 1) ]=> RError) by (constructor; reflexivity).
+      empty_st =[ assert false ]=> RError) by (constructor; reflexivity).
     
     apply H in Contra; try reflexivity.
 
     destruct Contra as [st [Bogus _]]. discriminate.
 Qed.
+
+(* Failed experiment: this should motivate keeping the result general *)
+Theorem assert_assume_differ' : exists (P:Assertion) b (Q:Assertion),
+       valid_hoare_triple' P <{ assume b }> Q
+  /\ ~ valid_hoare_triple' P <{ assert b }> Q.
+Proof.
+  exists (True)%assertion, <{false}>, (42 = 53)%assertion.
+  unfold valid_hoare_triple', not. split.
+  - intros. inversion H; subst. simpl in *. discriminate.
+  - intros. simpl in H. (* stuck: I can't prove an hypothesis of H *)
+Abort.
 
 (** Then prove that any triple for an [assert] also works when
     [assert] is replaced by [assume]. *)
@@ -2806,6 +2821,25 @@ Proof.
       * apply bexp_eval_false. assumption.
 Qed.
 
+Theorem hoare_if' : forall P Q (b:bexp) c1 c2,
+  valid_hoare_triple' (P /\ b)%assertion c1 (Q)%assertion ->
+  valid_hoare_triple' (P /\ ~b)%assertion c2 (Q)%assertion ->
+  valid_hoare_triple' (P)%assertion <{if b then c1 else c2 end}> (Q)%assertion.
+Proof.
+  unfold valid_hoare_triple'. intros P Q b c1 c2 HTrue HFalse st st' HE HP.
+  inversion HE; subst.
+  - (* b is true *)
+    apply (HTrue st st').
+    + assumption.
+    + split; assumption.
+  - (* b is false *)
+    apply (HFalse st st').
+    + assumption.
+    + split.
+      * assumption.
+      * apply bexp_eval_false. assumption.
+Qed.
+
 Theorem hoare_while : forall P (b:bexp) c,
   {{P /\ b}} c {{P}} ->
   {{P}} while b do c end {{ P /\ ~b}}.
@@ -2842,10 +2876,54 @@ Qed.
     to prove a simple program correct.  Name your rules [hoare_assert]
     and [hoare_assume]. *)
 
-(* FILL IN HERE *)
+(*
+    ------------------------------ (hoare_assert)
+    {{P /\ b}} assert b {{P /\ b}}
+
+    ------------------------------ (hoare_assume)
+      {{P}} assume b {{P /\ b}}
+*)
+
+(* 7:51 min (includes devising rules) *)
+Theorem hoare_assert : forall P (b:bexp),
+  {{P /\ b}} assert b {{P /\ b}}.
+Proof.
+  unfold valid_hoare_triple.
+  intros P b st r Heval [HP Hb].
+  inversion Heval; subst.
+  - (* [b] is true, assert doesn't affect state *)
+    exists st; auto.
+  - (* [b] is false, contradicts precondition *)
+    simpl in *. rewrite Hb in H0. discriminate.
+Qed.
+
+(* 1:41 min *)
+Theorem hoare_assume : forall P (b:bexp),
+  {{P}} assume b {{P /\ b}}.
+Proof.
+  unfold valid_hoare_triple.
+  intros P b st r Heval Hpre.
+  inversion Heval; subst.
+  exists st. auto.
+Qed.
 
 (** Use your rules to prove the following triple. *)
 
+(*
+                        True
+  assume (X = 1);
+                        True /\ X = 1 ->>
+                        True /\ X + 1 = 2
+  X := X + 1;
+                        True /\ X = 2
+  assert (X = 2)
+                        True /\ X = 2 ->>
+                        True.
+
+  Reminder: always start from the end!
+*)
+
+(* 18:28 min *)
 Example assert_assume_example:
   {{True}}
     assume (X = 1);
@@ -2853,7 +2931,19 @@ Example assert_assume_example:
     assert (X = 2)
   {{True}}.
 Proof.
-(* FILL IN HERE *) Admitted.
+  apply hoare_consequence_post with (Q' := (True /\ <{X = 2}>)%assertion).
+  (* don't use (X = 2) for [b], it trips up the type checker *)
+  - apply hoare_seq with (Q := (True /\ X + 1 = 2)%assertion).
+    + eapply hoare_seq with (Q := (True /\ <{X = 2}>)%assertion).
+      * apply hoare_assert.
+      * eapply hoare_consequence_pre.
+        -- apply hoare_asgn.
+        -- assertion_auto''.
+    + eapply hoare_consequence_post.
+      * apply hoare_assume.
+      * assertion_auto''.
+  - assertion_auto''.
+Qed.
 
 End HoareAssertAssume.
 (** [] *)

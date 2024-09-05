@@ -154,7 +154,7 @@ Definition FILL_IN_HERE := <{True}>.
                 Z := Y - X
       (4)                    {{ Z + X = Y \/ Z + Y = X }}
               else
-      (5)                    {{ True /\ ~(X <= Y) }} ->>
+      (5)                    {{ True /\ ~(X <= Y) }} ->> (* there's no risk that we remove more than we can take: knowing X > Y ensures that we don't lose information about Y in the process of natural subtraction from X. *)
       (6)                    {{ (X - Y) + X = Y \/ (X - Y) + Y = X }}
                 Z := X - Y
       (7)                    {{ Z + X = Y \/ Z + Y = X }}
@@ -192,23 +192,30 @@ These decorations can be constructed as follows:
     exercise below!
 
     Fill in valid decorations for the following program: *)
+(* 11:39 min *)
 (*
   {{ True }}
     if X <= Y then
-              {{                         }} ->>
-              {{                         }}
+              {{ True /\ X <= Y }} ->>
+              {{ Y = X + (Y - X) }}
       Z := Y - X
-              {{                         }}
+              {{ Y = X + Z }}
     else
-              {{                         }} ->>
-              {{                         }}
+              {{ True /\ ~ (X <= Y) }} ->>
+              {{ X + Z = X + Z }}
       Y := X + Z
-              {{                         }}
+              {{ Y = X + Z }}
     end
   {{ Y = X + Z }}
 *)
 (**
     Briefly justify each use of [->>].
+
+    1. X <= Y is a sufficient condition to have Y = X + (Y - X),
+       because it ensures that we add back exactly the same amount
+       of units we take off of Y.
+
+    2. Trivial.
 *)
 
 (** [] *)

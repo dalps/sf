@@ -2308,6 +2308,11 @@ Ltac assertion_auto :=
   try rewrite -> leb_le in *;
   auto; try lia.
 
+Ltac asgn_pre_auto :=
+  eapply hoare_consequence_pre;
+  try (apply hoare_asgn);
+  try assertion_auto.
+
 (*
                         X > 0 ->>
                         X >= 0
@@ -2366,16 +2371,10 @@ Qed.
 Definition cseq := <{ Y := X; X := X - 1 }>.
 
 Theorem cseq_fact :
-  {{ X > 0 }} cseq {{ X >= 0 /\ Y = X + 1 }}.
+  {{ X > 0 }} cseq {{ Y = X + 1 }}.
 Proof.
-  unfold cseq.
-  apply hoare_seq with (Q := (X > 0 /\ Y = X)%assertion).
-  - eapply hoare_consequence_pre.
-    + apply hoare_asgn.
-    + assertion_auto.
-  - eapply hoare_consequence_pre.
-    + apply hoare_asgn.
-    + assertion_auto.
+  apply hoare_seq with (Q := (X > 0 /\ Y = X)%assertion);
+  asgn_pre_auto.
 Qed.
 
 (*
@@ -2409,15 +2408,11 @@ Proof.
   apply hoare_seq with (Q := (Y = X + 1)%assertion).
   - eapply hoare_consequence_post.
     + apply hoare_while.
-      eapply hoare_consequence with
-      (P' := (X > 0)%assertion).
+      eapply hoare_consequence_pre.
       * apply cseq_fact.
       * assertion_auto.
-      * assertion_auto.
-    + simpl. assertion_auto.
-  - eapply hoare_consequence_post.
-    + apply cseq_fact.
     + assertion_auto.
+  - apply cseq_fact.
 Qed.
 
 (* ~10 min E_RepeatStop + 2:25 min *)
@@ -2453,13 +2448,11 @@ Example hoare_repeat_example2 :
     until X = 0 end
   {{ X = 0 /\ Y > 0 }}.
 Proof.
-  apply hoare_repeat_correct with (R := (Y = X + 1)%assertion).
-  - eapply hoare_consequence_post.
-    * apply cseq_fact.
-    * assertion_auto.
+  eapply hoare_repeat_correct.
+  - apply cseq_fact. (* The loop invariant is encoded here *)
   - assertion_auto.
   - assertion_auto.
-Qed. 
+Qed.
 
 (* +1:16:29 hour - Wasted much time fiddling with an unsound loop invariant.
    (~2 hours later) Still can't find one.  *)

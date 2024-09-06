@@ -334,7 +334,7 @@ These decorations can be constructed as follows:
 (** For example... *)
 Definition reduce_to_zero : com :=
   <{ while X <> 0 do
-       X := X - 1
+        X := X - 1 (* <{X := X + 1}>, <{skip}> would still make a valid triple, any command would in fact work, since the proof doesn't rely on an invariant but solely on the loop guard. *)
      end }>.
 
 Theorem reduce_to_zero_correct' :
@@ -425,6 +425,28 @@ Proof.
   - apply hoare_while.
     + eapply hoare_consequence_pre.
       * apply hoare_asgn.
+      * verify_assertion.
+  - verify_assertion.
+Qed.
+
+(* 7:56 min - sanity check *)
+Lemma true_inv : forall c,
+  {{True}} c {{True}}.
+Proof.
+  unfold valid_hoare_triple.
+  intros. apply I.
+Qed.
+
+Theorem reduce_to_zero_correct'''_strong : forall c,
+  {{True}}
+    while X <> 0 do c end
+  {{X = 0}}.
+Proof.
+  intro c.
+  eapply hoare_consequence_post.
+  - apply hoare_while.
+    + eapply hoare_consequence_pre.
+      * apply true_inv.
       * verify_assertion.
   - verify_assertion.
 Qed.
@@ -553,6 +575,8 @@ End DComFirstTry.
       the context (e.g., [{{ P'}} ->> {{ P }} d]); the latter relies
       on the postcondition already embedded in [d]. *)
 
+(* note: every dcom has a postcondition, no dcom has a precondition *)
+
 (** Putting this all together gives us the formal syntax of decorated
     commands: *)
 
@@ -570,9 +594,9 @@ Inductive dcom : Type :=
           (Q : Assertion)
   (* while b do {{ P }} d end {{ Q }} *)
 | DCPre (P : Assertion) (d : dcom)
-  (* ->> {{ P }} d *)
+  (* ->> {{ P }} d *)  (* provides a precondition to [d], awaits a precondition from the context *)
 | DCPost (d : dcom) (Q : Assertion)
-  (* d ->> {{ Q }} *).
+  (* d ->> {{ Q }} *). (* relies on the postcondition embedded in [d] *)
 
 (** To provide the initial precondition that goes at the very top of a
     decorated program, we introduce a new type [decorated]: *)
@@ -636,7 +660,7 @@ Unset Printing All.
 (** An example [decorated] program that decrements [X] to [0]: *)
 
 Example dec_while : decorated :=
-  <{
+  <{ (* Where is this notation defined for [decorated]? <{ ... }> *)
   {{ True }}
     while X <> 0
     do
@@ -879,12 +903,15 @@ Fixpoint verification_conditions (P : Assertion) (d : dcom) : Prop :=
 Theorem verification_correct : forall d P,
   verification_conditions P d -> {{P}} erase d {{post d}}.
 Proof.
-  induction d; intros; simpl in *.
+  induction d; intros; simpl in *. (* leaving the precondition [P] quantified in the inductive hypotheses is crucial *)
   - (* Skip *)
     eapply hoare_consequence_pre.
       + apply hoare_skip.
       + assumption.
   - (* Seq *)
+    (* IHd1 says that, for any assertion [P], if [d1] is locally consistent 
+       with respect to [P], then [d1] stripped of its decorations, [P] and 
+       [post d1] form a valid Hoare triple. Same story for IHd2. *)
     destruct H as [H1 H2].
     eapply hoare_seq.
       + apply IHd2. apply H2.
@@ -898,13 +925,13 @@ Proof.
     apply IHd1 in HThen. clear IHd1.
     apply IHd2 in HElse. clear IHd2.
     apply hoare_if.
-      + eapply hoare_consequence; eauto.
+      + eapply hoare_consequence; eauto. (* the precond. derives [P1], and the postcond. is derived from [post d1], reducing the goal to HThen. *)
       + eapply hoare_consequence; eauto.
   - (* While *)
     destruct H as [Hpre [Hbody1 [Hpost1  Hd] ] ].
-    eapply hoare_consequence; eauto.
+    eapply hoare_consequence; eauto. (* going off the context alone, [eauto] extrapolates [post d] as the loop invariant *)
     apply hoare_while.
-    eapply hoare_consequence_pre; eauto.
+    eapply hoare_consequence_pre; eauto. (* extrapolates [P] (implied by thed  invariant) *)
   - (* Pre *)
     destruct H as [HP Hd].
     eapply hoare_consequence_pre; eauto.
@@ -962,7 +989,7 @@ Proof. verify_assertion. Qed.
     [verify_assertion] to verify them as much as it can, and finally tidy
     up any remaining bits by hand.  *)
 Ltac verify :=
-  intros;
+  intros; (* there may be quantified variables *)
   apply verification_correct;
   verify_assertion.
 
@@ -1023,55 +1050,57 @@ Proof. verify. Qed.
     in the proof (which should be just as straightforward as in the
     examples above). *)
 
+(* 3:51 min *)
 Definition if_minus_plus_dec :=
   <{
   {{True}}
   if (X <= Y) then
-              {{ FILL_IN_HERE }} ->>
-              {{ FILL_IN_HERE }}
+              {{ True /\ X <= Y }} ->>
+              {{ Y = X + (Y - X) }}
     Z := Y - X
-              {{ FILL_IN_HERE }}
+              {{ Y = X + Z }}
   else
-              {{ FILL_IN_HERE }} ->>
-              {{ FILL_IN_HERE }}
+              {{ True /\ X > Y }} ->> (* I don't have to write [~ (X <= Y)], sweet *)
+              {{ X + Z = X + Z }}
     Y := X + Z
-              {{ FILL_IN_HERE }}
+              {{ Y = X + Z }}
   end
   {{ Y = X + Z}} }>.
 
 Theorem if_minus_plus_correct :
   outer_triple_valid if_minus_plus_dec.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. verify. Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (div_mod_outer_triple_valid)
 
     Fill in appropriate assertions for the division program from above. *)
 
+(* ~3 min *)
 Definition div_mod_dec (a b : nat) : decorated :=
   <{
   {{ True }} ->>
-  {{ FILL_IN_HERE }}
+  {{ a = 0 * b + a }} (* This assertion can be omitted! *)
     X := a
-             {{ FILL_IN_HERE }};
+             {{ a = 0 * b + X }};
     Y := 0
-             {{ FILL_IN_HERE }};
+             {{ a = Y * b + X }}; (* (A) *)
     while b <= X do
-             {{ FILL_IN_HERE }} ->>
-             {{ FILL_IN_HERE }}
+             {{ a = Y * b + X /\ b <= X }} ->> (* Even this one... *)
+             {{ a = (Y + 1) * b + (X - b) }} (* ...or this one! This is because
+             [verification_conditions] already generates an implication that
+             bridges the gap between the last precondition (A) and the one
+             generated by [hoare_asgn] using the provided postcondition (B). *)
       X := X - b
-             {{ FILL_IN_HERE }};
+             {{ a = (Y + 1) * b + X }}; (* (B) *)
       Y := Y + 1
-             {{ FILL_IN_HERE }}
+             {{ a = Y * b + X }}
     end
-  {{ FILL_IN_HERE }} ->>
-  {{ FILL_IN_HERE }} }>.
+  {{ a = Y * b + X /\ X < b }} }>. (* Removed a trivial implication *)
 
 Theorem div_mod_outer_triple_valid : forall a b,
   outer_triple_valid (div_mod_dec a b).
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. verify. Qed. 
 (** [] *)
 
 (* ################################################################# *)
@@ -1153,6 +1182,9 @@ Proof.
     to use the information that we get from the failure to produce
     another -- hopefully better -- candidate invariant, and repeat.
 
+    note: get additional help by _unfolding_ the loop on some given inputs, and
+    seeking out something that remains constant throughout iterations.
+
     For instance, in the reduce-to-zero example above, we saw that,
     for a very simple loop, choosing [True] as a loop invariant did the
     job.  Maybe it will work here too.  To find out, let's try
@@ -1211,6 +1243,10 @@ Proof.
     during the loop, while [m] and [n] are constant, so the assertion
     we chose didn't have much chance of being a loop invariant!
 
+    note: don't compare something subject to change to constant, unless you're
+    able to cancel out the change with another change (as the correct loop
+    invariant accomplishes).
+
     To do better, we need to generalize (7) to some statement that is
     equivalent to (8) when [X] is [0], since this will be the case
     when the loop terminates, and that "fills the gap" in some
@@ -1228,7 +1264,11 @@ Proof.
     (2)    {{ Y - X = n - m }}
              while X <> 0 do
     (3)                    {{ Y - X = n - m /\ X <> 0 }} ->>   (c - OK)
-    (4)                    {{ (Y - 1) - (X - 1) = n - m }}
+    (4)                    {{ (Y - 1) - (X - 1) = n - m }} 
+                           (* Asserting X <> 0 prevents (X - 1) from bening 
+                              zero-truncated, allowing both 1's to be canceled 
+                              out safely. Also, we don't care whether Y gets 
+                              zero-truncated. *)
                Y := Y - 1;
     (5)                    {{ Y - (X - 1) = n - m }}
                X := X - 1
@@ -1276,27 +1316,28 @@ Qed.
     implements this idea.  Fill in decorations and prove the decorated
     program correct. (The proof should be very simple.) *)
 
+(* 11:14 min *)
 Example slow_assignment_dec (m : nat) : decorated :=
   <{
     {{ X = m }}
       Y := 0
-                    {{ FILL_IN_HERE }} ->>
-                    {{ FILL_IN_HERE }} ;
+                    {{ X = m /\ Y = 0 }} ->>
+                    {{ Y + X = m }} ;
       while X <> 0 do
-                    {{ FILL_IN_HERE }} ->>
-                    {{ FILL_IN_HERE }}
+                    {{ Y + X = m /\ X <> 0 }} ->>
+                    {{ (Y + 1) + (X - 1) = m }}
          X := X - 1
-                    {{ FILL_IN_HERE }} ;
+                    {{ (Y + 1) + X = m }} ;
          Y := Y + 1
-                    {{ FILL_IN_HERE }}
+                    {{ Y + X = m }}
       end
-    {{ FILL_IN_HERE }} ->>
+    {{ Y + X = m /\ X = 0 }} ->>
     {{ Y = m }}
   }>.
 
 Theorem slow_assignment : forall m,
   outer_triple_valid (slow_assignment_dec m).
-Proof. (* FILL IN HERE *) Admitted.
+Proof. verify. Qed.
 (** [] *)
 
 (* ================================================================= *)
@@ -1310,6 +1351,9 @@ Proof. (* FILL IN HERE *) Admitted.
            X := X - 2
          end
        {{ X = parity m }}
+
+    note: subtract 2 repeatedly from [X] until it is less than 2, [X] will 
+    contain the parity of [m] thereafter.
 
     The [parity] function used in the specification is defined in
     Coq as follows: *)
@@ -1335,12 +1379,15 @@ Fixpoint parity x :=
       {{ parity X = parity m }}
         while 2 <= X do
                      {{ parity X = parity m /\ 2 <= X }} ->>  (c - OK)
-                     {{ parity (X-2) = parity m }}
+                     {{ parity (X-2) = parity m }} (* since the assumption 
+                     ensures [X-2] won't get zero-truncated, its parity is
+                     preserved. *)
           X := X - 2
                      {{ parity X = parity m }}
         end
       {{ parity X = parity m /\ ~(2 <= X) }} ->>              (b - OK)
-      {{ X = parity m }}
+      {{ X = parity m }} 
+      (* the input of [parity X] is equal to the output when [X < 2] *)
 
     With this loop invariant, conditions (a), (b), and (c) are all
     satisfied. For verifying (b), we observe that, when [X < 2], we
@@ -1359,17 +1406,18 @@ Fixpoint parity x :=
     [ap] operator to lift the application of the [parity] function
     into the syntax of assertions, [{{ ap parity X = parity m }}]. *)
 
+(* 20:59 min - I see why it is ranked 3 stars :P No hint! *)
 Definition parity_dec (m:nat) : decorated :=
   <{
   {{ X = m }} ->>
-  {{ FILL_IN_HERE }}
+  {{ ap parity X = parity m }}
     while 2 <= X do
-                  {{ FILL_IN_HERE }} ->>
-                  {{ FILL_IN_HERE }}
+                  {{ ap parity X = parity m /\ 2 <= X }} ->>
+                  {{ ap parity (X-2) = parity m }}
       X := X - 2
-                  {{ FILL_IN_HERE }}
+                  {{ ap parity X = parity m }}
     end
-  {{ FILL_IN_HERE }} ->>
+  {{ ap parity X = parity m /\ X < 2 }} ->>
   {{ X = parity m }} }>.
 
 (** If you use the suggested loop invariant, you may find the following
@@ -1381,7 +1429,7 @@ Lemma parity_ge_2 : forall x,
 Proof.
   destruct x; intros; simpl.
   - reflexivity.
-  - destruct x; simpl.
+  - destruct x; simpl. (* simplifies [S] and [-1] *)
     + lia.
     + rewrite sub_0_r. reflexivity.
 Qed.
@@ -1399,8 +1447,17 @@ Qed.
 
 Theorem parity_outer_triple_valid : forall m,
   outer_triple_valid (parity_dec m).
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. verify;
+  (* I have no idea how these two subgoals came about, anyway: *)
+  try (destruct (st X) as [| x]; try destruct x; try lia; fail).
+  (* First time using [fail]: if tactical fails to close the subgoal, [fail]
+     bails out and restores the original proof state. *)
+  - apply parity_ge_2 in H0.
+    rewrite H in H0. assumption.
+  - assert (~ 2 <= st X) by lia.
+    apply parity_lt_2 in H1.
+    rewrite H1 in H. assumption.
+Qed.
 
 (** [] *)
 

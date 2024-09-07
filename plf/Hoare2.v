@@ -1406,7 +1406,8 @@ Fixpoint parity x :=
     [ap] operator to lift the application of the [parity] function
     into the syntax of assertions, [{{ ap parity X = parity m }}]. *)
 
-(* 20:59 min - I see why it is ranked 3 stars :P No hint! *)
+(* 20:59 min - I see why it is ranked 3 stars :P No hint + thank goodness I 
+   remembered [ap] was a thing! *)
 Definition parity_dec (m:nat) : decorated :=
   <{
   {{ X = m }} ->>
@@ -1493,7 +1494,7 @@ Qed.
     (8)  {{ Z*Z<=m /\ m<(Z+1)*(Z+1) }}
 
     This didn't work very well: conditions (a) and (c) both failed.
-    Looking at condition (c), we see that the second conjunct of (4)
+    Looking at condition (c), we see that the second conjunct of (4) (* You mean third, right? *)
     is almost the same as the first conjunct of (5), except that (4)
     mentions [X] while (5) mentions [m]. But note that [X] is never
     assigned in this program, so we should always have [X=m]. We
@@ -1536,25 +1537,26 @@ Qed.
     Hint: The loop invariant here must ensure that Z*Z is consistently
     less than or equal to X. *)
 
+(* 2:06 min *)
 Definition sqrt_dec (m:nat) : decorated :=
   <{
     {{ X = m }} ->>
-    {{ FILL_IN_HERE }}
+    {{ X = m /\ 0 <= m }}
       Z := 0
-                   {{ FILL_IN_HERE }};
+                   {{ X = m /\ Z*Z <= m }};
       while ((Z+1)*(Z+1) <= X) do
-                   {{ FILL_IN_HERE }} ->>
-                   {{ FILL_IN_HERE }}
+                   {{ X = m /\ Z*Z <= m /\ (Z+1)*(Z+1) <= X }} ->>
+                   {{ X = m /\ (Z+1)*(Z+1) <= m }}
         Z := Z + 1
-                   {{ FILL_IN_HERE }}
+                   {{ X = m /\ Z*Z <= m }}
       end
-    {{ FILL_IN_HERE }} ->>
+    {{ X = m /\ Z*Z <= m /\ X < (Z+1)*(Z+1) }} ->>
     {{ Z*Z<=m /\ m<(Z+1)*(Z+1) }}
   }>.
 
 Theorem sqrt_correct : forall m,
   outer_triple_valid (sqrt_dec m).
-Proof. (* FILL IN HERE *) Admitted.
+Proof. verify. Qed.
 
 (* ================================================================= *)
 (** ** Example: Squaring *)
@@ -1629,6 +1631,31 @@ Proof. (* FILL IN HERE *) Admitted.
     involving both variables and parameters, like [m - Y] -- when
     going from postconditions to loop invariants. *)
 
+(* did myself for sake of completeness *)
+Definition square_dec (m:nat) : decorated :=
+  <{
+  {{ X = m }} ->>
+  {{ 0 = 0*m /\ X = m }}
+    Y := 0
+                  {{ 0 = Y*m /\ X = m }};
+    Z := 0
+                  {{ Z = Y*m /\ X = m }};
+    while Y <> X do
+                  {{ Z = Y*m /\ X = m /\ Y <> X }} ->>
+                  {{ Z+X = (Y+1)*m /\ X = m }}
+      Z := Z + X
+                  {{ Z = (Y+1)*m /\ X = m }};
+      Y := Y + 1
+                  {{ Z = Y*m /\ X = m }}
+    end
+  {{ Z = Y*m /\ X = m /\ ~(Y <> X) }} ->>
+  {{ Z = m*m }}
+  }>.
+
+Theorem square_correct : forall m,
+  outer_triple_valid (square_dec m).
+Proof. verify. Qed.
+
 (** [] *)
 
 (* ================================================================= *)
@@ -1677,14 +1704,48 @@ Compute fact 5. (* ==> 120 *)
     For example, recall that [1 + ...] is easier to work with than
     [... + 1]. *)
 
-Example factorial_dec (m:nat) : decorated
-(* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+(* ~3 hours - Wasted the whole morning on this. The invariant came to mind only after lunch (then solved in ~20 min).
+   Abstracting the invariant momentarily to compile the skeleton really helped. *)
 
-(* FILL IN HERE *)
+Definition fact_inv (m:nat ): Assertion := Y * ap fact X = fact m.
+
+Example factorial_dec (m:nat) : decorated :=
+  <{
+  {{ X = m }} ->>
+  {{ fact_inv m [Y |-> 1] }}
+  Y := 1
+                  {{ fact_inv m }};
+  while X <> 0 do
+                  {{ fact_inv m /\ X <> 0 }} ->>
+                  {{ fact_inv m [X |-> X - 1] [Y |-> Y * X] }} (* I was substituting in the wrong order... *)
+    Y := Y * X
+                  {{ fact_inv m [X |-> X - 1] }};
+    X := X - 1
+                  {{ fact_inv m }}
+  end
+  {{ fact_inv m /\ X = 0 }} ->> 
+  {{ Y = fact m }}
+  }>.
 
 Theorem factorial_correct: forall m,
   outer_triple_valid (factorial_dec m).
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  verify; 
+  unfold fact_inv, ap in *; simpl in *; subst.
+  - rewrite add_0_r, t_update_neq;
+    try apply String.eqb_neq;
+    reflexivity.
+  - rewrite t_update_eq.
+    unfold t_update; simpl.
+    destruct (st X) eqn:EX.
+    + contradiction.
+    + rewrite <- H. clear H0 H.
+      replace (S n - 1) with n by lia.
+      rewrite <- mul_assoc.
+      replace (S n * fact n) with (fact (S n)); reflexivity.
+  - rewrite H0 in H. simpl in H. lia.
+Qed.
+
 (** [] *)
 
 (* ================================================================= *)

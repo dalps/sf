@@ -1764,33 +1764,46 @@ Qed.
     You may find [andb_true_eq] useful (perhaps after using symmetry
     to get an equality the right way around). *)
 
+Definition minimum_inv (a b : nat) : Assertion :=
+  X + Z = a /\ Y + Z = b.
+
+Hint Unfold minimum_inv : core. (* useless, just unfold the definition before applying [verify] *)
+
 Definition minimum_dec (a b : nat) : decorated :=
   <{
     {{ True }} ->>
-    {{ FILL_IN_HERE }}
+    {{ a + 0 = a /\ b + 0 = b }}
       X := a
-             {{ FILL_IN_HERE }};
+             {{ X + 0 = a /\ b + 0 = b }};
       Y := b
-             {{ FILL_IN_HERE }};
+             {{ X + 0 = a /\ Y + 0 = b }}; (* these parts are so mechanical *)
       Z := 0
-             {{ FILL_IN_HERE }};
+             {{ minimum_inv a b }};
       while X <> 0 && Y <> 0 do
-             {{ FILL_IN_HERE }} ->>
-             {{ FILL_IN_HERE }}
+             {{ minimum_inv a b /\ (X <> 0 /\ Y <> 0) }} ->>
+             {{ (X - 1) + (Z + 1) = a /\ (Y - 1) + (Z + 1) = b }}
         X := X - 1
-             {{ FILL_IN_HERE }};
+             {{ X + (Z + 1) = a /\ (Y - 1) + (Z + 1) = b }};
         Y := Y - 1
-             {{ FILL_IN_HERE }};
+             {{ X + (Z + 1) = a /\ Y + (Z + 1) = b }};
         Z := Z + 1
-             {{ FILL_IN_HERE }}
+             {{ minimum_inv a b }}
       end
-    {{ FILL_IN_HERE }} ->>
+    {{ minimum_inv a b /\ (X = 0 \/ Y = 0) }} ->>
     {{ Z = min a b }}
   }>.
 
+(* 35:25 min - invariant was pretty straighforward (~10 min at most, inspired by slow_assignment_dec), struggled with tactics (getting [verify] to unfold [minimum_inv], unfolding it before verify) *)
 Theorem minimum_correct : forall a b,
   outer_triple_valid (minimum_dec a b).
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  unfold minimum_dec, minimum_inv. verify;
+  try (rewrite andb_true_iff in H0; destruct H0 as [H1 H2];
+    rewrite negb_true_iff, eqb_neq in H1, H2; assumption).
+  try (rewrite andb_false_iff in H0; destruct H0;
+    rewrite negb_false_iff, eqb_eq in H; auto).
+Qed.
+
 (** [] *)
 
 (* ================================================================= *)
@@ -1815,42 +1828,48 @@ Proof. (* FILL IN HERE *) Admitted.
     Show that it does what it should by completing the
     following decorated program.
 *)
+
+(* 36:34 min + 3:26 min (needed to realize I needed ordering assertions) *)
+Definition inv1 (c: nat) : Assertion := Z >= X /\ Z - X = c /\ Y = 0.
+Definition inv2 (a c:nat) : Assertion := Z >= Y /\ Z - Y = a + c /\ X = a.
+
 Definition two_loops_dec (a b c : nat) : decorated :=
   <{
     {{ True }} ->>
-    {{ FILL_IN_HERE }}
+    {{ inv1 c [Z |-> c] [Y |-> 0] [X |-> 0] }}
       X := 0
-                   {{ FILL_IN_HERE }};
+                   {{ inv1 c [Z |-> c] [Y |-> 0] }};
       Y := 0
-                   {{ FILL_IN_HERE }};
+                   {{ inv1 c [Z |-> c] }};
       Z := c
-                   {{ FILL_IN_HERE }};
+                   {{ inv1 c }};
       while X <> a do
-                   {{ FILL_IN_HERE }} ->>
-                   {{ FILL_IN_HERE }}
+                   {{ inv1 c /\ X <> a }} ->>
+                   {{ inv1 c [Z |-> Z + 1] [X |-> X + 1] }}
         X := X + 1
-                   {{ FILL_IN_HERE }};
+                   {{ inv1 c [Z |-> Z + 1] }};
         Z := Z + 1
-                   {{ FILL_IN_HERE }}
+                   {{ inv1 c }}
       end
-                   {{ FILL_IN_HERE }} ->>
-                   {{ FILL_IN_HERE }};
+                   {{ inv1 c /\ X = a}} ->>
+                   {{ inv2 a c }};
       while Y <> b do
-                   {{ FILL_IN_HERE }} ->>
-                   {{ FILL_IN_HERE }}
+                   {{ inv2 a c /\ Y <> b }} ->>
+                   {{ inv2 a c [Z |-> Z + 1] [Y |-> Y + 1] }}
         Y := Y + 1
-                   {{ FILL_IN_HERE }};
+                   {{ inv2 a c [Z |-> Z + 1] }};
         Z := Z + 1
-                   {{ FILL_IN_HERE }}
+                   {{ inv2 a c }}
       end
-    {{ FILL_IN_HERE }} ->>
+    {{ inv2 a c /\ Y = b }} ->>
     {{ Z = a + b + c }}
   }>.
 
 Theorem two_loops : forall a b c,
   outer_triple_valid (two_loops_dec a b c).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold two_loops_dec, inv1, inv2, assertion_sub; verify. (* grinds for a bit lol *)
+Qed.
 
 (** [] *)
 

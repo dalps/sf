@@ -1898,27 +1898,33 @@ Fixpoint pow2 n :=
   | S n' => 2 * (pow2 n')
   end.
 
+Compute pow2 1.
+
+Definition dpow2_inv : Assertion :=
+  Y = ap pow2 (X + 1) - 1 /\ Z = ap pow2 X.
+
+(* 42:16 min *)
 Definition dpow2_dec (n : nat) :=
   <{
     {{ True }} ->>
-    {{ FILL_IN_HERE }}
+    {{ dpow2_inv [Z |-> 1] [Y |-> 1] [X |-> 0] }}
       X := 0
-               {{ FILL_IN_HERE }};
+               {{ dpow2_inv [Z |-> 1] [Y |-> 1] }};
       Y := 1
-               {{ FILL_IN_HERE }};
+               {{ dpow2_inv [Z |-> 1] }};
       Z := 1
-               {{ FILL_IN_HERE }};
+               {{ dpow2_inv }};
       while X <> n do
-               {{ FILL_IN_HERE }} ->>
-               {{ FILL_IN_HERE }}
+               {{ dpow2_inv /\ X <> n }} ->>
+               {{ dpow2_inv [X |-> X + 1] [Y |-> Y + Z] [Z |-> 2 * Z] }}
         Z := 2 * Z
-               {{ FILL_IN_HERE }};
+               {{ dpow2_inv [X |-> X + 1] [Y |-> Y + Z] }};
         Y := Y + Z
-               {{ FILL_IN_HERE }};
+               {{ dpow2_inv [X |-> X + 1] }};
         X := X + 1
-               {{ FILL_IN_HERE }}
+               {{ dpow2_inv }}
       end
-    {{ FILL_IN_HERE }} ->>
+    {{ dpow2_inv /\ X = n }} ->>
     {{ Y = pow2 (n+1) - 1 }}
   }>.
 
@@ -1942,7 +1948,10 @@ Qed.
 Theorem dpow2_down_correct : forall n,
   outer_triple_valid (dpow2_dec n).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold dpow2_dec, dpow2_inv, assertion_sub, t_update.
+  verify; repeat rewrite pow2_plus_1; lia.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 2 stars, advanced, optional (fib_eqn)
@@ -1959,6 +1968,7 @@ Proof.
    This doesn't pass Coq's termination checker, but here is a
    slightly clunkier definition that does: *)
 
+(* note: make sure predecessors don't get zero-truncated *)
 Fixpoint fib n :=
   match n with
   | 0 => 1
@@ -1968,14 +1978,29 @@ Fixpoint fib n :=
             end
   end.
 
+Compute fib 4.
+Compute fib 3 + fib 4 =?fib 5.
+Compute fib 4 + fib 5 =? fib 6.
+
 (** Prove that [fib] satisfies the following equation.  You will need this
     as a lemma in the next exercise. *)
 
+Definition nat_ind2 : forall (P : nat -> Prop),
+  P 0 -> P 1 -> (forall n, P n -> P (S (S n))) -> forall n, P n :=
+  fun P P0 P1 PSS =>
+    fix f (n : nat) := match n with
+                       | 0 => P0
+                       | 1 => P1
+                       | S (S n') => PSS n' (f n')
+                       end.
+
+(* 3:13 min - did NOT need nat_ind2, worth reviewing it anyway (~11 min). *)
 Lemma fib_eqn : forall n,
   n > 0 ->
   fib n + fib (pred n) = fib (1 + n).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  induction n using nat_ind2; try trivial.
+  intro Contra. inversion Contra. Qed.
 (** [] *)
 
 (** **** Exercise: 4 stars, advanced, optional (fib)
@@ -2002,38 +2027,50 @@ Proof.
     If all goes well, your proof will be very brief.
 *)
 
+(* 26:28 min to come up with invariant
+   + 23:15 min decorating and proving *)
 Definition T : string := "T".
+
+(* can't really say anything about T in the loop invariant :/ *)
+Definition dfib_inv : Assertion :=
+  X >= 1 /\ Y = ap fib (X - 1) /\ Z = ap fib X.
 
 Definition dfib (n : nat) : decorated :=
   <{
     {{ True }} ->>
-    {{ FILL_IN_HERE }}
+    {{ dfib_inv [Z |-> 1] [Y |-> 1] [X |-> 1] }}
     X := 1
-                {{ FILL_IN_HERE }} ;
+                {{ dfib_inv [Z |-> 1] [Y |-> 1] }} ;
     Y := 1
-                {{ FILL_IN_HERE }} ;
+                {{ dfib_inv [Z |-> 1] }} ;
     Z := 1
-                {{ FILL_IN_HERE }} ;
+                {{ dfib_inv }} ;
     while X <> 1 + n do
-                  {{ FILL_IN_HERE }} ->>
-                  {{ FILL_IN_HERE }}
+                  {{ dfib_inv /\ X <> 1 + n }} ->>
+                  {{ dfib_inv [X |-> 1 + X] [Y |-> T] [Z |-> Z + Y] [T |-> Z] }}
       T := Z
-                  {{ FILL_IN_HERE }};
+                  {{ dfib_inv [X |-> 1 + X] [Y |-> T] [Z |-> Z + Y] }};
       Z := Z + Y
-                  {{ FILL_IN_HERE }};
+                  {{ dfib_inv [X |-> 1 + X] [Y |-> T] }};
       Y := T
-                  {{ FILL_IN_HERE }};
+                  {{ dfib_inv [X |-> 1 + X] }};
       X := 1 + X
-                  {{ FILL_IN_HERE }}
+                  {{ dfib_inv }}
     end
-    {{ FILL_IN_HERE }} ->>
+    {{ dfib_inv /\ X = 1 + n }} ->>
     {{ Y = fib n }}
    }>.
 
 Theorem dfib_correct : forall n,
   outer_triple_valid (dfib n).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold dfib, dfib_inv, t_update, assertion_sub; verify.
+  - rewrite sub_0_r; reflexivity.
+  - replace (st X - 1) with (pred (st X)) by lia.
+    rewrite fib_eqn; try reflexivity; try lia.
+  - replace (S n - 1) with n by lia; reflexivity.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 5 stars, advanced, optional (improve_dcom)

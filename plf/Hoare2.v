@@ -2084,9 +2084,136 @@ Qed.
     the rest of the formal development leading up to the
     [verification_correct] theorem. *)
 
-(* FILL IN HERE
+Module DComImproved.
 
-    [] *)
+(** Ideal decorations:
+
+    <{
+    {{ True }}
+    X := 1;
+    Y := 1;
+    Z := 1
+    while X <> 1 + n do
+      T := Z;
+      Z := Z + Y;
+      Y := T;
+      X := 1 + X
+    end
+    {{ Y = fib n }}
+    }>.
+
+    Skip doesn't need annotations.
+    Assignments don't need annotations, as they are derived mechanically.
+    Annotations can be added sporadically by use of [DCPre] and [DCPost] *)
+Inductive dcom : Type :=
+| DCSkip
+  (* skip *)
+| DCSeq (d1 d2 : dcom)
+  (* d1 ; d2 *)
+| DCAsgn (X : string) (a : aexp)
+  (* X := a *)
+| DCIf (b : bexp) (d1 : dcom) (d2 : dcom)
+  (* if b then {{ P1 }} d1 else {{ P2 }} d2 end {{ Q }} *)
+| DCWhile (I : Assertion) (b : bexp) (d : dcom)
+  (* {{ I }} while b do d end *)
+| DCPre (P : Assertion) (d : dcom)
+  (* {{ P }} d *)
+| DCPost (d : dcom) (Q : Assertion)
+  (* d {{ Q }} *).
+
+Inductive decorated : Type :=
+| Decorated (P : Assertion) (d : dcom) (Q : Assertion).
+
+Declare Scope dcom_scope.
+Notation "'skip'"
+      := (DCSkip)
+            (in custom com at level 0) : dcom_scope.
+
+Notation "l ':=' a"
+      := (DCAsgn l a)
+            (in custom com at level 0, l constr at level 0,
+             a custom com at level 85, no associativity) : dcom_scope.
+
+Notation "'if' b 'then' d1 'else' d2 'end'" :=
+         (DCIf b d1 d2)
+           (in custom com at level 89, b at level 99,
+            d1 at level 99, d2 at level 99) : dcom_scope.
+
+Notation "{{ I }} 'while' b 'do' d 'end'" :=
+         (DCWhile I b d)
+            (in custom com at level 89, b at level 99, d at level 99, I constr) : dcom_scope.
+
+Notation " d ; d' "
+      := (DCSeq d d')
+           (in custom com at level 90, right associativity)
+           : dcom_scope.
+
+Notation "d {{ P }}"
+      := (DCPost d P)
+           (in custom com at level 10, right associativity, P constr)
+           : dcom_scope.
+
+Notation "{{ P }} d {{ Q }}"
+      := (Decorated P d Q)
+            (in custom com at level 91, d constr, P constr, Q constr) : dcom_scope.
+
+(* Notation is hard without hand-holding :'( *)
+Local Open Scope dcom_scope.
+
+Example dcom_test1 : dcom :=
+  <{
+    X := 0;
+    {{ True }}
+    while X <> 5 do
+      X := X + 1
+    end
+    {{ X = 5 }}
+  }>.
+
+(* Notes on how to proceed: so, you've broken the old invariant of [dcom]s: no costructor has preconditions; every constructor has a postcondition. Not sure if I should keep both DCPre and DCPost. The arrows look really out of place. Decorated should probably only have one assertion argument, the precondition, the other assertion to complete the triple should be provided with a DCPost. *)
+
+Set Printing All.
+
+Print dcom_test1.
+
+(* ~1 hour to work out first notation *)
+
+Fixpoint erase (d : dcom) : com :=
+  match d with
+  | DCSkip => CSkip
+  | DCAsgn X a => CAsgn X a
+  | DCIf b d1 d2 => CIf b (erase d1) (erase d2)
+  | DCSeq d1 d2 => CSeq (erase d1) (erase d2)
+  | DCWhile _ b d => CWhile b (erase d)
+  | DCPre _ d | DCPost d _ => erase d
+  end.
+
+Definition erase_d (dec : decorated) : com :=
+  match dec with
+  | Decorated P d Q => erase d
+  end.
+
+Definition precondition_from (dec : decorated) : Assertion :=
+  match dec with
+  | Decorated P _ _ => P
+  end.
+
+Definition postcondition_from (dec : decorated) : Assertion :=
+  match dec with
+  | Decorated _ _ Q => Q
+  end.
+
+(* Definition outer_triple_valid (dec : decorated) :=
+  {{precondition_from dec}} erase_d dec {{postcondition_from dec}}. *)
+
+(** I'm just wandering in darkness. I have a rough idea of what the interface
+    of the new decorated programs but I'm not sure how to go about executing it.
+    I ought to to learn about notation before tackling this exercise: 
+    https://coq.inria.fr/doc/V8.18.0/refman/user-extensions/syntax-extensions.html
+*)
+
+End DComImproved.
+(** [] *)
 
 (* ################################################################# *)
 (** * Weakest Preconditions (Optional) *)

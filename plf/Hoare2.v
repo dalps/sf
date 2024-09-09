@@ -2093,6 +2093,7 @@ Module DComImproved.
     X := 1;
     Y := 1;
     Z := 1
+    {{ dfib_inv }} <-- Loop invariant
     while X <> 1 + n do
       T := Z;
       Z := Z + Y;
@@ -2124,41 +2125,41 @@ Inductive dcom : Type :=
 Inductive decorated : Type :=
 | Decorated (P : Assertion) (d : dcom) (Q : Assertion).
 
-Declare Scope dcom_scope.
+Declare Scope dcom_improved_scope.
 Notation "'skip'"
       := (DCSkip)
-            (in custom com at level 0) : dcom_scope.
+            (in custom com at level 0) : dcom_improved_scope.
 
 Notation "l ':=' a"
       := (DCAsgn l a)
             (in custom com at level 0, l constr at level 0,
-             a custom com at level 85, no associativity) : dcom_scope.
+             a custom com at level 85, no associativity) : dcom_improved_scope.
 
 Notation "'if' b 'then' d1 'else' d2 'end'" :=
          (DCIf b d1 d2)
            (in custom com at level 89, b at level 99,
-            d1 at level 99, d2 at level 99) : dcom_scope.
+            d1 at level 99, d2 at level 99) : dcom_improved_scope.
 
 Notation "{{ I }} 'while' b 'do' d 'end'" :=
          (DCWhile I b d)
-            (in custom com at level 89, b at level 99, d at level 99, I constr) : dcom_scope.
+            (in custom com at level 89, b at level 99, d at level 99, I constr) : dcom_improved_scope.
 
 Notation " d ; d' "
       := (DCSeq d d')
            (in custom com at level 90, right associativity)
-           : dcom_scope.
+           : dcom_improved_scope.
 
-Notation "d {{ P }}"
+Notation "d '->>' {{ P }}"
       := (DCPost d P)
            (in custom com at level 10, right associativity, P constr)
-           : dcom_scope.
+           : dcom_improved_scope.
 
 Notation "{{ P }} d {{ Q }}"
       := (Decorated P d Q)
-            (in custom com at level 91, d constr, P constr, Q constr) : dcom_scope.
+            (in custom com at level 91, d constr, P constr, Q constr) : dcom_improved_scope.
 
 (* Notation is hard without hand-holding :'( *)
-Local Open Scope dcom_scope.
+Local Open Scope dcom_improved_scope.
 
 Example dcom_test1 : dcom :=
   <{
@@ -2166,13 +2167,13 @@ Example dcom_test1 : dcom :=
     {{ True }}
     while X <> 5 do
       X := X + 1
-    end
-    {{ X = 5 }}
+    end ->> {{ True }} ->> {{ X = 5 }}
   }>.
 
-(* Notes on how to proceed: so, you've broken the old invariant of [dcom]s: no costructor has preconditions; every constructor has a postcondition. Not sure if I should keep both DCPre and DCPost. The arrows look really out of place. Decorated should probably only have one assertion argument, the precondition, the other assertion to complete the triple should be provided with a DCPost. *)
+(* Notes on how to proceed: so, you've broken the old invariant of [dcom]s: no costructor has preconditions; every constructor has a postcondition. Not sure if I should keep both DCPre and DCPost. The arrows look really out of place. Decorated should probably only have one assertion argument, the precondition, the other assertion to complete the triple should be provided with a DCPost.
 
-Set Printing All.
+  Or just move on in the exercise ignoring notation, you're not making progress.
+*)
 
 Print dcom_test1.
 
@@ -2213,6 +2214,7 @@ Definition postcondition_from (dec : decorated) : Assertion :=
 *)
 
 End DComImproved.
+
 (** [] *)
 
 (* ################################################################# *)
@@ -2242,7 +2244,9 @@ End DComImproved.
 
     The _most_ useful precondition for this command is this one:
 
-      {{ Y <= 4 }}  X := Y + 1  {{ X <= 5 }}
+      {{ Y <= 4 }}  X := Y + 1  {{ X <= 5 }} 
+      (* note: the most useful precondition for achieving [X <= 5] 
+         after running [X := Y + 1] is [Y <= 4] *)
 
     The assertion [Y <= 4] is called the _weakest precondition_ of
     [X := Y + 1] with respect to the postcondition [X <= 5]. *)
@@ -2291,8 +2295,20 @@ Definition is_wp P c Q :=
      while true do X := 0 end
      {{ X = 0 }}
 *)
-(* FILL IN HERE
 
+(* 12:42 min *)
+
+Lemma simpl_or : forall A B C, (A /\ B) \/ (~A /\ C) -> B \/ C.
+Proof. intuition.  Qed.
+
+(* FILL IN HERE
+    1) X = 5
+    2) Y + Z = 5
+    3) True (<-> Y = Y)
+    4) X = 0 /\ Z + 1 = 5 \/ X <> 0 /\ W + 2 = 5 (not sure)
+       Z + 1 = 5 /\ W + 2 = 5
+    5) False
+    6) True (the command doesn't halt, so the triple is valid for any P')
     [] *)
 
 (** **** Exercise: 3 stars, advanced, optional (is_wp)
@@ -2301,10 +2317,23 @@ Definition is_wp P c Q :=
     is indeed a weakest precondition of [X := Y + 1] with respect to
     postcondition [X <= 5]. *)
 
+(* 15:10 min *)
 Theorem is_wp_example :
   is_wp (Y <= 4) <{X := Y + 1}> (X <= 5).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold is_wp. split.
+  + eapply hoare_consequence_pre.
+    - apply hoare_asgn.
+    - assertion_auto.
+  + unfold valid_hoare_triple, assert_implies; simpl in *.
+    intros P Hhoare st HP.
+    assert (Hcom : st =[ X := Y + 1 ]=> (X !-> st Y + 1; st))
+      by (apply E_Asgn; reflexivity).
+    apply Hhoare in Hcom; try assumption.
+    clear Hhoare HP.
+    rewrite t_update_eq in Hcom. lia.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 2 stars, advanced, optional (hoare_asgn_weakest)
@@ -2312,10 +2341,21 @@ Proof.
     Show that the precondition in the rule [hoare_asgn] is in fact the
     weakest precondition. *)
 
+(* 7:49 min *)
 Theorem hoare_asgn_weakest : forall Q X a,
   is_wp (Q [X |-> a]) <{ X := a }> Q.
 Proof.
-(* FILL IN HERE *) Admitted.
+  unfold is_wp. split; try apply hoare_asgn.
+  unfold valid_hoare_triple.
+  intros P' HHoareP' st HP'.
+  (* P' st ->> Q [X |-> a] st
+     Paraphrase: any state [st] in which [P'] holds 
+     is also a state in which [Q [X |-> a]] holds *)
+  assert (Hcom : st =[ X := a ]=> (X !-> aeval st a ; st))
+    by (constructor; reflexivity).
+  apply HHoareP' in Hcom; try assumption.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 2 stars, advanced, optional (hoare_havoc_weakest)
@@ -2325,11 +2365,21 @@ Proof.
 Module Himp2.
 Import Himp.
 
+(* note: [havoc_pre] is already proof of the left conjunct of [is_wp],
+   [hoare_havoc_weakest] asks you to prove the right conjunct *)
+
+(* 8:23 min *)
 Lemma hoare_havoc_weakest : forall (P Q : Assertion) (X : string),
   {{ P }} havoc X {{ Q }} ->
   P ->> havoc_pre X Q.
 Proof.
-(* FILL IN HERE *) Admitted.
+  unfold valid_hoare_triple, havoc_pre.
+  intros P Q X HHoare st HP m.
+  assert (Hcom : st =[ havoc X ]=> (X !-> m ; st))
+    by (constructor; reflexivity).
+  apply HHoare in Hcom; assumption.
+Qed.
+
 End Himp2.
 (** [] *)
 

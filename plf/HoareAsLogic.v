@@ -57,6 +57,9 @@ Definition valid (P : Assertion) (c : com) (Q : Assertion) : Prop :=
      P st  ->
      Q st'.
 
+(* note: reasoning about the validity of Hoare triple reduces to reasoning
+   about states and equality of total maps. *)
+
 (** This notion of _validity_ is based on the underlying model of how
     Imp programs execute.  That model itself is based on states.  So,
 
@@ -78,7 +81,7 @@ Definition valid (P : Assertion) (c : com) (Q : Assertion) : Prop :=
 
 (** So far, we have punned between the syntax of a Hoare triple,
     written [{{P}} c {{Q}}], and its validity, as expressed by
-    [valid].  In essence, we have said that the semantic meaning of
+    [valid].  In essence, we have said that the semantic meaning of   (* paraphrase: writing Hoare triples with _that_ syntax claims their validity, glossing over the invalid triples *)
     that syntax is the proposition returned by [valid].  This way of
     giving semantic meaning to something syntactic is part of the
     branch of mathematical logic known as _model theory_.  *)
@@ -198,13 +201,13 @@ Inductive derivable : Assertion -> com -> Assertion -> Type :=
 
 Lemma H_Consequence_pre : forall (P Q P': Assertion) c,
     derivable P' c Q ->
-    (forall st, P st -> P' st) ->
+    (forall st, P st -> P' st) -> (* strengthen P' to our precondition *)
     derivable P c Q.
 Proof. eauto using H_Consequence. Qed.
 
 Lemma H_Consequence_post  : forall (P Q Q' : Assertion) c,
     derivable P c Q' ->
-    (forall st, Q' st -> Q st) ->
+    (forall st, Q' st -> Q st) -> (* weaken Q' to our postcondition *)
     derivable P c Q.
 Proof. eauto using H_Consequence. Qed.
 
@@ -225,7 +228,7 @@ Proof.
   eapply H_Seq.
   - apply H_Asgn.
   - apply H_Asgn.
-Qed.
+Qed. (* applying constructors <=> creating a derivation/proof tree *)
 
 (** You can see how the structure of the proof script mirrors the structure
     of the proof tree: at the root there is a use of the sequence rule; and
@@ -236,10 +239,28 @@ Qed.
 (** Show that any Hoare triple whose postcondition is [True] is derivable. Proceed
     by induction on [c]. *)
 
+(* 34:51 min *)
 Theorem provable_true_post : forall c P,
     derivable P c True.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  induction c; intros P.
+  - eapply H_Consequence_post.
+    + apply H_Skip.
+    + intros; apply I.
+  - eapply H_Consequence_pre.
+    + apply H_Asgn.
+    + intros; apply I.
+  - assert (Hc2 : derivable True%assertion c2 True%assertion)
+      by (apply IHc2).
+    eapply H_Seq; auto.
+  - eapply H_If; auto.
+  - assert (Hc : derivable (b /\ True)%assertion c True%assertion)
+      by (apply IHc).
+    apply H_Consequence with
+      (P' := (assert_of_Prop True))         (* relax P to True *)
+      (Q' := (True /\ ~b)%assertion); auto. (* strengthen True to True /\ ~b *)
+    apply H_While; auto.
+Qed.
 
 (** [] *)
 
@@ -248,10 +269,31 @@ Proof.
 (** Show that any Hoare triple whose precondition is [False] is derivable. Again,
     proceed by induction on [c]. *)
 
+(* 17:45 min *)
 Theorem provable_false_pre : forall c Q,
     derivable False c Q.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  induction c; intros Q.
+  - eapply H_Consequence_post.
+    + apply H_Skip.
+    + contradiction.
+  - eapply H_Consequence_pre.
+    + apply H_Asgn.
+    + contradiction.
+  - assert (Hc2 : derivable False%assertion c2 False%assertion)
+      by (apply IHc2).
+    eapply H_Seq; auto.
+  - eapply H_If;
+    eapply H_Consequence_pre;
+    try apply IHc1; try apply IHc2;
+    intros; destruct H; simpl in H; contradiction.
+  - assert (Hc : derivable (False /\ b)%assertion c False%assertion).
+    { eapply H_Consequence_pre; auto; 
+      intros; destruct H; simpl in H; contradiction. }
+    eapply H_Consequence_post.
+    + apply H_While. auto.
+    + simpl; intros; destruct H; contradiction.
+Qed.
 
 (** [] *)
 

@@ -434,50 +434,25 @@ Proof.
   unfold valid. intros P c. generalize dependent P.
   induction c; intros P Q HT.
   - eapply H_Consequence_post;
-    try apply H_Skip.
-    intros st HP.
-    apply (HT st st).
-    + constructor.
-    + assumption.
+    try apply H_Skip;
+    eauto.
   - eapply H_Consequence_pre;
-    try apply H_Asgn.
-    intros st HP.
-    eapply HT.
-    + constructor; reflexivity.
-    + assumption.
-  - apply wp_seq.
-    + (* Show: [valid P c1 (wp c Q)] *)
-      apply IHc1.
-      intros st st' Exec1 HP s Exec2.
-      eapply HT.
-      * econstructor; eassumption.
-      * assumption.
-    + (* Show: [valid (wp c Q) c Q] *)
-      apply IHc2.
-      apply wp_is_precondition.
-  - apply H_If. (* You don't need a weakest precondition here *)
-    + apply IHc1.
-      intros st st' Exec1 [HP Hb].
-      eapply HT.
-      * apply E_IfTrue; eassumption.
-      * assumption.
-    + apply IHc2.
-      intros st st' Exec2 [HP Hb].
-      eapply HT.
-      * apply E_IfFalse;
-        eauto using Bool.not_true_is_false.
-      * assumption.
+    try apply H_Asgn;
+    eauto.
+  - apply wp_seq; eauto.
+  - apply H_If;
+    [apply IHc1 | apply IHc2];
+    intros st st' Exec1 [HP Hb];
+    eapply HT;
+    eauto using Bool.not_true_is_false.
   - eapply H_Consequence with
-      (P' := wp <{ while b do c end }> Q)
-      (Q' := (wp <{ while b do c end }> Q /\ ~b)%assertion).
+      (P' := wp <{ while b do c end }> Q).
     + apply H_While. apply IHc. apply wp_invariant.
     + (* P ->> wp <{while}> Q *)
-      intros st HP s ExecW.
-      eapply HT; eassumption. 
-    + (* wp <{while}> Q -> Q *)
+      eauto.
+    + (* wp <{while}> Q ->> Q *)
       intros st [Hwp Hb].
       eapply Hwp.
-      apply E_WhileFalse.
       auto using Bool.not_true_is_false.
 Qed.
 

@@ -313,7 +313,7 @@ Qed.
     the derivable ones?  This is a standard question investigated in
     mathematical logic.  There are two pieces to answering it:
 
-    - A logic is _sound_ if everything that is derivable is valid.
+    - A logic is _sound_ if everything that is derivable is valid. (* = it is impossible to derive silly statements *)
 
     - A logic is _complete_ if everything that is valid is derivable.
 
@@ -328,10 +328,20 @@ Qed.
     theorems [hoare_skip], [hoare_asgn], etc.; leverage those
     proofs. Proceed by induction on the derivation of the triple. *)
 
+(* 3:49 min *)
 Theorem hoare_sound : forall P c Q,
   derivable P c Q -> valid P c Q.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros P c Q D.
+  induction D. (* What was the last rule used to derive this? *)
+  - apply hoare_skip.
+  - apply hoare_asgn.
+  - eapply hoare_seq; eassumption.
+  - apply hoare_if; assumption.
+  - apply hoare_while; assumption.
+  - eapply hoare_consequence; eassumption.
+Qed.
+
 (** [] *)
 
 (** The proof of completeness is more challenging.  To carry out the
@@ -348,6 +358,8 @@ Proof.
 
 Definition wp (c:com) (Q:Assertion) : Assertion :=
   fun s => forall s', s =[ c ]=> s' -> Q s'.
+  (* captures as many states as possible by stating the bare minimum 
+     requirements and without the fuss of stronger preconditions *)
 
 Hint Unfold wp : core.
 
@@ -356,12 +368,17 @@ Hint Unfold wp : core.
 
 Theorem wp_is_precondition : forall c Q,
   {{wp c Q}} c {{Q}}.
-Proof. auto. Qed.
+Proof.
+  (* intros s Q st st' Heval Hwp. apply Hwp. apply Heval. *)
+  auto. Qed.
 
 Theorem wp_is_weakest : forall c Q P',
     {{P'}} c {{Q}} ->
     P' ->> (wp c Q).
-Proof. eauto. Qed.
+Proof. 
+  (* intros. intros st HP s Heval.
+  eapply H. apply Heval. apply HP. *)
+  eauto. Qed.
 
 (** Weakest preconditions are useful because they enable us to
     identify assertions that otherwise would require clever thinking.
@@ -373,10 +390,10 @@ Proof. eauto. Qed.
     what should hold in between [c1] and [c2]?  No problem.  Prove that [wp c2 Q]
     suffices as such an assertion. *)
 
+(* 2:19 min *)
 Lemma wp_seq : forall P Q c1 c2,
     derivable P c1 (wp c2 Q) -> derivable (wp c2 Q) c2 Q -> derivable P <{c1; c2}> Q.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. econstructor; eassumption. Qed.
 
 (** [] *)
 
@@ -386,10 +403,14 @@ Proof.
     problem.  Prove that for any [Q], assertion [wp (while b do c end)
     Q] is a loop invariant of [while b do c end]. *)
 
+(* 6:53 min *)
 Lemma wp_invariant : forall b c Q,
     valid (wp <{while b do c end}> Q /\ b) c (wp <{while b do c end}> Q).
+    (* paraphrase: executing [c] starting from the wp of the while loop and [b]
+       guarantees that [wp] still holds afterwards *)
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros b c Q st st' ExeBody [Hpre Hb] s ExeWhile.
+  apply Hpre. econstructor; eassumption. Qed.
 
 (** [] *)
 
@@ -406,13 +427,67 @@ Proof.
       {https://www.ps.uni-saarland.de/courses/sem-ws11/script/Hoare.html}
 *)
 
+(* 19:06 min + 6:29 min + 28:06 min for if (full retardation) + 29:41 min for while *)
 Theorem hoare_complete: forall P c Q,
   valid P c Q -> derivable P c Q.
 Proof.
   unfold valid. intros P c. generalize dependent P.
   induction c; intros P Q HT.
-  (* FILL IN HERE *) Admitted.
+  - eapply H_Consequence_post;
+    try apply H_Skip.
+    intros st HP.
+    apply (HT st st).
+    + constructor.
+    + assumption.
+  - eapply H_Consequence_pre;
+    try apply H_Asgn.
+    intros st HP.
+    eapply HT.
+    + constructor; reflexivity.
+    + assumption.
+  - apply wp_seq.
+    + (* Show: [valid P c1 (wp c Q)] *)
+      apply IHc1.
+      intros st st' Exec1 HP s Exec2.
+      eapply HT.
+      * econstructor; eassumption.
+      * assumption.
+    + (* Show: [valid (wp c Q) c Q] *)
+      apply IHc2.
+      apply wp_is_precondition.
+  - apply H_If. (* You don't need a weakest precondition here *)
+    + apply IHc1.
+      intros st st' Exec1 [HP Hb].
+      eapply HT.
+      * apply E_IfTrue; eassumption.
+      * assumption.
+    + apply IHc2.
+      intros st st' Exec2 [HP Hb].
+      eapply HT.
+      * apply E_IfFalse;
+        eauto using Bool.not_true_is_false.
+      * assumption.
+  - eapply H_Consequence with
+      (P' := wp <{ while b do c end }> Q)
+      (Q' := (wp <{ while b do c end }> Q /\ ~b)%assertion).
+    + apply H_While. apply IHc. apply wp_invariant.
+    + (* P ->> wp <{while}> Q *)
+      intros st HP s ExecW.
+      eapply HT; eassumption. 
+    + (* wp <{while}> Q -> Q *)
+      intros st [Hwp Hb].
+      eapply Hwp.
+      apply E_WhileFalse.
+      auto using Bool.not_true_is_false.
+Qed.
 
+    (* apply H_Consequence_pre with (P' := wp <{if b then c1 else c2 end}> Q);
+    try apply H_If.
+    + apply IHc1.
+      intros st st' Exec1 [Hpre Hb].
+      eapply HT.
+      * apply E_IfTrue; eassumption.
+      * stuck *)
 (** [] *)
 
 

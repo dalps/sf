@@ -2084,6 +2084,7 @@ Qed.
     the rest of the formal development leading up to the
     [verification_correct] theorem. *)
 
+Check hoare_if.
 Module DComImproved.
 
 (** Ideal decorations:
@@ -2114,7 +2115,7 @@ Inductive dcom : Type :=
 | DCAsgn (X : string) (a : aexp)
   (* X := a *)
 | DCIf (b : bexp) (d1 : dcom) (d2 : dcom)
-  (* if b then {{ P1 }} d1 else {{ P2 }} d2 end {{ Q }} *)
+  (* if b then d1 else d2 end *)
 | DCWhile (I : Assertion) (b : bexp) (d : dcom)
   (* {{ I }} while b do d end *)
 | DCPre (P : Assertion) (d : dcom)
@@ -2170,10 +2171,13 @@ Example dcom_test1 : dcom :=
     end ->> {{ True }} ->> {{ X = 5 }}
   }>.
 
-(* Notes on how to proceed: so, you've broken the old invariant of [dcom]s: no costructor has preconditions; every constructor has a postcondition. Not sure if I should keep both DCPre and DCPost. The arrows look really out of place. Decorated should probably only have one assertion argument, the precondition, the other assertion to complete the triple should be provided with a DCPost.
+Print dcom_test1.
 
-  Or just move on in the exercise ignoring notation, you're not making progress.
-*)
+Example dcom_test2 : decorated :=
+  Decorated
+    True%assertion
+    <{ X := X + 5 }>
+    (X = 5)%assertion.
 
 Print dcom_test1.
 
@@ -2204,6 +2208,9 @@ Definition postcondition_from (dec : decorated) : Assertion :=
   | Decorated _ _ Q => Q
   end.
 
+Definition outer_triple_valid (dec : decorated) :=
+  valid_hoare_triple (precondition_from dec) (erase_d dec) (postcondition_from dec).
+
 (* Definition outer_triple_valid (dec : decorated) :=
   {{precondition_from dec}} erase_d dec {{postcondition_from dec}}. *)
 
@@ -2212,6 +2219,132 @@ Definition postcondition_from (dec : decorated) : Assertion :=
     I ought to to learn about notation before tackling this exercise: 
     https://coq.inria.fr/doc/V8.18.0/refman/user-extensions/syntax-extensions.html
 *)
+
+(** Takes a decorated command [d], a precondition [P] and a 
+    postcondition [Q] and returns a proposition that, if it can
+    be proved, implies that the triple {{P}} erase d {{Q}} is valid. *)
+
+Fixpoint fetch_pre (d : dcom) (Q : Assertion) : Assertion :=
+  match d with
+  | DCSkip => Q
+  | DCAsgn X a => Q [X |-> a]
+  | DCSeq d1 d2 => fetch_pre d1 (fetch_pre d2 Q)
+  | DCIf b d1 d2 => (fetch_pre d1 Q \/ fetch_pre d2 Q)%assertion
+  | DCWhile R _ _ => R
+  | DCPre P d => fetch_pre d P ->> P
+  | DCPost d Q' => (Q' ->> Q /\ fetch_pre d Q') 
+  end.
+
+Lemma fetch_pre_correct : forall d Q,
+  valid_hoare_triple (fetch_pre d Q) (erase d) Q.
+Proof.
+  induction d; intros; simpl.
+  - apply hoare_skip.
+  - eapply hoare_seq; eauto.
+  - apply hoare_asgn.
+  - admit. (* ??? *)
+  - (* no guarantee user's invariant is correct *)
+Abort.
+
+(* Do I need weakest preconditions? *)
+
+Fixpoint verification_conditions (P : Assertion) (d : dcom) (Q : Assertion) : Prop :=
+  match d with
+  | DCSkip =>
+      (P ->> Q)
+  | DCAsgn X a =>
+      (P ->> Q [X |-> a])
+  | DCSeq d1 d2 =>
+    match d2 with
+    | DCAsgn X a =>
+        verification_conditions P d1 (Q [X |-> a])
+    | _ =>
+      exists R, (* maybe a terrible idea: can [eexist] do it? *)
+        verification_conditions R d2 Q
+        /\ verification_conditions P d1 R
+    end
+  | DCIf b d1 d2 =>
+      verification_conditions (P /\ b)%assertion d1 Q
+      /\ verification_conditions (P /\ ~b)%assertion d2 Q
+  | DCWhile R b d =>
+      (P ->> R)
+      /\ ((R /\ b) ->> R)%assertion
+      /\ ((R /\ ~b) ->> Q)%assertion
+      /\ verification_conditions R d R (* haven't thought this through... *)
+  | DCPre P' d =>
+      (P ->> P')
+      /\ verification_conditions P' d Q
+  | DCPost d Q' =>
+      verification_conditions P d Q'
+      /\ (Q' ->> Q)
+  end.
+
+Theorem verification_correct : forall d P Q,
+  verification_conditions P d Q -> valid_hoare_triple P (erase d) Q.
+Proof.
+  induction d; intros; simpl in *.
+  - eapply hoare_consequence_pre.
+    + apply hoare_skip.
+    + assumption.
+  - destruct d2 eqn:Ed2;
+    try (destruct H as [R [H2 H1]];
+    eapply hoare_seq;
+    [ apply IHd2; apply H2
+    | apply IHd1; apply H1 ]).
+    eapply hoare_seq.
+    + apply hoare_asgn.
+    + auto. 
+  - eapply hoare_consequence_pre.
+    + apply hoare_asgn.
+    + assumption.
+  - destruct H as [HThen HElse].
+    apply IHd1 in HThen.
+    apply IHd2 in HElse.
+    apply hoare_if; assumption.
+  - destruct H as [Hpre [Hbody [Hpost Hd]]].
+    eapply hoare_consequence with (P' := I); eauto.
+    apply hoare_while.
+    eapply hoare_consequence_pre.
+    + apply IHd. apply Hd.
+    + apply Hbody. 
+  - destruct H as [HP Hd].
+    eapply hoare_consequence_pre; eauto.
+  - destruct H as [Hd HQ].
+    eapply hoare_consequence_post; eauto.
+Qed.
+
+Ltac verify :=
+  intros; (* there may be quantified variables *)
+  apply verification_correct;
+  verify_assertion.
+
+Example swap_dec (m n : nat) :=
+  Decorated
+    (X = m /\ Y = n)%assertion
+    <{
+      X := X + Y;
+      Y := X - Y;
+      X := X - Y
+    }>
+    (X = n /\ Y = m)%assertion.
+
+Compute fetch_pre
+    <{
+      X := X + Y;
+      Y := X - Y;
+      X := X - Y
+    }>
+    (X = 1 /\ Y = 2)%assertion.
+
+Theorem swap_correct : forall m n,
+  outer_triple_valid (swap_dec m n).
+Proof.
+  intros.
+  unfold swap_dec.
+  apply verification_correct; simpl.
+  eexists. split.
+  - eexists.
+Abort.
 
 End DComImproved.
 

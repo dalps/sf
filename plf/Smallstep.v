@@ -134,13 +134,17 @@ Module SimpleArith1.
                      P (C n1) (C n2) --> C (n1 + n2)
 
                               t1 --> t1'
-                         --------------------                        (ST_Plus1)
+                         --------------------                        (ST_Plus1) (* takes a step in the left subexpression *)
                          P t1 t2 --> P t1' t2
 
                               t2 --> t2'
-                      ----------------------------                   (ST_Plus2)
+                      ----------------------------                   (ST_Plus2) (* when left subexpression is fully reduced, takes a step in the right subexpression *)
                       P (C n1) t2 --> P (C n1) t2'
 *)
+
+(* note: look at it in a different way now. The rule [ST_PlusConstConst] does 
+   the heavy lifting, rewrinting [P] nodes in place. The other two rules merely
+   look for [P] nodes that are ready "to go". *)
 
 Reserved Notation " t '-->' t' " (at level 40).
 
@@ -148,8 +152,8 @@ Inductive step : tm -> tm -> Prop :=
   | ST_PlusConstConst : forall n1 n2,
       P (C n1) (C n2) --> C (n1 + n2)
   | ST_Plus1 : forall t1 t1' t2,
-      t1 --> t1' ->
-      P t1 t2 --> P t1' t2
+      t1 --> t1' ->             (* if [t1] can take a step to [t1'], *)
+      P t1 t2 --> P t1' t2      (* then [P t1 t2] can take a step to [P t1' t2] *)
   | ST_Plus2 : forall n1 t2 t2',
       t2 --> t2' ->
       P (C n1) t2 --> P (C n1) t2'
@@ -166,7 +170,7 @@ Inductive step : tm -> tm -> Prop :=
       place.  The first rule tells how to rewrite this [P] node
       itself; the other two rules tell how to find it.
 
-    - A term that is just a constant cannot take a step. *)
+    - A term that is just a constant cannot take a step. *) (* -> no rules for constants! *)
 
 (** Let's pause and check a couple of examples of reasoning with
     the [step] relation... *)
@@ -191,6 +195,7 @@ Proof.
     left-hand side is finished: if [t2] can take a step to [t2'],
     then [P (C n) t2] steps to [P (C n) t2']: *)
 
+(* ~1 min *)
 Example test_step_2 :
       P
         (C 0)
@@ -204,7 +209,7 @@ Example test_step_2 :
           (C 2)
           (C 4)).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  apply ST_Plus2. apply ST_Plus2. apply ST_PlusConstConst.  Qed.
 (** [] *)
 
 End SimpleArith1.
@@ -312,6 +317,8 @@ Ltac solve_by_inverts n :=
       inversion H;
       match n with S (S (?n')) => subst; solve_by_inverts (S n') end ]
   end end.
+(* remember: the Ltac's [match] construct need not be exhaustive and
+   continues in the other cases if one fails. *)
 
 (** The details of how this works are not important for now, but it
     illustrates the power of Coq's [Ltac] language for
@@ -444,7 +451,9 @@ Inductive step : tm -> tm -> Prop :=
     - If both are [ST_PlusConstConst], the result is immediate.
 
     - The cases when both derivations end with [ST_Plus1] or
-      [ST_Plus2] follow by the induction hypothesis.
+      [ST_Plus2] follow by the induction hypothesis. (* note: the inductive
+      hypotheses say that, so far, the left (ST_Plus1) and right (ST_Plus2)
+      subexpression had been derived using the same rules *)
 
     - It cannot happen that one is [ST_PlusConstConst] and the other
       is [ST_Plus1] or [ST_Plus2], since this would imply that [x] has
@@ -462,10 +471,41 @@ Inductive step : tm -> tm -> Prop :=
     formal version from scratch and just use the earlier one if you
     get stuck. *)
 
+(* 10:38 min *)
 Theorem step_deterministic :
   deterministic step.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold deterministic. intros x y1 y2 Hy1.
+  generalize dependent y2.
+  induction Hy1; intros y2 Hy2.
+  (* What is the last rule in [Hy1]'s derivation? *)
+  - (* ST_PlusConstConst *) inversion Hy2; subst.
+    + reflexivity.
+    + inversion H2.
+    + inversion H3.
+  - (* ST_Plus1 *) inversion Hy2; subst.
+    + inversion Hy1.
+    + apply IHHy1 in H2; subst. reflexivity.
+    + solve_by_inverts 2.
+  - (* ST_Plus 2 *) inversion Hy2; subst.
+    + inversion Hy1.
+    + solve_by_inverts 2.
+    + apply IHHy1 in H4; subst. reflexivity.
+Qed.
+
+(* 2:31 min *)
+Theorem step_deterministic' :
+  deterministic step.
+Proof.
+  intros x y1 y2 Hy1.
+  generalize dependent y2.
+  induction Hy1; intros y2 Hy2;
+  inversion Hy2; subst;
+  try solve_by_inverts 2;
+  [ | apply IHHy1 in H2; subst
+    | apply IHHy1 in H4; subst ]; reflexivity.
+Qed.
+
 (** [] *)
 
 (* ================================================================= *)
@@ -548,6 +588,9 @@ Definition normal_form {X : Type}
     necessarily, in general), normal forms and values are actually the
     same thing. *)
 
+(* note: in the realm of [tm], [value] and [normal_form step] characterize the
+   same set of expressions *)
+
 Lemma value_is_nf : forall v,
   value v -> normal_form step v.
 Proof.
@@ -615,10 +658,21 @@ Inductive step : tm -> tm -> Prop :=
 
   where " t '-->' t' " := (step t t').
 
+Lemma not_not : forall P, P -> ~ ~ P.
+Proof. intuition. Qed.
+
+(* 9:38 min *)
 Lemma value_not_same_as_normal_form :
   exists v, value v /\ ~ normal_form step v.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  exists (P (C 42) (C 1)). split.
+  - apply v_funny.
+  - unfold normal_form.
+    (* There _does_ exist a term [t'] which [v] rewrites to! *)
+    apply not_not.
+    exists (C 43). constructor.
+Qed.
+
 End Temp1.
 
 (** [] *)
@@ -650,10 +704,18 @@ Inductive step : tm -> tm -> Prop :=
 
   where " t '-->' t' " := (step t t').
 
+Lemma not_not : forall P, P -> ~ ~ P.
+Proof. intuition. Qed.
+
+(* 7:37 min - most of it spent looking for [not_not] in the Standard library *)
 Lemma value_not_same_as_normal_form :
   exists v, value v /\ ~ normal_form step v.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  exists (C 42). split.
+  - constructor.
+  - apply not_not.
+    eexists; econstructor.
+Qed.
 
 End Temp2.
 (** [] *)
@@ -680,15 +742,23 @@ Inductive step : tm -> tm -> Prop :=
   | ST_Plus1 : forall t1 t1' t2,
       t1 --> t1' ->
       P t1 t2 --> P t1' t2
+(* note: We're now cutting the search for "ready to go" nodes 
+   in the right term of [P] nodes *)
 
   where " t '-->' t' " := (step t t').
 
 (** (Note that [ST_Plus2] is missing.) *)
 
+(* 6:24 + 3:13 min *)
 Lemma value_not_same_as_normal_form :
   exists t, ~ value t /\ normal_form step t.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  exists (P (C 42) (P (C 1) (C 3))). split.
+  - intro. solve_by_invert.
+  - unfold normal_form.
+    intro contra. destruct contra as [t'].
+    solve_by_inverts 2.
+Qed.
 
 End Temp3.
 (** [] *)
@@ -730,10 +800,14 @@ Inductive step : tm -> tm -> Prop :=
     thought exercise, but for an extra challenge feel free to prove
     your answers in Coq.) *)
 
+(* 7:50 min *)
+
 Definition bool_step_prop1 :=
   fls --> fls.
 
-(* FILL IN HERE *)
+Example bool_step_prop1_false : ~ bool_step_prop1.
+Proof.
+  unfold bool_step_prop1. intro. solve_by_invert.  Qed.
 
 Definition bool_step_prop2 :=
      test
@@ -743,7 +817,9 @@ Definition bool_step_prop2 :=
   -->
      tru.
 
-(* FILL IN HERE *)
+Example bool_step_prop2_false : ~ bool_step_prop2.
+Proof.
+  unfold bool_step_prop2. intro. solve_by_invert 2.  Qed.
 
 Definition bool_step_prop3 :=
      test
@@ -756,7 +832,9 @@ Definition bool_step_prop3 :=
        (test tru tru tru)
        fls.
 
-(* FILL IN HERE *)
+Example bool_step_prop3_true : bool_step_prop3.
+Proof.
+  unfold bool_step_prop3. apply ST_If. apply ST_IfTrue.  Qed.
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_smallstep_bools : option (nat*string) := None.
@@ -767,16 +845,42 @@ Definition manual_grade_for_smallstep_bools : option (nat*string) := None.
     Just as we proved a progress theorem for plus expressions, we can
     do so for boolean expressions as well. *)
 
+(* 11:30 min *)
 Theorem strong_progress_bool : forall t,
   value t \/ (exists t', t --> t').
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros t. induction t; try (left; constructor).
+  right. destruct IHt1 as [v1 | [t1']].
+  - (* t1 = v1 *)
+    inversion v1; eexists; econstructor.
+  - (* t1 --> t1' *)
+    eexists; econstructor; eauto.
+Qed.
+
+    (* Always think before doing.
+    destruct IHt2 as [v2 | t2'].
+    + (* t2 = v2 *)
+      destruct IHt3 as [v3 | t3'].
+      * (* t3 = v3 *) inversion v1.
+      
+      * (* t3 --> t3' *)
+    + (* t2 --> t2' *) *)
+
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (step_deterministic) *)
+
+(* 6:02 min *)
 Theorem step_deterministic : deterministic step.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros x y1 y2 Hy1. generalize dependent y2.
+  induction Hy1; intros y2 Hy2;
+  try (inversion Hy2; subst; try solve_by_invert; reflexivity).
+  - (* ST_If *)
+    inversion Hy2; subst; try solve_by_invert.
+    apply IHHy1 in H3; subst; reflexivity.
+Qed.
+
 (** [] *)
 
 Module Temp5.
@@ -802,6 +906,7 @@ Module Temp5.
 (** Write an extra clause for the step relation that achieves this
     effect and prove [bool_step_prop4]. *)
 
+(* 4:33 min *)
 Reserved Notation " t '-->' t' " (at level 40).
 
 Inductive step : tm -> tm -> Prop :=
@@ -812,7 +917,9 @@ Inductive step : tm -> tm -> Prop :=
   | ST_If : forall t1 t1' t2 t3,
       t1 --> t1' ->
       test t1 t2 t3 --> test t1' t2 t3
-  (* FILL IN HERE *)
+  | ST_ShortCut : forall t1 v,
+      value v ->
+      test t1 v v --> v
 
   where " t '-->' t' " := (step t t').
 
@@ -827,7 +934,7 @@ Definition bool_step_prop4 :=
 Example bool_step_prop4_holds :
   bool_step_prop4.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  apply ST_ShortCut. apply v_fls.  Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard, optional (properties_of_altered_step)
@@ -843,20 +950,54 @@ Proof.
 
       Optional: prove your answer correct in Coq. *)
 
-(* FILL IN HERE
+(* 12:09 min *)
+Theorem step_shortcut_nondeterministic :
+  ~ deterministic step.
+Proof.
+  unfold deterministic. intro contra.
+  assert (H2 : (test (test tru tru tru) fls fls) --> fls)
+    by (apply ST_ShortCut; constructor).
+  apply contra with (y1 := test tru fls fls) in H2;
+    try (apply ST_If; apply ST_IfTrue).
+  inversion H2.
+Qed.
+  
+(*    No! For example, the term [test (test tru tru tru) fls fls] can
+      evaluate to:
+      -- [test tru fls fls] (by [ST_If])
+      -- [fls] (by [ST_ShortCut])
+      which are clearly distinct terms. (8 min)
+
+
    - Does a strong progress theorem hold? Write yes or no and
      briefly (1 sentence) explain your answer.
 
      Optional: prove your answer correct in Coq.
 *)
 
-(* FILL IN HERE
+Theorem stronk_progress_shortcircuit : forall t,
+  value t \/ (exists t', t --> t').
+Proof.
+  induction t;
+  try (left; constructor).
+  right. destruct IHt1 as [v1 | [t1']].
+  - inversion v1; eexists; econstructor.
+  - eexists. apply ST_If. eassumption. (* Just make progress with old rules *)
+Qed.
+
+(*    Yes, strong progress holds because the terms [ST_ShortCut] produces
+      just values. All of the other terms that are not values are 
+      produced by the three other rules, on which we already proved
+      strong progress. (3:26 min)
+
    - In general, is there any way we could cause strong progress to
      fail if we took away one or more constructors from the original
      step relation? Write yes or no and briefly (1 sentence) explain
      your answer.
 
-(* FILL IN HERE *)
+(*    Yes. If we removed [ST_If] in the shortcircuited relation, the term
+      [test (test tru fls fls) tru fls] would get stuck, as there's no way
+      to reduce the guard. *)
 *)
 (* Do not modify the following line: *)
 Definition manual_grade_for_properties_of_altered_step : option (nat*string) := None.

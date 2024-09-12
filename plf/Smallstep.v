@@ -1097,7 +1097,7 @@ Proof.
   induction G.
     - (* multi_refl *) assumption.
     - (* multi_step *)
-      apply multi_step with y.
+      apply multi_step with y. (* Not the same [y] as before doing induction! The old [y] is not called [z0] *)
       + assumption.
       + apply IHG. assumption.
 Qed.
@@ -1153,7 +1153,7 @@ Qed.
 Lemma test_multistep_2:
   C 3 -->* C 3.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  apply multi_refl.  Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (test_multistep_3) *)
@@ -1162,7 +1162,7 @@ Lemma test_multistep_3:
    -->*
       P (C 0) (C 3).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  apply multi_refl.  Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard (test_multistep_4) *)
@@ -1177,7 +1177,16 @@ Lemma test_multistep_4:
         (C 0)
         (C (2 + (0 + 3))).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  eapply multi_step. {  apply ST_Plus2.
+                        - apply v_const.
+                        - apply ST_Plus2.
+                          + apply v_const.
+                          + apply ST_PlusConstConst. } (* remember: a single step _always_ finds and rewrites a ready-to-go node. The finding part may require more than one applicaitons of [ST_Plus1] and [ST_Plu2] before the premises of [ST_PlusConstConst] are met, as this example shows. *)
+  eapply multi_step. {  apply ST_Plus2; try apply v_const.
+                        apply ST_PlusConstConst. }
+  apply multi_refl.
+Qed.
+
 (** [] *)
 
 (* ================================================================= *)
@@ -1188,7 +1197,7 @@ Proof.
 
 Definition step_normal_form := normal_form step.
 
-Definition normal_form_of (t t' : tm) :=
+Definition normal_form_of (t t' : tm) := (* This defines a binary relation on terms! *)
   (t -->* t' /\ step_normal_form t').
 
 (** We have already seen that, for our language, single-step
@@ -1199,7 +1208,18 @@ Definition normal_form_of (t t' : tm) :=
     In other words, we can actually pronounce [normal_form t t'] as
     "[t'] is _the_ normal form of [t]." *)
 
+(* thought: there are non-deterministic step relations that allow unique 
+   normal forms, as you saw in the [smallstep_bool_shortcut] exercise: 
+   the branching executions eventually converge to the same value.
+   (Prove this as an exercise!)
+   
+   However, non-determinism in not a sufficient condition for normal forms: 
+   consider the case of a (silly, unsound?) step relation where branching
+   executions may end up in different values. *)
+
 (** **** Exercise: 3 stars, standard, optional (normal_forms_unique) *)
+
+(* 41:32 min *)
 Theorem normal_forms_unique:
   deterministic normal_form_of.
 Proof.
@@ -1208,7 +1228,22 @@ Proof.
   intros x y1 y2 P1 P2.
   destruct P1 as [P11 P12].
   destruct P2 as [P21 P22].
-  (* FILL IN HERE *) Admitted.
+  unfold step_normal_form, normal_form in *.
+  induction P11 as [| x x1 y1 ].
+  (* Show [y1] and [y2] have been derived the same way. *)
+  - (* P11 : multi_refl *)
+    inversion P21; subst; try reflexivity.
+      (* P21 : multi_step *)
+      unfold not in P12. exfalso. apply P12. eexists. apply H.
+  - (* P11 : multi_step *)
+    inversion P21 as [| x' x2 y2']; subst.
+    + (* P21 : multi_refl *)
+      unfold not in P22. exfalso. apply P22. eexists. apply H.
+    + (* P21 : multi_step *)
+      assert (Eq : x1 = x2) by (apply (step_deterministic x x1 x2 H H0)). 
+      subst; apply IHP11; assumption.
+Qed.
+
 (** [] *)
 
 (** Indeed, something stronger is true for this language (though
@@ -1241,12 +1276,20 @@ Proof.
 Qed.
 
 (** **** Exercise: 2 stars, standard (multistep_congr_2) *)
+
+(* 2:42 min *)
 Lemma multistep_congr_2 : forall v1 t2 t2',
      value v1 ->
      t2 -->* t2' ->
      P v1 t2 -->* P v1 t2'.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros v1 t2 t2' Hv1 H. induction H.
+  - (* multi_refl *) apply multi_refl.
+  - (* multi_step *) apply multi_step with (P v1 y).
+    + apply ST_Plus2; assumption.
+    + apply IHmulti.
+Qed.
+
 (** [] *)
 
 (** With these lemmas in hand, the main proof is a straightforward
@@ -1356,15 +1399,76 @@ Theorem eval__multistep : forall t n,
     properties of [-->*]: that it is reflexive, transitive, and
     includes [-->]. *)
 
+Print "==>".
+
+(* 26:19 min (including sketching proof on notebook) *)
 Proof.
-  (* FILL IN HERE *) Admitted.
+  induction t as [n' |]; intros n HBig;
+  inversion HBig; subst.
+  - (* C *)
+     apply multi_refl.
+  - (* P *)
+    eapply multi_trans.
+    + eapply multistep_congr_1. apply IHt1. eassumption.
+    + eapply multi_trans.
+      * eapply multistep_congr_2. { constructor. }
+        apply IHt2. eassumption.
+      * apply multi_R. constructor.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 3 stars, advanced (eval__multistep_inf)
 
     Write a detailed informal version of the proof of [eval__multistep].
 
-(* FILL IN HERE *)
+    _Theorem_: For all terms [t] and naturals [n],
+      if [t ==> n] then [t -->* C n].
+
+    _Proof_: by induction on [t], keeping [n] quantified.
+    [t] can have two forms to consider:
+
+    * [t = C n'] for some other [n']. We must show that [C n' -->* C n].
+      Observe that the hypothesis [C n' ==> n] must have been derived 
+      with the [E_Const] rule of [==>], so [n' = n]. Then [C n'] can
+      be rewritten to [C n] in the goal, and [C n -->* C n] easily follows
+      by reflexivity of [-->*].
+    
+    * [t = P t1 t2] for some terms [t1] and [t2]. Our assumption about the
+      big-step relation now reads [P t1 t2 ==> n].
+      
+      The inductive hypothesis for [t1] states that, for any [n], if we
+      can prove [t1 ==> n] then [t1 -->* C n] holds. The IH of [t2] is 
+      identical.
+
+      Observe that there's only one way [P t1 t2 ==> n] could have been 
+      obtained, and that is by applying the [E_Plus] rule. 
+      Reasoning with this rule gives us two natural numbers [n1] and [n2] 
+      whose sum is [n], each one being the result of the evaluation of [t1]
+      and [t2], respectively.
+
+      Now it remains to show that [P t1 t2 -->* C (n1 + n2)]. For this,
+      we follow the pattern of small-step evaluation highlighted earlier.
+
+      Proceed by splitting this computation using [multi_trans] 
+      with [P (C n1) t2] as the intermediate term. We're left to prove:
+
+      - [P t1 t2 -->* P (C n1) t2]. We can reconstruct this computations by
+        congruence with [multi_congr_1] and the IH about [t1].
+
+      - [P (C n1) t2 -->* C (n1 + n2)].
+        Let us split this computation again to more familiar forms, using 
+        [multi_trans] with [P (C n1) (C n2)] as the middleman. Now we have 
+        to show:
+        
+        + [P (C n1) t2 -->* P (C n1) (C n2)]. We can reconstruct this
+          computation like we did before by congruence with [multi_congr_2]
+          and the IH about [t2].
+
+        + [P (C n1) (C n2) -->* C (n1 + n2)]. It is easy to see that this is
+          a [-->] derivation by the rule [ST_PlusConstConst]. The [-->*] 
+          derivation is immediate by [multi_R].
+                                                                          []
 *)
 
 (* Do not modify the following line: *)
@@ -1374,14 +1478,25 @@ Definition manual_grade_for_eval__multistep_inf : option (nat*string) := None.
 (** For the other direction, we need one lemma, which establishes a
     relation between single-step reduction and big-step evaluation. *)
 
+Print "-->".
+Check step_ind.
+
 (** **** Exercise: 3 stars, standard (step__eval) *)
+
+(* 24:12 min - wasted time making proof sketch pretty and readable *)
 Lemma step__eval : forall t t' n,
      t --> t' ->
      t' ==> n ->
      t  ==> n.
 Proof.
   intros t t' n Hs. generalize dependent n.
-  (* FILL IN HERE *) Admitted.
+  induction Hs; intros n Hb; inversion Hb; subst;
+  [ apply E_Plus; apply E_Const
+  | apply IHHs in H1 
+  | apply IHHs in H4 ];
+  apply E_Plus; assumption.
+Qed.
+
 (** [] *)
 
 (** The fact that small-step reduction implies big-step evaluation is now
@@ -1394,10 +1509,23 @@ Proof.
     work on the proof.  *)
 
 (** **** Exercise: 3 stars, standard (multistep__eval) *)
+
+(* 22:47 min *)
 Theorem multistep__eval : forall t t',
   normal_form_of t t' -> exists n, t' = C n /\ t ==> n.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros t t'.
+  unfold normal_form_of, step_normal_form, normal_form.
+  intros [Hs Hnf].
+  induction Hs as [| t s t'].
+  - (* multi_refl *) apply nf_same_as_value in Hnf. inversion Hnf; subst.
+    exists n. split; [ reflexivity | constructor ].
+  - (* multi_step *) apply IHHs in Hnf. destruct Hnf as [n [HC Hb]].
+    exists n. split.
+    + assumption.
+    + eapply step__eval; eassumption.
+Qed.
+
 (** [] *)
 
 (* ================================================================= *)

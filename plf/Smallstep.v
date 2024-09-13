@@ -1711,6 +1711,25 @@ Inductive aval : aexp -> Prop :=
     below (why?), though they might be if our language were a bit
     more complicated (why?). *)
 
+(*  42:19 min (I have crippling slow-mindedness)
+
+    (1st why): booleans are easy to enumerate, we can just write them literally.
+      Also we need to specific about the boolean we want to define the 
+      semantics of conjunction and negation expressions, as opposed to the 
+      semantics of numeric operations, where we can keep the values generic.
+      There's no use in assuming [bval b1] in the rule [BS_NotTrue], for
+      example (how would you "negate" b1 syntactically?).
+        
+      ~~But the actual reason is that booleans are needed only in the definition
+      of the semantics of [bexp]. Using [aval] to add value constraints in the
+      semantics of either [bexp] and [aexp] would allow to evaluate unsound
+      expressions that would normally get stuck, such as [<{ true + 1 }>].~~
+
+    (2nd why): the sole purpose of booleans in [Imp] is to control the flow of
+      loops and conditionals, and they don't participate in the state.
+      If we were to allow boolean variables in the state, then having boolean
+      values is a must. *)
+
 Reserved Notation " a '/' st '-->a' a' "
                   (at level 40, st at level 39).
 Inductive astep (st : state) : aexp -> aexp -> Prop :=
@@ -1779,9 +1798,9 @@ Inductive bstep (st : state) : bexp -> bexp -> Prop :=
     <{ b1 && b2 }> / st -->b <{ b1' && b2 }>
 | BS_AndTrueStep : forall b2 b2',
     b2 / st -->b b2' ->
-    <{ true && b2 }> / st -->b <{ true && b2' }>
+    <{ true && b2 }> / st -->b <{ true && b2' }> (* [b1] has reached [true], [b2] can take a step to [b2'] *)
 | BS_AndFalse : forall b2,
-    <{ false && b2 }> / st -->b <{ false }>
+    <{ false && b2 }> / st -->b <{ false }> (* [b1] has reached [false], shortcircuit *)
 | BS_AndTrueTrue  : <{ true && true  }> / st -->b <{ true }>
 | BS_AndTrueFalse : <{ true && false }> / st -->b <{ false }>
 
@@ -1807,21 +1826,22 @@ where " b '/' st '-->b' b' " := (bstep st b b').
 (** (There are other ways of achieving the effect of the latter
     trick, but they all share the feature that the original [while]
     command is stashed away somewhere while a single copy of the loop body is
-    being reduced.) *)
+    being reduced.) *) (* note: basically, you unfold the loop. *)
 
 Reserved Notation " t '/' st '-->' t' '/' st' "
                   (at level 40, st at level 39, t' at level 39).
-Inductive cstep : (com * state) -> (com * state) -> Prop :=
+Inductive cstep : (com * state) -> (com * state) -> Prop := (* Pay close attention to the type of the: a binary relation over the _pairs_ of commands and states.
+[ceval] was a relation between [com] and [state]. *)
   | CS_AsgnStep : forall st i a1 a1',
       a1 / st -->a a1' ->
-      <{ i := a1 }> / st --> <{ i := a1' }> / st
+      <{ i := a1 }> / st --> <{ i := a1' }> / st (* If [a1] can take a step to [a1'] in [st], then [i := a1] takes a step to [i := a1'] and [st] *)
   | CS_Asgn : forall st i (n : nat),
-      <{ i := n }> / st --> <{ skip }> / (i !-> n ; st)
+      <{ i := n }> / st --> <{ skip }> / (i !-> n ; st) (* [i := n] in [st] takes a step to [skip] in [(i !-> n ; st)] *)
   | CS_SeqStep : forall st c1 c1' st' c2,
       c1 / st --> c1' / st' ->
-      <{ c1 ; c2 }> / st --> <{ c1' ; c2 }> / st'
+      <{ c1 ; c2 }> / st --> <{ c1' ; c2 }> / st' (* If [c1] in [st] can take a step to the configuration [c1' / st'], then [c1 ; c2] in [st] takes a step to the configuration [<{c1 ; c2}> / st'] *)
   | CS_SeqFinish : forall st c2,
-      <{ skip ; c2 }> / st --> c2 / st
+      <{ skip ; c2 }> / st --> c2 / st (* [c1] has fully exhausted, move on to [c2] - without making progress in it *)
   | CS_IfStep : forall st b1 b1' c1 c2,
       b1 / st -->b b1' ->
       <{ if b1 then c1 else c2 end }> / st
@@ -1837,6 +1857,9 @@ Inductive cstep : (com * state) -> (com * state) -> Prop :=
       <{ if b1 then c1; while b1 do c1 end else skip end }> / st
 
   where " t '/' st '-->' t' '/' st' " := (cstep (t,st) (t',st')).
+
+(* [cstep] is deterministic: it never produces a situation where two distinct
+   rules apply. *)
 
 (* ################################################################# *)
 (** * Concurrent Imp *)
@@ -1858,6 +1881,15 @@ Inductive cstep : (com * state) -> (com * state) -> Prop :=
        end:
 
           X := 0; (X := X+2 || X := X+1 || X := 0)
+
+          (** note: all three subcommands are executed at some point.
+              * If [X := 0] happens to be the first,
+                [X] will certainly be set to 3. 
+              * If [X := 0] happens to be the last executed,
+                [X] will certainly be set to 0.
+              * If [X := 0] is the second in order of execution,
+                - [X] will get 1 if [X := 1] is scheduled last. 
+                - [X] will get 2 if [X := 2] is scheduled last. *)
 *)
 
 Module CImp.
@@ -1921,11 +1953,15 @@ Inductive cstep : (com * state)  -> (com * state) -> Prop :=
       <{ c1 || c2 }> / st --> <{ c1' || c2 }> / st'
   | CS_Par2 : forall st c1 c2 c2' st',
       c2 / st --> c2' / st' ->
-      <{ c1 || c2 }> / st --> <{ c1 || c2' }> / st'
+      <{ c1 || c2 }> / st --> <{ c1 || c2' }> / st' 
+    (* NB: contrary to the rules of sequencing, the reduction order of parallel
+       commands is unspecified (here lies them their expressive power!). *)
   | CS_ParDone : forall st,
       <{ skip || skip }> / st --> <{ skip }> / st
 
   where " t '/' st '-->' t' '/' st' " := (cstep (t,st) (t',st')).
+
+(* This [cstep] is _absolutely not_ deterministic! *)
 
 Definition cmultistep := multi cstep.
 
@@ -1946,6 +1982,17 @@ Definition par_loop : com :=
 
 (** In particular, it can terminate with [X] set to [0]: *)
 
+(*  challenge: well, duh, none of the commands ever changes [X]
+   (how is it interesting? You can say the same about [<{Y := 1}>]. NO
+  
+    Scratch that, I see how it can terminate with [X] set to [0]:
+    if [Y := 1] is scheduled first (recall that [empty_st] has every
+    key bound to [0]).
+    
+    In general, [X] will be set to [n] by postponing the execution of
+    [Y := 1] [n] times. (exercise potential!? Yup, it's proposed later).
+*)
+
 Example par_loop_example_0:
   exists st',
        par_loop / empty_st  -->* <{skip}> / st'
@@ -1954,9 +2001,9 @@ Proof.
   unfold par_loop.
   eexists. split.
   - eapply multi_step.
-    + apply CS_Par1.  apply CS_Asgn.
+    + apply CS_Par1.  apply CS_Asgn. (* Execute [Y := 1] immediately *)
     + eapply multi_step.
-      * apply CS_Par2. apply CS_While.
+      * apply CS_Par2. apply CS_While. (* Show the loop fails to run: it takes a bit of typing. *)
       * eapply multi_step.
         -- apply CS_Par2. apply CS_IfStep.
            apply BS_Eq1. apply AS_Id.
@@ -2054,25 +2101,110 @@ Proof.
 (** More generally... *)
 
 (** **** Exercise: 3 stars, standard, optional (par_body_n__Sn) *)
+
+Print bstep.
+
+Hint Constructors cstep : core.
+Hint Constructors astep : core.
+Hint Constructors bstep : core.
+
+(* ~10 min + 11:47 min - no need for induction *)
 Lemma par_body_n__Sn : forall n st,
   st X = n /\ st Y = 0 ->
   par_loop / st -->* par_loop / (X !-> S n ; st).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (** Strategy: delay left command just once. No need for induction.
+      WRONG! That would work if [par_loop] would reduce to [skip].
+      
+      Left command is never run here instead.
+  *)
+  unfold par_loop.
+  intros n st [HX HY].
+    eapply multi_step.
+    + eapply CS_Par2. apply CS_While.
+    + eapply multi_step. (* only use [multi_R] when you're sure you can get there in one step. *)
+      * eapply CS_Par2. auto.
+      * eapply multi_step.
+        -- eapply CS_Par2. auto.
+        -- eapply multi_step.
+           ++ eapply CS_Par2. rewrite HY. auto.
+           ++ eapply multi_step.
+              ** eapply CS_Par2. auto. (* [auto] isn't smart enough to know it must keep applying [CS_Par2] to succeed. It's useful nonetheless in figuring out the "linear" sections. *)
+              ** eapply multi_step.
+                 --- eapply CS_Par2. auto.
+                 --- eapply multi_step.
+                     +++ eapply CS_Par2. auto.
+                     +++ apply multi_R.
+                         apply CS_Par2. rewrite HX; simpl; rewrite Nat.add_comm.
+                         apply CS_SeqFinish.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 3 stars, standard, optional (par_body_n) *)
+
+(* 13:10 min *)
 Lemma par_body_n : forall n st,
   st X = 0 /\ st Y = 0 ->
   exists st',
     par_loop / st -->*  par_loop / st' /\ st' X = n /\ st' Y = 0.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* Totally need induction here. *)
+  intros n st [HX HY].
+  induction n as [| n' IH].
+  - exists st. split.
+    + apply multi_refl.
+    + split; assumption.
+  - (* IH tells us that execution increased [X] to [n] and kept [Y] untouched arriving to [st']. By [par_body_n__Sn], [X] can be increased one unit further while keeping [Y] at [0] (this happens in more than one steps). [multi_trans] bridges the first segment and this latter segment of execution. *)
+    destruct IH as [st' [Hmulti Hst']].
+    exists (X !-> S n' ; st'). split.
+    + apply par_body_n__Sn in Hst'.
+      eapply multi_trans; eassumption.
+    + split.
+      * apply t_update_eq.
+      * destruct Hst' as [_ HY'].
+        rewrite <- HY'. apply t_update_neq.
+        discriminate.
+Qed.
+
 (** [] *)
 
 (** ... the above loop can exit with [X] having any value
     whatsoever. *)
 
+(* paraphrase: for any [n], [par_loop], started in the empty state, is able to reach a normal form and a state [st'] where [X = n] holds. *)
+
+(* 11:46 min - did myself for exercise (I only peeked witness in their proof
+   before starting). *)
+Theorem par_loop_any_X_mine:
+  forall n, exists st',
+    par_loop / empty_st -->*  <{skip}> / st'
+    /\ st' X = n.
+Proof.
+  intros n.
+  assert (Hempty : empty_st X = 0 /\ empty_st Y = 0) (* Unnecessary: you can introduce a lemma in the context with [destruct]! *)
+    by (split; reflexivity).
+  apply (par_body_n n) in Hempty.
+  destruct Hempty as [st' [R [HX HY]]].
+  exists (Y !-> 1 ; st').
+  split.
+  - eapply multi_trans.
+    + eassumption.
+    + eapply multi_step.
+      * eapply CS_Par1. auto.
+      * eapply multi_step.
+        -- eapply CS_Par2. auto.
+        -- eapply multi_step. (* could be automated with Ltac, giving a list of parallel rules to follow as argument *)
+           ++ eapply CS_Par2. auto.
+           ++ eapply multi_step.
+              ** eapply CS_Par2. auto.
+              ** eapply multi_step.
+                 --- eapply CS_Par2. auto.
+                 --- apply multi_R. apply CS_ParDone.
+  - rewrite <- HX. reflexivity.
+Qed.
+
+(* Author's version *)
 Theorem par_loop_any_X:
   forall n, exists st',
     par_loop / empty_st -->*  <{skip}> / st'

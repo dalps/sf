@@ -1539,10 +1539,20 @@ Qed.
     equivalent, so logically it doesn't matter which you choose.
     One will be easier than the other, though!) *)
 
+Print evalF.
+Print "==>".
+
+(* 15:03 min*)
 Theorem evalF_eval : forall t n,
   evalF t = n <-> t ==> n.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  split.
+  - generalize dependent n.
+    induction t; intros n'; simpl; intro HevalF; subst;
+    constructor; [apply IHt1 | apply IHt2]; reflexivity.
+  - intro; induction H; subst; reflexivity.
+Qed.
+
 (** [] *)
 
 (** We've considered arithmetic and conditional expressions
@@ -1563,6 +1573,8 @@ Inductive value : tm -> Prop :=
 
 Reserved Notation " t '-->' t' " (at level 40).
 
+(* note: This [step] is the union of the two old small-step relations.
+   Also, this [step] is _not_ normalizing (some terms get stuck). *)
 Inductive step : tm -> tm -> Prop :=
   | ST_PlusConstConst : forall v1 v2,
       P (C v1) (C v2) --> C (v1 + v2)
@@ -1583,6 +1595,22 @@ Inductive step : tm -> tm -> Prop :=
 
   where " t '-->' t' " := (step t t').
 
+Hint Constructors step : core.
+
+Example step_stuck_1 : ~ (test (C 1) tru fls --> tru).
+Proof. intros Contra. inversion Contra.  Qed.
+
+Example step_stuck_2 : ~ (P tru (C 2) --> (C 42)).
+Proof. intros Contra. inversion Contra.  Qed.
+
+(* Is there an expression that can take a step by two different rules? No! *)
+
+Example step_test_2 : test (P (C 1) (C 2)) tru fls --> test (C 3) tru fls.
+Proof. auto.  Qed.
+
+Example step_test_3 : (P (test fls (C 1) (C 2)) (C 5)) --> P (C 2) (C 5).
+Proof. auto.  Qed.
+
 (** Earlier, we separately proved for both plus- and if-expressions...
 
     - that the step relation was deterministic, and
@@ -1594,18 +1622,71 @@ Inductive step : tm -> tm -> Prop :=
     language. *)
 
 (** **** Exercise: 3 stars, standard (combined_step_deterministic) *)
+
+(* 15:39 min *)
 Theorem combined_step_deterministic: (deterministic step) \/ ~ (deterministic step).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  left. unfold deterministic.
+  intros x y1 y2 Hxy1.
+  generalize dependent y2.
+  induction Hxy1; intros y2 Hxy2.
+  - (* ST_PlusConstConst *)
+    inversion Hxy2; subst;
+      (* ST_PlusConstConst *) try reflexivity;
+      (* ST_Plus1 + ST_Plus2: bogus *) try solve_by_invert.
+  - inversion Hxy2; subst;
+      (* ST_PlusConstConst + ST_Plus2: bogus *) try solve_by_inverts 2.
+      (* ST_Plus1 *) apply IHHxy1 in H2; subst; reflexivity.
+  - inversion Hxy2; subst;
+      (* ST_PlusConstConst + ST_Plus1: bogus *) try solve_by_inverts 2.
+      (* ST_Plus2 *) apply IHHxy1 in H4; subst; reflexivity.
+  - (* ST_IfTrue *)
+    inversion Hxy2; subst; try solve_by_invert; reflexivity.
+  - (* ST_IfFalse *)
+    inversion Hxy2; subst; try solve_by_invert; reflexivity.
+  - (* ST_If *)
+    inversion Hxy2; subst;
+      (* ST_IfTrue + ST_IfFalse: bogus *) try solve_by_invert.
+      (* ST_If *) apply IHHxy1 in H3; subst; reflexivity.
+Qed.
+
+(* 17:59 min (finding correct pattern to match against) *)
+Theorem combined_step_deterministic_short: deterministic step.
+Proof.
+  unfold deterministic.
+  intros x y1 y2 Hxy1.
+  generalize dependent y2.
+  induction Hxy1; intros y2 Hxy2;
+  inversion Hxy2; subst;
+  try solve_by_inverts 2;
+  try reflexivity;
+  match goal with
+  | IH : forall Y : tm, ?T --> Y -> ?T' = Y,
+    H : ?T --> ?T0 |- _ =>
+      apply IH in H; subst; reflexivity
+  end.
+Qed.
 
 (** [] *)
 
 (** **** Exercise: 3 stars, standard (combined_strong_progress) *)
+
+(* 11:13 min *)
 Theorem combined_strong_progress :
   (forall t, value t \/ (exists t', t --> t'))
   \/ ~ (forall t, value t \/ (exists t', t --> t')).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  right. intro Bullcrap.
+  assert (W : ~ value (P tru (C 2)) /\ ~ (exists t', (P tru (C 2)) --> t')).
+  { split. 
+    - intro C. solve_by_invert.
+    - intros [t' Ht']. solve_by_inverts 2. }
+  destruct W as [W1 W2].
+  edestruct Bullcrap; (* Fix a value! *)
+  [apply W1 in H | apply W2 in H];
+  contradiction.
+Qed.
+
 (** [] *)
 
 End Combined.

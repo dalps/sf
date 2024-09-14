@@ -1687,6 +1687,17 @@ Proof.
   contradiction.
 Qed.
 
+Theorem combined_strong_progress_golf :
+  (forall t, value t \/ (exists t', t --> t'))
+  \/ ~ (forall t, value t \/ (exists t', t --> t')).
+Proof.
+  right. intro Bullcrap.
+  destruct (Bullcrap (P tru (C 2))). (* Much better *)
+  - solve_by_invert.
+  - destruct H as [st' H].
+    solve_by_inverts 2.
+Qed.
+
 (** [] *)
 
 End Combined.
@@ -1993,6 +2004,10 @@ Definition par_loop : com :=
     [Y := 1] [n] times. (exercise potential!? Yup, it's proposed later).
 *)
 
+Hint Constructors cstep : core.
+Hint Constructors astep : core.
+Hint Constructors bstep : core.
+
 Example par_loop_example_0:
   exists st',
        par_loop / empty_st  -->* <{skip}> / st'
@@ -2001,17 +2016,15 @@ Proof.
   unfold par_loop.
   eexists. split.
   - eapply multi_step.
-    + apply CS_Par1.  apply CS_Asgn. (* Execute [Y := 1] immediately *)
+    + apply CS_Par1. auto.
     + eapply multi_step.
-      * apply CS_Par2. apply CS_While. (* Show the loop fails to run: it takes a bit of typing. *)
+      * apply CS_Par2. auto.
       * eapply multi_step.
-        -- apply CS_Par2. apply CS_IfStep.
-           apply BS_Eq1. apply AS_Id.
+        -- apply CS_Par2. auto.
         -- eapply multi_step.
-           ++ apply CS_Par2. apply CS_IfStep.
-              apply BS_Eq.
+           ++ apply CS_Par2. auto.
            ++ simpl. eapply multi_step.
-              ** apply CS_Par2. apply CS_IfFalse.
+              ** apply CS_Par2. auto.
               ** eapply multi_step.
                --- apply CS_ParDone.
                --- eapply multi_refl.
@@ -2247,8 +2260,8 @@ End CImp.
 (** Our last example is a small-step semantics for the stack machine
     example from the [Imp] chapter of _Logical Foundations_. *)
 
-Definition stack := list nat.
-Definition prog  := list sinstr.
+Definition stack := list nat. (* Pile of partial results *)
+Definition prog  := list sinstr. (* An arithmetic expression in postfix notation *)
 
 Inductive stack_step (st : state) : prog * stack -> prog * stack -> Prop :=
   | SS_Push : forall stk n p,
@@ -2271,6 +2284,12 @@ Qed.
 
 Definition stack_multistep st := multi (stack_step st).
 
+Notation "st '|-' p '/' s '-->' p' '/' s'" :=
+  (stack_step st (p,s) (p',s')) (at level 40, p, s, p', s' at level 39).
+
+Notation "st '|-' p '/' s '-->*' p' '/' s'" :=
+  (stack_multistep st (p,s) (p',s')) (at level 40, p, s, p', s' at level 39).
+
 (** **** Exercise: 3 stars, advanced (compiler_is_correct)
 
     Remember the definition of [compile] for [aexp] given in the
@@ -2282,12 +2301,171 @@ Definition stack_multistep st := multi (stack_step st).
     stack machine small step semantics, and then prove it. *)
 
 (* Copy your definition of s_compile here *)
+Fixpoint s_compile (e : aexp) : list sinstr :=
+  match e with
+  | ANum n => [SPush n]
+  | AId x => [SLoad x]
+  | APlus e1 e2 => s_compile e1 ++ s_compile e2 ++ [SPlus]
+  | AMinus e1 e2 => s_compile e1 ++ s_compile e2 ++ [SMinus]
+  | AMult e1 e2 => s_compile e1 ++ s_compile e2 ++ [SMult]
+  end.
 
-Definition compiler_is_correct_statement : Prop
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Hint Constructors stack_step : core.
 
+Compute (s_compile <{X - (Y * 2)}>).
+
+Ltac prove_sinstr :=
+  eapply multi_step;
+  [ constructor
+  | cbn; try prove_sinstr; 
+         try apply multi_refl ].
+
+Example compile_test_1 : 
+  (X !-> 5 ; Y !-> 1) |- (s_compile <{X - (Y * 2)}>) / [] -->* [] / [3].
+Proof. simpl. prove_sinstr.  Qed.
+
+Example compile_test_2 : 
+  (X !-> 4 ; Y !-> 3) |- (s_compile <{X * X + Y * Y}>) / [] -->* [] / [25].
+Proof. simpl. prove_sinstr.  Qed.
+
+(* 31:07 min preliminaries *)
+
+(* Might be unnecessary *)
+Inductive svalue : (prog * stack) -> Prop :=
+  sval : forall n, svalue ([], [n]). 
+
+(* 10:23 min *)
+
+(* Follow the same patters of the big-step proofs! *)
+
+(* 48:55 min *)
+Lemma multistep_app_1 : forall st p1 p2 stack stack'',
+  st |- (p1 ++ p2) / stack -->* [] / stack'' ->
+    exists stack', st |- p1 / stack -->* [] / stack' /\
+                   st |- p2 / stack' -->* [] / stack''.
+Proof.
+  intros st p1. induction p1 as [| i p1' IH];
+  simpl; intros p2 stack stack'' Happ.
+  - exists stack; split.
+    + apply multi_refl.
+    + assumption.
+  - (* Consume the instruction [i], taking a single step *)
+    inversion Happ as [|c1 c2 c3 Hone Hmany];
+    subst; clear Happ.
+    (* What kind of step was taken? *)
+    inversion Hone; subst; clear Hone;
+    try (
+      apply IH in Hmany; 
+      destruct Hmany as [stack' [Hp1 Hp2]];
+      exists stack'; split; 
+      [ eapply multi_step;
+        [ econstructor
+        | assumption ]
+      | assumption ]).
+Qed.
+
+(* 17:04 min *)
+Lemma multistep_app_2 : forall st p1 stack stack',
+  st |- p1 / stack -->* [] / stack' ->
+  forall p2, st |- (p1 ++ p2) / stack -->* p2 / stack'.
+Proof.
+  intros st p1. induction p1 as [| i p1' IH];
+  simpl; intros stk stk' Hp1 p2.
+  - (* No instruction executed, [stk] and [stk'] must equate *)
+    inversion Hp1; subst;
+    (* multi_step *) try solve_by_invert. (* An empty program cannot take a step! *)
+    (* multi_refl *) apply multi_refl.
+  - (* Isolate [i] *)
+    inversion Hp1 as [|c1 c2 c3 Hone Hmany]; subst; clear Hp1.
+    inversion Hone; subst; clear Hone;
+    eapply IH in Hmany;
+    try (eapply multi_step; [ econstructor | eassumption ]).
+Qed.
+
+(* Done in parallel with [multistep_app_2] *)
+Lemma multistep_app_3 : forall st stack stack' stack'' p1 p2,
+  st |- p1 / stack -->* [] / stack' /\
+  st |- p2 / stack' -->* [] / stack'' ->
+    st |- (p1 ++ p2) / stack -->* [] / stack''.
+Proof.
+  intros st stk stk' stk'' p1 p2 [Hp1 Hp2].
+  apply multi_trans with (p2, stk'); try assumption.
+  apply multistep_app_2. assumption.
+Qed.
+
+(* 7:06 min (after developing auxiliary theorems) *)
+Lemma compiler_is_correct_aux : forall st a stack,
+  st |- (s_compile a) / stack -->* [] / ((aeval st a) :: stack).
+Proof.
+  intros st a. induction a; intro stack; cbn;
+  (* ANum and AId *)
+  try (apply multi_R; constructor);
+  (* Bin-ops *)
+  try (eapply multi_trans;
+       [ apply multistep_app_2; apply IHa1
+       | eapply multi_trans;
+         [ apply multistep_app_2; apply IHa2
+         | apply multi_R; constructor ]]).
+Qed.
+
+Definition compiler_is_correct_statement : Prop := forall a n st,
+  st |- s_compile a / [] -->* [] / [n] <-> aeval st a = n.
+
+(* I have a hunch this is a weaker statement: 
+   st |- s_compile a / [] -->* [] / [aeval st a].
+*)
+
+Print multi.
+
+(* It is easy to see the relfexive-transitive closure of any relation is never deterministic. *)
+Lemma multistep_deterministic : forall st,
+  deterministic (stack_multistep st).
+Proof.
+  unfold deterministic.
+  intros st x y1 y2 Hy1. generalize dependent y2.
+  induction Hy1; intros y2 Hy2.
+  - inversion Hy2 as [| c1 c2 c3 Hone Hmany]; subst; clear Hy2.
+    + reflexivity.
+    + (* ur dumb *)
+      inversion Hone; subst.
+      * inversion Hmany; subst.
+Abort.
+
+Example stack_step_gets_stuck : forall st,
+  ~ (exists stk', st |- [SPlus] / [] --> [] / stk').
+Proof.
+  intros st Contra.
+  destruct Contra.
+  inversion H.
+Qed.
+
+Corollary compiled_aexp_never_gets_stuck : forall st a,
+  exists stk', st |- (s_compile a) / [] -->* [] / stk'.
+Proof.
+  intros st a. exists [aeval st a].
+  apply compiler_is_correct_aux.
+Qed.
+
+(* 20+ min *)
 Theorem compiler_is_correct : compiler_is_correct_statement.
 Proof.
+  unfold compiler_is_correct_statement.
+  split.
+  - (* -> : need normalizing to prove this *)
+    intros Hmulti.
+    remember (s_compile a) as o.
+    remember (o, []) as c1 eqn:Ec1.
+    remember ([], [n]) as c2 eqn:Ec2.
+    inversion Hmulti as [| c1' c2' c3' Hone Hmany].
+    + (* contradiction *)
+      subst; solve_by_invert.
+    + inversion Hone; subst. (* ...brb *) 
+
+
+    edestruct (stack_step_deterministic st).
+    + eapply Hmulti.
+    
+  - (* <- *) intro Eq. subst. apply compiler_is_correct_aux.
 (* FILL IN HERE *) Admitted.
 (** [] *)
 

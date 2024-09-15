@@ -2303,8 +2303,7 @@ Notation "st '|-' p '/' s '-->*' p' '/' s'" :=
     stack machine small step semantics, and then prove it. *)
 
 (* note: I've time-tracked this exercise very sloppily. It took me about a day.
-   The hard bit being proving that the value of a compiled programs is unique. 
-  *)
+   The hard bit being proving that the value of a compiled programs is unique. *)
 
 (* Copy your definition of s_compile here *)
 Fixpoint s_compile (e : aexp) : list sinstr :=
@@ -2615,22 +2614,32 @@ Qed.
    where [?e'] is the variable ``guessed'' by eapply. *)
 
 (** **** Exercise: 1 star, standard (normalize_ex) *)
+
+(* 30s *)
 Theorem normalize_ex : exists e',
   (P (C 3) (P (C 2) (C 1)))
   -->* e' /\ value e'.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. eexists. split; [normalize | econstructor].  Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (normalize_ex')
 
     For comparison, prove it using [apply] instead of [eapply]. *)
 
+(* 1 min *)
 Theorem normalize_ex' : exists e',
   (P (C 3) (P (C 2) (C 1)))
   -->* e' /\ value e'.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  eexists. split.
+  - normalize.
+  - apply v_const.
+Qed.
 (** [] *)
 
+(** My exercise ideas:
+    - write a [normalize] tactic for [par_loop] in [CImp].
+    - prove normal_form_of of step_bool with shortcuts is deterministic,
+      despite step_bool being non-deterministic.
+    - Model the small-step semantics of SECD machines in Coq *)
 (* 2024-01-02 21:54 *)

@@ -2260,6 +2260,8 @@ End CImp.
 (** Our last example is a small-step semantics for the stack machine
     example from the [Imp] chapter of _Logical Foundations_. *)
 
+Module SStack.
+
 Definition stack := list nat. (* Pile of partial results *)
 Definition prog  := list sinstr. (* An arithmetic expression in postfix notation *)
 
@@ -2300,6 +2302,10 @@ Notation "st '|-' p '/' s '-->*' p' '/' s'" :=
     what it means for the compiler to be correct according to the
     stack machine small step semantics, and then prove it. *)
 
+(* note: I've time-tracked this exercise very sloppily. It took me about a day.
+   The hard bit being proving that the value of a compiled programs is unique. 
+  *)
+
 (* Copy your definition of s_compile here *)
 Fixpoint s_compile (e : aexp) : list sinstr :=
   match e with
@@ -2331,10 +2337,45 @@ Proof. simpl. prove_sinstr.  Qed.
 (* 31:07 min preliminaries *)
 
 (* Might be unnecessary *)
-Inductive svalue : (prog * stack) -> Prop :=
-  sval : forall n, svalue ([], [n]). 
+Inductive value : (prog * stack) -> Prop :=
+  sval : forall n, value ([], [n]).
 
-(* 10:23 min *)
+Theorem nf_same_as_value : forall st c,
+  normal_form (stack_step st) c <-> value c.
+Proof.
+  unfold normal_form. intros st c. split; intro H.
+  - (* -> *)
+    (* Unprovable. [forall n, ([], [n])] is not the only kind of configuration
+       stack_step can't make progress on, i.e. not all normal forms are the
+       values you want. For example, [stack_step] gets stuck on ([SPlus], [3]).
+       Relax the definition of value or do without this theorem. *)
+    admit.
+  - (* <- *)
+    inversion H; subst. intros [[p stk] Contra].
+    inversion Contra.
+Abort.
+
+Definition normal_form_of {X : Type} (R : relation X) (t t' : X) :=
+  multi R t t' /\ normal_form R t'.
+
+Check normal_form_of.
+
+Theorem normal_forms_unique : forall {X : Type} (R : relation X),
+  deterministic R -> deterministic (normal_form_of R).
+Proof.
+  unfold deterministic, normal_form_of, normal_form.
+  intros X R RDet x y1 y2 P1 P2.
+  destruct P1 as [P11 P12].
+  destruct P2 as [P21 P22].
+  induction P11 as [| x x' x1 Hone1 Hmany1 IH];
+  inversion P21 as [| xa x'' x2 Hone2 Hmany2]; subst; clear P21;
+  (* Both derived using [multi_refl] *)
+  try reflexivity;
+  (* Both derived using [multi_step] *)
+  try (rewrite (RDet x x' x'' Hone1 Hone2) in *; apply IH; assumption);
+  (* Derivations disagree: contradiciton *)
+  try (exfalso; eauto).
+Qed.
 
 (* Follow the same patters of the big-step proofs! *)
 
@@ -2408,12 +2449,33 @@ Proof.
          | apply multi_R; constructor ]]).
 Qed.
 
+(* If [p] can reach a normal form, then it is unique. *)
+Lemma normal_forms_deterministic : forall st p stk1 stk2,
+  st |- p / [] -->* [] / stk1 ->
+  st |- p / [] -->* [] / stk2 ->
+  stk1 = stk2.
+Proof.
+  intros st p stk1 stk2 P1 P2.
+  remember (p, []) as o.
+  remember ([], stk1) as nf1.
+  generalize dependent stk2.
+  induction P1; intros stk2 P2; subst.
+  - (* multi_refl *)
+    inversion P2; subst; clear P2; inversion Heqnf1; subst.
+    + reflexivity.
+    + inversion H.
+  - (* multi_step *)
+    inversion P2; subst; clear P2.
+    + inversion H.
+    + rewrite (stack_step_deterministic st (p, []) y0 y H0 H) in *.
+      apply IHP1; try assumption; try reflexivity.
+      (* stuck... remember is a motherfucker *)
+Abort.
+
 Definition compiler_is_correct_statement : Prop := forall a n st,
   st |- s_compile a / [] -->* [] / [n] <-> aeval st a = n.
-
-(* I have a hunch this is a weaker statement: 
-   st |- s_compile a / [] -->* [] / [aeval st a].
-*)
+(* The above statement is stronger than: 
+   st |- s_compile a / [] -->* [] / [aeval st a]. *)
 
 Print multi.
 
@@ -2432,11 +2494,11 @@ Proof.
 Abort.
 
 Example stack_step_gets_stuck : forall st,
-  ~ (exists stk', st |- [SPlus] / [] --> [] / stk').
+  ~ (exists stk', st |- [SPlus] / [3] --> [] / stk').
 Proof.
   intros st Contra.
   destruct Contra.
-  inversion H.
+  inversion H. (* Stack is one number short of applying [SS_Plus] *)
 Qed.
 
 Corollary compiled_aexp_never_gets_stuck : forall st a,
@@ -2446,28 +2508,29 @@ Proof.
   apply compiler_is_correct_aux.
 Qed.
 
-(* 20+ min *)
+(* 1+ day - I've lost track honestly: started 09/14, completed next *)
 Theorem compiler_is_correct : compiler_is_correct_statement.
 Proof.
   unfold compiler_is_correct_statement.
   split.
-  - (* -> : need normalizing to prove this *)
-    intros Hmulti.
-    remember (s_compile a) as o.
-    remember (o, []) as c1 eqn:Ec1.
-    remember ([], [n]) as c2 eqn:Ec2.
-    inversion Hmulti as [| c1' c2' c3' Hone Hmany].
-    + (* contradiction *)
-      subst; solve_by_invert.
-    + inversion Hone; subst. (* ...brb *) 
-
-
-    edestruct (stack_step_deterministic st).
-    + eapply Hmulti.
-    
+  - (* -> *)
+    intros A.
+    assert (B : st |- (s_compile a) / [] -->* [] / [aeval st a])
+      by (apply compiler_is_correct_aux).
+    eassert (E : ([], [n]) = ([], [aeval st a])).
+    + eapply (normal_forms_unique
+                (stack_step st)
+                (stack_step_deterministic st));
+      unfold normal_form_of, normal_form; split;
+      try eassumption;
+      try (intro Contra; destruct Contra; solve_by_invert).
+    + inversion E. reflexivity.
   - (* <- *) intro Eq. subst. apply compiler_is_correct_aux.
-(* FILL IN HERE *) Admitted.
+Qed. (* At last! *)
+
 (** [] *)
+
+End SStack.
 
 (* ################################################################# *)
 (** * Aside: A [normalize] Tactic *)

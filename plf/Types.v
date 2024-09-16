@@ -142,11 +142,11 @@ Inductive step : tm -> tm -> Prop :=
   | ST_IfFalse : forall t1 t2,
       <{ if false then t1 else t2 }> --> t2
   | ST_If : forall c c' t2 t3,
-      c --> c' ->
+      c --> c' -> (* No guarantee [c'] will be a [bvalue], eventually. *)
       <{ if c then t2 else t3 }> --> <{ if c' then t2 else t3 }>
   | ST_Succ : forall t1 t1',
       t1 --> t1' ->
-      <{ succ t1 }> --> <{ succ t1' }>
+      <{ succ t1 }> --> <{ succ t1' }> (* Applies to [<{succ (is_zero 0)}>] *)
   | ST_Pred0 :
       <{ pred 0 }> --> <{ 0 }>
   | ST_PredSucc : forall v,
@@ -192,15 +192,21 @@ Hint Constructors step : core.
 Notation step_normal_form := (normal_form step).
 
 Definition stuck (t : tm) : Prop :=
-  step_normal_form t /\ ~ value t.
+  step_normal_form t /\ ~ value t. (* Normal forms that are _not_ values *)
 
 Hint Unfold stuck : core.
 
 (** **** Exercise: 2 stars, standard (some_term_is_stuck) *)
+
+(* 3:55 min *)
 Example some_term_is_stuck :
   exists t, stuck t.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  exists <{ iszero true }>.
+  unfold stuck, step_normal_form.
+  split; intro Contra;
+  solve_by_inverts 3.
+Qed.
 (** [] *)
 
 (** However, although values and normal forms are _not_ the same in this
@@ -209,11 +215,24 @@ Proof.
     This is important because it shows we did not accidentally define
     things so that some value could still take a step. *)
 
+Print nvalue_ind.
 (** **** Exercise: 3 stars, standard (value_is_nf) *)
+
+(* 22:30 min - did without hint! *)
 Lemma value_is_nf : forall t,
   value t -> step_normal_form t.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold step_normal_form, value.
+  intros t Vt. destruct Vt as [Vt | Vt].
+  - intro Contra. inversion Vt; destruct Contra; subst; solve_by_invert.
+  - induction Vt as [| t' Vt' IH];
+    intro Contra; destruct Contra as [t'0 Hstep].
+    + solve_by_invert.
+    + inversion Hstep; subst.
+      (* <{succ t'}> advanced by the rule [ST_Succ],
+         whose implications contradict the IH. *)
+      apply IH. eauto.
+Qed.
 
 (** (Hint: You will reach a point in this proof where you need to
     use an induction to reason about a term that is known to be a
@@ -230,10 +249,54 @@ Proof.
     Use [value_is_nf] to show that the [step] relation is also
     deterministic. *)
 
+(* 41:49 min *)
+
+Lemma solve_nvalue_contra : forall v t,
+  nvalue v -> <{ succ v }> --> t -> False.
+Proof.
+  intros v t Hv Hstep.
+  assert (V : value v) by intuition; clear Hv.
+  apply value_is_nf in V.
+  inversion Hstep; subst. eauto.
+Qed.
+
 Theorem step_deterministic:
   deterministic step.
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  unfold deterministic.
+  intros x y1 y2 Hxy1. generalize dependent y2.
+  induction Hxy1; intros y2 Hy2;
+  (* ST_IfTrue, ST_IfFalse, ST_Pred0, ... *)
+  try (inversion Hy2; subst; [reflexivity | solve_by_invert]).
+  - (* ST_If *)
+    inversion Hy2; subst; try solve_by_invert.
+    apply IHHxy1 in H3; subst; reflexivity.
+  - (* ST_Succ *)
+    inversion Hy2; subst.
+    apply IHHxy1 in H0; subst; reflexivity.
+  - (* ST_PredSucc *)
+    inversion Hy2; subst. (* Looks at [pred] only *)
+    + (* ST_PredSucc *) reflexivity.
+    + (* ST_Pred (simplifies the argument, but argument is already a value!)*)
+      destruct (solve_nvalue_contra v t1' H H1).
+  - (* ST_Pred *)
+    inversion Hy2; subst; try solve_by_invert.
+    + (* ST_PredSucc *)
+      destruct (solve_nvalue_contra y2 t1' H0 Hxy1).
+    + (* ST_Pred *)
+      apply IHHxy1 in H0; subst; reflexivity.
+  - (* ST_IszeroSucc *)
+    inversion Hy2; subst.
+    + reflexivity.
+    + destruct (solve_nvalue_contra v t1' H H1).
+  - (* ST_Iszero *)
+    inversion Hy2; subst; try solve_by_invert.
+    + destruct (solve_nvalue_contra v t1' H0 Hxy1).
+    + apply IHHxy1 in H0; subst; reflexivity.
+Qed.
+
+(* todo: Golf this down with Ltac *)
+
 (** [] *)
 
 (* ================================================================= *)
@@ -291,7 +354,7 @@ Inductive has_type : tm -> ty -> Prop :=
        |-- <{ true }> \in Bool
   | T_False :
        |-- <{ false }> \in Bool
-  | T_If : forall t1 t2 t3 T,
+  | T_If : forall t1 t2 t3 T, (* Note the quantified type variable *)
        |-- t1 \in Bool ->
        |-- t2 \in T ->
        |-- t3 \in T ->
@@ -336,11 +399,14 @@ Proof.
   intros Contra. solve_by_inverts 2.  Qed.
 
 (** **** Exercise: 1 star, standard, optional (succ_hastype_nat__hastype_nat) *)
+
+(* 1:47 min *)
 Example succ_hastype_nat__hastype_nat : forall t,
   |-- <{succ t}> \in Nat ->
   |-- t \in Nat.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros t Hsucc. inversion Hsucc; subst. assumption.  Qed.
+
 (** [] *)
 
 (* ----------------------------------------------------------------- *)
@@ -377,6 +443,9 @@ Qed.
     conversely, if a term is well typed, then either it is a value or it
     can take at least one step.  We call this _progress_. *)
 
+
+Print step.
+
 (** **** Exercise: 3 stars, standard (finish_progress) *)
 Theorem progress : forall t T,
   |-- t \in T ->
@@ -386,6 +455,8 @@ Theorem progress : forall t T,
     you understand the parts we've given of the informal proof in the
     following exercise before starting -- this will save you a lot of
     time.) *)
+
+(* 30:22 min - worked out mostly informally on paper *)
 Proof.
   intros t T HT.
   induction HT; auto.
@@ -401,7 +472,23 @@ Proof.
     + (* t1 can take a step *)
       destruct H as [t1' H1].
       exists (<{ if t1' then t2 else t3 }>). auto.
-  (* FILL IN HERE *) Admitted.
+  - (* T_Succ *)
+    destruct IHHT.
+    + (* t1 is a value *)
+      left. right. constructor. apply (nat_canonical t1 HT H).
+    + (* t1 can take a step *)
+      right. destruct H as [t1']. eauto.
+  - (* T_Pred *)
+    destruct IHHT.
+    + (* t1 is a value *)
+      destruct (nat_canonical t1 HT H); right; eauto.
+    + right. destruct H as [t1']. eauto.
+  - (* T_Iszero *)
+    destruct IHHT.
+    + destruct (nat_canonical t1 HT H); right; eauto.
+    + right. destruct H as [t1']. eauto.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 3 stars, advanced (finish_progress_informal)
@@ -439,6 +526,8 @@ Definition manual_grade_for_finish_progress_informal : option (nat*string) := No
     that we saw in the [Smallstep] chapter, where _all_ normal forms
     were values.  Here a term can be stuck, but only if it is ill
     typed. *)
+
+(* note: "ill typed" is jargon for it doesn't have a type, can't be typed *)
 
 (* ================================================================= *)
 (** ** Type Preservation *)

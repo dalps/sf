@@ -516,8 +516,45 @@ Qed.
       - If [t1] itself can take a step, then, by [ST_If], so can
         [t].
 
-    - (* FILL IN HERE *)
+    - If the last rule in the derivation is [T_Succ], then [t = succ t1],
+      with [|-- t1 \in Nat]. By the IH, either [t1] is a value or else
+      [t1] can step to some [t1'].
+
+      - If [t1] is a value, then by [nat_canonical] together with the
+        fact that [|-- t1 \in Nat] it is an [nvalue], and by the rule
+        [nv_succ] we arrive at the conclusion [succ t1] is a value.
+
+      - If [t1] can take a step, then by the rule [ST_Succ], also
+        [succ t1] can take a step.
+
+    - The case where the last rule is [T_Pred] is slightly more subtle.
+      Here, [t = pred t1] and [|-- t1 \in Nat], with the IH that [t1]
+      is either a value or else it can take a step to some [t1'].
+
+      - If [t1] is a value, then it must be an [nvalue]. 
+        There are two additional cases to consider: [t1 = 0] or [t1 = succ t2].
+        It easy to see that [pred t1] can take a step in either case by the
+        rules [ST_Pred0] and [ST_PredSucc] respectively.
+      
+      - If [t1] can take a step to some other term [t1'], then so can [pred t1]
+        by the rule [ST_Pred].
+
+    - If the last rule in the derivation is [T_Iszero], then [t = iszero t1],
+      [|-- t1 \in Nat] and by the IH [t1] is either a value or it can take a
+      step.
+
+      - If [t1] is a value, then it must be an [nvalue] by [nat_canonical] and
+        the fact [|-- t1 \in Nat]. Therefore, [t1] is either [0] or [succ t2]
+        for some [t2]. It is easy to see [iszero t1] can make progress in both
+        cases by the rules [ST_Iszero0] and [ST_IszeroSucc].
+
+      - If [t1] can take another step to [t1'], then [iszero t1] can take a
+        step to [iszero t1'] by the rule [ST_Iszero].
+
+    - The cases where the last rule in the derivation is [T_True], [T_False] or
+      [T_Zero], where [t] is trivially a value, are immediate.        []
  *)
+
 (* Do not modify the following line: *)
 Definition manual_grade_for_finish_progress_informal : option (nat*string) := None.
 (** [] *)
@@ -527,8 +564,6 @@ Definition manual_grade_for_finish_progress_informal : option (nat*string) := No
     were values.  Here a term can be stuck, but only if it is ill
     typed. *)
 
-(* note: "ill typed" is jargon for it doesn't have a type, can't be typed *)
-
 (* ================================================================= *)
 (** ** Type Preservation *)
 
@@ -536,6 +571,9 @@ Definition manual_grade_for_finish_progress_informal : option (nat*string) := No
     term takes a step, the result is a well-typed term (of the same type). *)
 
 (** **** Exercise: 2 stars, standard (finish_preservation) *)
+
+(* 11:18 min *)
+
 Theorem preservation : forall t t' T,
   |-- t \in T ->
   t --> t' ->
@@ -559,12 +597,24 @@ Proof.
       + (* ST_IfFalse *) assumption.
       + (* ST_If *) apply T_If; try assumption.
         apply IHHT1; assumption.
-    (* FILL IN HERE *) Admitted.
+    - (* T_Succ *) inversion HE; subst.
+        (* ST_Succ *) apply T_Succ. apply IHHT; assumption.
+    - (* T_Pred *) inversion HE; subst; clear HE.
+      + (* ST_Pred0 *) constructor.
+      + (* ST_PredSucc *)
+        apply succ_hastype_nat__hastype_nat; assumption.
+      + (* ST_Pred *) apply T_Pred. apply IHHT; assumption.
+    - (* T_Iszero *) inversion HE; subst; try constructor.
+        (* ST_Iszero *) apply IHHT; assumption.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 3 stars, advanced (finish_preservation_informal)
 
     Complete the following informal proof: *)
+
+(* 38:43 min *)
 
 (** _Theorem_: If [|-- t \in T] and [t --> t'], then [|-- t' \in T]. *)
 
@@ -590,11 +640,57 @@ Proof.
         by the IH, [|-- t1' \in Bool].  The [T_If] rule then gives us
         [|-- if t1' then t2 else t3 \in T], as required.
 
-    - (* FILL IN HERE *)
+    - If the last rule in the derivation is [T_Succ], then [t = succ t1],
+      with [|-- t1 \in Nat] and by the IH,
+      [forall t', t1 --> t' -> |-- t' in \Nat].
+
+      The only rule that could have been used to deduct [succ t1 --> t'] is
+      [ST_Succ], which implies [t' = succ t1'] for some [t1'] and [t1 --> t1'].
+      The IH can be applied to the latter to obtain [|-- t1' \in Nat], then,
+      the goal easily follows by the [T_Succ] rule.
+
+    - If the last rule in the derivation is [T_Pred], then [t = pred t1],
+      with [|-- t1 \in Nat].
+
+      Inspecting the rules of the small-step relation that could have been
+      used to derive [pred t1 --> t'], we see that the only plausible ones are
+      [ST_Pred0], [ST_PredSucc] and [ST_Pred].
+
+      - If it was [ST_Pred0], then [t' = 0], which is obviously a [Nat].
+
+      - If the last rule was [ST_PredSucc], then [t1 = succ t1']
+        for some [t1'] that is an [nvalue], and [t' = t1']. In other words,
+        [t = pred (succ t1')] was reduced to the [nvalue] [t1'].
+        We must prove [|-- t1' \in Nat]. This is easy to see, if we
+        remember that [|-- t1 \in Nat]. Rewriting [t1 = succ t1'] in
+        this fact we get [|-- succ t1' \in Nat], which is sufficient evidence
+        to prove [t1'] is also a [Nat].
+
+    - If the last rule in the derivation is [T_Iszero], then [t = iszero t1],
+      with [|-- t1 \in Nat]. Knowing [|-- iszero t1 \in Bool ], we must show
+      whatever [iszero t1] steps to is still a [Bool].
+
+      There are three cases to consider:
+
+      - If [iszero t1] steps to [t'] by the rule [ST_Iszero0],
+        then [t1 = 0] and [t' = true], which is obviously a [Bool].
+
+      - If [iszero t1] steps to [t'] by the rule [ST_IszeroSucc], then
+        [t1 = succ v] for some [v] that is an [nvalue], and [t' = false],
+        which is obviously a [Bool].
+
+      - If the last step was made by the rule [ST_Iszero], we have that
+        [t1 --> t1']. The the goal easily follows from the rule [T_Iszero]
+        and the IH.                                                   []
+
 *)
 (* Do not modify the following line: *)
 Definition manual_grade_for_finish_preservation_informal : option (nat*string) := None.
 (** [] *)
+
+Print step.
+Print step_ind.
+Print has_type.
 
 (** **** Exercise: 3 stars, standard (preservation_alternate_proof)
 
@@ -605,13 +701,66 @@ Definition manual_grade_for_finish_preservation_informal : option (nat*string) :
     each one is doing.  The set-up for this proof is similar, but
     not exactly the same. *)
 
+(* 38:09 min - Had a go at the informal proof too *)
 Theorem preservation' : forall t t' T,
   |-- t \in T ->
   t --> t' ->
   |-- t' \in T.
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  intros t t' T HT HE.
+  generalize dependent T.
+  induction HE; intros T HT;
+  inversion HT; subst;
+  try auto using succ_hastype_nat__hastype_nat.
+Qed.
+
+(*
+  - (* ST_IfTrue *)
+    inversion HT; subst; assumption.
+  - (* ST_IfFalse *)
+    inversion HT; subst; assumption.
+  - (* ST_If *)
+    inversion HT; subst. constructor; try assumption.
+    apply IHHE; assumption.
+  - (* ST_Succ *)
+    inversion HT; subst. constructor. apply IHHE; assumption.
+  - (* ST_Pred0 *)
+    inversion HT; subst. constructor.
+  - (* ST_PredSucc *) 
+    inversion HT; subst. inversion H1; assumption.
+  - (* ST_Pred *)
+    inversion HT; subst. constructor. apply IHHE; assumption. *)
+
 (** [] *)
+
+(** _Theorem_: If [|-- t \in T] and [t --> t'], then [|-- t' \in T].
+
+    _Proof_: By induction on a derivation of [t --> t'].
+
+    - If the last rule in the derivation is [ST_IfTrue], [t = if true then t1
+      else t2] for some [t1] and [t2], and we must show [|-- t1 \in T].
+
+      Inspecting the possible rules of the typing relation, we see that the
+      only one that could have been used to prove [|-- if ... \in T], is
+      [T_If]. One of the implications of this rule is that [|-- t1 \in T],
+      which is exactly what we're after.
+
+    - The case of [ST_IfFalse] is identical.
+
+    - If the last rule in the derivation is [ST_If],
+      then [t = if t1 then t2 else t3], [t' = if t1' then t2 else t3],
+      [t1 --> t1'] and the IH asserting that the type of [t1] is preserved.
+
+      By reasoning with the assumptions of the typing derivation of [t],
+      we get that [|-- t1 \in Bool], [|-- t2 \in T] and [|-- t3 \in T].
+      
+      In order to prove [|-- if t1' then t2 else t3 \in T], we apply the
+      rule [T_If], which leaves us to show [|-- t1' \in Bool].
+      But this follows from the IH and the fact that [|-- t1 \in Bool],
+      and we're done.
+
+    - ... (tedious, you get the gist.)                                  []
+*)
 
 (** The preservation theorem is often called _subject reduction_,
     because it tells us what happens when the "subject" of the typing
@@ -632,6 +781,16 @@ Corollary soundness : forall t t' T,
   |-- t \in T ->
   t -->* t' ->
   ~(stuck t').
+
+(* 18:54 min - personal attempt
+  Proof.
+    intros t t' T HT HE. unfold stuck.
+    intros [NF NotV].
+    induction HE as [t | t t0 t' Hone Hmany]; subst.
+    - destruct (progress t T HT); contradiction.
+    - eapply preservation in Hone; eauto.
+  Qed. *)
+
 Proof.
   intros t t' T HT P. induction P; intros [R S].
   - apply progress in HT. destruct HT; auto.
@@ -654,15 +813,46 @@ Qed.
     (* FILL IN HERE *)
 *)
 
+(** [t'] is well typed and it has a predecessor [t],
+    but [t] is not well-typed. This happens, for example,
+    when the expansion introduces new terms. *)
+Example sub_exp_counter :
+  <{ if true then 0 else true }> --> <{ 0 }>.
+Proof. auto.  Qed.
+
+Print step.
+
+(* 36:10 min *)
 Theorem subject_expansion:
   (forall t t' T, t --> t' /\ |-- t' \in T -> |-- t \in T)
   \/
   ~ (forall t t' T, t --> t' /\ |-- t' \in T -> |-- t \in T).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  right. intro C.
+  assert (H : <{ if true then 0 else true }> --> <{ 0 }> /\
+              |-- <{ 0 }> \in Nat) by auto.
+  apply C in H. solve_by_inverts 2.
+Qed.
+
 (** [] *)
 
+Example step_succbool :
+  <{ succ (iszero 0) }> -->* <{ succ true }>.
+Proof.
+  eapply multi_step; auto.  Qed.
+
+Example step_succ1 :
+  <{ succ (if true then 0 else succ 0) }> -->* <{ succ 0 }>.
+Proof.
+  eapply multi_step; auto.  Qed.
+
+Check progress.
+Check preservation.
+Print has_type.
+
 (** **** Exercise: 2 stars, standard (variation1)
+
+(* 21:38 min *)
 
     Suppose that we add this new rule to the typing relation:
 
@@ -675,17 +865,28 @@ Proof.
    else "becomes false." If a property becomes false, give a
    counterexample.
       - Determinism of [step]
-            (* FILL IN HERE *)
+            remains true. [step] is unaltered.
+            
       - Progress
-            (* FILL IN HERE *)
+            becomes false.
+
+            Counterexample: [succ (iszero 0)] is well-typed,
+            however it gets stuck after reaching [succ true],
+            which is not a value.
+
       - Preservation
-            (* FILL IN HERE *)
+            remains true. If [succ ...] has type [Bool], by the new rule
+            its argument must also have type Bool. If [succ ...] has type
+            [Nat], by [T_Succ] its argument must have type [Nat].
+            The new rule doesn't interfere with [T_Succ].
 *)
 (* Do not modify the following line: *)
 Definition manual_grade_for_variation1 : option (nat*string) := None.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard (variation2)
+
+(* ~ 15 min *)
 
     Suppose, instead, that we add this new rule to the [step] relation:
 
@@ -694,13 +895,31 @@ Definition manual_grade_for_variation1 : option (nat*string) := None.
 
    Which of the above properties become false in the presence of
    this rule?  For each one that does, give a counter-example.
-            (* FILL IN HERE *)
+        - Determinism of [step]
+            becomes false. Both [ST_IfTrue] and [ST_Funny1] apply to
+            a term of the form [if true then ...], with branching results.
+
+            For example, we have both:
+            - if true then 0 else succ 0 --> 0        by [ST_IfTrue], and
+            - if true then 0 else succ 0 --> succ 0   by [ST_Funny1]
+            
+      - Progress
+            remains true.
+
+      - Preservation
+            remains true. The typing rule for if-then-else ensures that
+            [t2] and [t3] have the same type. So if a term of the form
+            [if true ...] is typable, then its branches must have the
+            same type no matter which step choice is taken. This is
+            the type of whole conditional.
 *)
 (* Do not modify the following line: *)
 Definition manual_grade_for_variation2 : option (nat*string) := None.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (variation3)
+
+(* 7:19 min *)
 
     Suppose instead that we add this rule:
 
@@ -710,11 +929,26 @@ Definition manual_grade_for_variation2 : option (nat*string) := None.
 
    Which of the above properties become false in the presence of
    this rule?  For each one that does, give a counter-example.
-            (* FILL IN HERE *)
+      - Determinism of [step]
+            becomes false.
+
+            For example, we have both:
+            - if false then pred succ 0 else succ 0 --> 0     by [ST_IfFalse]
+            - if false then pred succ 0 else succ 0 -->
+                if false then 0 else succ 0                   by [ST_Funny2]
+            
+      - Progress
+            remains true.
+
+      - Preservation
+            remains true. The typing rule for if-then-else ensures that
+            [t2] and [t3] have the same type.
 *)
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (variation4)
+
+(* ~ 15 min *)
 
     Suppose instead that we add this rule:
 
@@ -723,11 +957,38 @@ Definition manual_grade_for_variation2 : option (nat*string) := None.
 
    Which of the above properties become false in the presence of
    this rule?  For each one that does, give a counter-example.
-(* FILL IN HERE *)
+      - Determinism of [step]
+          remains true. No old rule of [step] applies to [pred false]
+          prior to introducing [ST_Funny3]. Moreover, there's at most one
+          rule that can be applied to [pred (pred false)], which is [ST_Pred].
+
+      - Progress
+          remains true, because [pred false] is ill-typed.
+          Progress concerns only well-typed terms, saying that they
+          are either values or the can make progress. It does not warrant
+          the same property for ill-typed terms. The fact that [pred false]
+          and its derivatives can make progress is just a coincidence.
+
+          vvv WRONG REASON vvv
+          By [ST_Funny3], [pred false] takes a step to [pred (pred false)].
+          Then, by [ST_Pred] first and [ST_Funny3],
+          [pred (pred false)] can take a step to [pred (pred (pred false))].
+          This process can be repeated infinite times, applying [ST_Pred]
+          repeatedly to reach a node where [ST_Funny3] applies.
+          Such a term does not converge to a value.
+            
+      - Preservation
+          remains true, because [pred false] is ill-typed.
 *)
+
+Check progress.
+Print step.
+Check bool_canonical.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (variation5)
+
+(* ~16 min *)
 
     Suppose instead that we add this rule:
 
@@ -736,11 +997,27 @@ Definition manual_grade_for_variation2 : option (nat*string) := None.
 
    Which of the above properties become false in the presence of
    this rule?  For each one that does, give a counter-example.
-(* FILL IN HERE *)
+      - Determinism of [step]
+          remains true. [step] is unaltered.
+          
+      - Progress
+          remains true, since we can still prove [value 0].
+
+          vvv WRONG vvv
+          becomes false, because it goes against [bool_canonical]:
+
+          [0] can be typed to [Bool], and it also a value. By applying [bool_canonical] we have that it is also a [bvalue], which is
+          impossible.
+          
+      - Preservation
+          remains true. One of the hypotheses, namely [0 --> t'],
+          doesn't hold for any choice of [t'].
 *)
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (variation6)
+
+(* ~ 10 min *)
 
     Suppose instead that we add this rule:
 
@@ -749,7 +1026,15 @@ Definition manual_grade_for_variation2 : option (nat*string) := None.
 
    Which of the above properties become false in the presence of
    this rule?  For each one that does, give a counter-example.
-(* FILL IN HERE *)
+      - Determinism of [step]
+          remains true. [step] is unaltered.
+
+      - Progress
+          remains true. [pred 0] may still take a step to [0].
+
+      - Preservation
+          becomes false. In fact [pred 0 --> 0] by rule [ST_Pred0],
+          but [0] has type [Nat]!
 *)
 (** [] *)
 
@@ -760,11 +1045,115 @@ Definition manual_grade_for_variation2 : option (nat*string) := None.
     properties -- i.e., ways of changing the definitions that
     break just one of the properties and leave the others alone.
 *)
-(* FILL IN HERE
+(*
 
+  35:30 min - sooner or later I'll fact-check my answers
+  
+    Suppose we want to add this rule:
+
+      | T_Bogus1: forall t1 t2 t3,
+          |-- t1 \in Bool ->
+          |-- t2 \in Nat  ->
+          |-- t3 \in Bool ->
+            |-- if t1 then t2 else t3 \in Bool
+
+    Then:
+      - Determinism of [step]
+          remains true. [step] is unaltered.
+
+      - Progress
+          remains true. Thanks to the typing constraint of the
+          guard, the rules [ST_IfTrue] and [ST_IfFalse] and
+          [ST_If] still apply normally.
+
+      - Preservation
+          becomes false. For example, we have
+          [|-- if true then 0 else false \in Bool] holds, and
+          [if true then 0 else false --> 0], however
+          the type of [0] is not [Bool].
+
+    ###
+
+    Suppose we want to add this rule:
+
+      | T_Bogus2: forall t1 t2 t3 T1 T2 T3,
+          |-- t1 \in Bool ->
+          |-- t2 \in T1  ->
+          |-- t3 \in T2 ->
+            |-- if t1 then t2 else t3 \in T3
+
+    Then:
+      - Determinism of [step]
+          remains true. [step] is unaltered.
+
+      - Progress
+          remains true. As long as the guard of if-then-else has type [Bool],
+          we are guaranteed it will reach either [true] or [false] and
+          therefore one of small-step relation rules for if-then-else will
+          always apply.
+
+      - Preservation
+          becomes false. For the term [if true then 0 else false], which
+          reduces to [0], we can choose [T3] to be [Bool] to have a
+          contradiction.
+
+    ###
+
+    Suppose we want to add this rule:
+
+      | T_Bogus3: forall t1 t2 t3 T1 T2 T3,
+          |-- t1 \in T1 ->
+          |-- t2 \in T2  ->
+          |-- t3 \in T3 ->
+            |-- if t1 then t2 else t3 \in T2
+
+    Then:
+      - Determinism of [step]
+          remains true. [step] is unaltered and its
+          determinism doesn't depend on types.
+
+      - Progress
+          becomes false. There's no guarantee that the guard will reach
+          - or is - a boolean value, therefore a well-typed if-then-else
+          may be stuck. Consider [if 0 then true else false] for example.
+
+      - Preservation
+          becomes false.
+          For example, [|-- if false then 0 else false \in Nat] holds by
+          [T_Bogus3] and it also rewrites to [false] by [ST_IfFalse],
+          despite this [|-- false \in Nat] can't be proved.
+
+    ###
+
+    Suppose we want to add this rule:
+
+      | T_Bogus4: forall t1 t2 t3 T2 T3,
+          |-- t1 \in Bool ->
+          |-- t2 \in T2  ->
+          |-- t3 \in T3 ->
+            |-- if t1 then t2 else t3 \in T2
+
+    Then:
+      - Determinism of [step]
+          remains true. [step] is unaltered.
+
+      - Progress
+          remains true. It suffices the guard of an if-then-else
+          reaches a [Bool] for it to make progress.
+
+      - Preservation
+          becomes false.
+          For example, [|-- if false then 0 else false \in Nat] holds by
+          [T_Bogus4] and it also rewrites to [false] by [ST_IfFalse],
+          despite this [|-- false \in Nat] can't be proved.
     [] *)
 
+Print tm.
+Print has_type.
+
 (** **** Exercise: 1 star, standard (remove_pred0)
+
+  10:39 min
 
     The reduction rule [ST_Pred0] is a bit counter-intuitive: we
     might feel that it makes more sense for the predecessor of [0] to
@@ -772,7 +1161,17 @@ Definition manual_grade_for_variation2 : option (nat*string) := None.
     achieve this simply by removing the rule from the definition of
     [step]?  Would doing so create any problems elsewhere?
 
-(* FILL IN HERE *)
+    Yes, only removing it from the small-step relation would create problems.
+    For one, [progress] becomes false, since [|-- pred 0 \in Nat] holds,
+    but [pred 0] is a stuck term now.
+
+    Removing the typing rule [T_Pred] in addition to this wouldn't be a
+    sensible move either, as we wouldn't be able to type-check [pred (succ 0)],
+    for example.
+
+    The best way to go about this is to create a new type that denotes
+    "natural numbers without 0" and restrict the type assumption of the
+    [T_Pred] rule to this domain.
 *)
 (* Do not modify the following line: *)
 Definition manual_grade_for_remove_pred0  : option (nat*string) := None.
@@ -788,8 +1187,124 @@ Definition manual_grade_for_remove_pred0  : option (nat*string) := None.
     allow for nonterminating programs?  Why might we prefer the
     small-step semantics for stating preservation and progress?
 
-(* FILL IN HERE *)
+  ~ 1:30 hour (experimenting and lots of distractions in the way)
+
+    Answer:
+
+      - The [progress] property is restated as:
+
+        forall t T, |-- t \in T -> exists v, t ==>b v.
+
+        To paraphrase it, if a term [t] is well-typed, then it will
+        evaluate to a value by the big-step relation. [progress] is
+        not an appropriate name for this property, I'd rename it to
+        [termination].
+
+        This property has the shortcoming that it doesn't hold
+        if the big-step relation allows for nonterminating programs.
+        
+        In fact, while a nonterminating program can be successfully
+        typed by static analysis, there is no definite value ==>b can
+        reduce it to.
+
+        Conversely, a small-step relation is always able to make
+        progress in a non-terminating program and compute the next
+        term in its execution.
+
+      - The [preservation] property is restated as:
+
+        forall t v T, |-- t \in T -> t ==>b v -> |--b v \in T.
+
+        It says that if a program [t] has a type [T] and it
+        evaluates to a value [v], then [v] "agrees with" [T].
+
+        A weakness of this property is that it requires a secondary
+        typing relation to connect the values to types.
+
+      Proving the properties for the big-step relations is more hacky,
+      also it's harder to rework the proofs if we were to extend the
+      language with new types or new functionality.
 *)
+
+Check value.
+Print tm.
+
+Reserved Notation "t '==>b' t'" (at level 40, t' at level 39).
+
+Inductive result :=
+  | Rbool (b : bool)
+  | Rnat (n : nat).
+
+(* 34:13 min *)
+
+Inductive eval : tm -> result -> Prop :=
+  | BS_0 : <{ 0 }> ==>b Rnat 0
+  | BS_True : <{ true }> ==>b Rbool true
+  | BS_False : <{ false }> ==>b Rbool false
+  | BS_IfTrue : forall t1 t2 t3 v,
+      t1 ==>b Rbool true  ->
+      t2 ==>b v           -> <{ if t1 then t2 else t3 }> ==>b v
+  | BS_IfFalse : forall t1 t2 t3 v,
+      t1 ==>b Rbool false ->
+      t3 ==>b v           -> <{ if t1 then t2 else t3 }> ==>b v
+  | BS_Succ : forall t1 n,
+      t1 ==>b Rnat n      -> <{ succ t1 }> ==>b Rnat (1+n)
+  | BS_Pred : forall t1 n,
+      t1 ==>b Rnat n      -> <{ pred t1 }> ==>b Rnat (Nat.pred n)
+  | BS_Iszero : forall t1 n,
+      t1 ==>b Rnat n      -> <{ iszero t1 }> ==>b Rbool (n =? 0)
+where "t '==>b' t'" := (eval t t').
+
+Hint Constructors eval : core.
+
+Example eval_test_1 :
+  <{ if iszero (pred (succ 0)) then succ 0 else succ (succ 0) }>
+    ==>b Rnat 1.
+Proof.
+  apply BS_IfTrue; try auto.
+  replace true with (0 =? 0) by reflexivity.
+  apply BS_Iszero.
+  replace 0 with (Nat.pred 1) by reflexivity.
+  auto.
+Qed.
+
+Theorem progress_bool : forall t,
+  |-- t \in Bool -> exists b, t ==>b Rbool b.
+Proof.
+  intros t HT.
+  remember Bool as T.
+  induction HT; eauto; try solve_by_invert.
+  - (* T_If *) destruct IHHT1 as [[]]; try reflexivity.
+    + destruct IHHT2 as [b2]; eauto.
+    + destruct IHHT3 as [b3]; eauto.
+  - (* T_Iszero *) clear IHHT.
+    (* I'm in trouble... I need mutually recursive theorems! *)
+Abort.
+
+Theorem progress_r : forall t T,
+  |-- t \in T ->
+  exists v, t ==>b v.
+Proof.
+  intros t T HT.
+  induction HT; eauto.
+  - (* T_If *) destruct IHHT1 as [[[] | n]].
+    + destruct IHHT2 as [v2]. exists v2; auto.
+    + destruct IHHT3 as [v3]. exists v3; auto.
+    + inversion H; subst.
+Abort.
+
+Inductive result_ty : result -> ty -> Prop :=
+  | Rbool__Bool : forall b, result_ty (Rbool b) Bool
+  | Rnat__Nat : forall n, result_ty (Rnat n) Nat.
+
+Notation "'|--b' r '\in' T" := (result_ty r T) (at level 40).
+
+Theorem preservation_r : forall t T v,
+  |-- t \in T ->
+  t ==>b v ->
+  |--b v \in T.
+Proof. Admitted.
+
 (* Do not modify the following line: *)
 Definition manual_grade_for_prog_pres_bigstep : option (nat*string) := None.
 (** [] *)

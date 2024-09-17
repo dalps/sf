@@ -2260,8 +2260,6 @@ End CImp.
 (** Our last example is a small-step semantics for the stack machine
     example from the [Imp] chapter of _Logical Foundations_. *)
 
-Module SStack.
-
 Definition stack := list nat. (* Pile of partial results *)
 Definition prog  := list sinstr. (* An arithmetic expression in postfix notation *)
 
@@ -2336,11 +2334,11 @@ Proof. simpl. prove_sinstr.  Qed.
 (* 31:07 min preliminaries *)
 
 (* Might be unnecessary *)
-Inductive value : (prog * stack) -> Prop :=
-  sval : forall n, value ([], [n]).
+Inductive stack_value : (prog * stack) -> Prop :=
+  sval : forall n, stack_value ([], [n]).
 
-Theorem nf_same_as_value : forall st c,
-  normal_form (stack_step st) c <-> value c.
+Theorem nf_same_as_stack_value : forall st c,
+  normal_form (stack_step st) c <-> stack_value c.
 Proof.
   unfold normal_form. intros st c. split; intro H.
   - (* -> *)
@@ -2354,15 +2352,15 @@ Proof.
     inversion Contra.
 Abort.
 
-Definition normal_form_of {X : Type} (R : relation X) (t t' : X) :=
+Definition weak_normal_form_of {X : Type} (R : relation X) (t t' : X) :=
   multi R t t' /\ normal_form R t'.
 
-Check normal_form_of.
+Check weak_normal_form_of.
 
-Theorem normal_forms_unique : forall {X : Type} (R : relation X),
-  deterministic R -> deterministic (normal_form_of R).
+Theorem weak_normal_forms_unique : forall {X : Type} (R : relation X),
+  deterministic R -> deterministic (weak_normal_form_of R).
 Proof.
-  unfold deterministic, normal_form_of, normal_form.
+  unfold deterministic, weak_normal_form_of, normal_form.
   intros X R RDet x y1 y2 P1 P2.
   destruct P1 as [P11 P12].
   destruct P2 as [P21 P22].
@@ -2517,10 +2515,10 @@ Proof.
     assert (B : st |- (s_compile a) / [] -->* [] / [aeval st a])
       by (apply compiler_is_correct_aux).
     eassert (E : ([], [n]) = ([], [aeval st a])).
-    + eapply (normal_forms_unique
+    + eapply (weak_normal_forms_unique
                 (stack_step st)
                 (stack_step_deterministic st));
-      unfold normal_form_of, normal_form; split;
+      unfold weak_normal_form_of, normal_form; split;
       try eassumption;
       try (intro Contra; destruct Contra; solve_by_invert).
     + inversion E. reflexivity.
@@ -2528,8 +2526,6 @@ Proof.
 Qed. (* At last! *)
 
 (** [] *)
-
-End SStack.
 
 (* ################################################################# *)
 (** * Aside: A [normalize] Tactic *)

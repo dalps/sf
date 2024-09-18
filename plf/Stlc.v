@@ -553,17 +553,10 @@ Proof.
   intros s x t t'.
   split.
   - generalize dependent t';
-    induction t; intros t' Et'; subst; simpl; auto;
-    (* tm_var and tm_abs *)
-    destruct (String.eqb_spec x s0); subst; auto.
-  - intro S; induction S; simpl; subst; auto;
-    (* s_var1 and s_abs1 *)
-    try (rewrite String.eqb_refl; reflexivity);
-    (* s_var2 and s_abs2 *)
-    try (apply String.eqb_neq in H;
-         rewrite String.eqb_sym;
-         rewrite H; auto).
-Qed. (* Remove most of the junk with [t_eqb] *)
+    induction t; intros;
+    subst; simpl; t_eqb; auto.
+  - intro S; induction S; simpl; t_eqb; auto.
+Qed.
 
 (** [] *)
 
@@ -675,7 +668,7 @@ Lemma step_example2 :
   <{idBB (idBB idB)}> -->* idB.
 Proof.
   eapply multi_step.
-  - apply ST_App2.
+  - apply ST_App2. (* reduce the argument *)
     + auto.
     + apply ST_AppAbs. auto.
   - eapply multi_step.
@@ -754,17 +747,20 @@ Proof. normalize.  Qed.
 
     Try to do this one both with and without [normalize]. *)
 
+(* 2:24 min *)
 Lemma step_example5 :
        <{idBBBB idBB idB}>
   -->* idB.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  eapply multi_step.
+  + apply ST_App1. apply ST_AppAbs. auto.
+  + simpl. apply multi_R. apply ST_AppAbs. auto.
+Qed.
 
 Lemma step_example5_with_normalize :
        <{idBBBB idBB idB}>
   -->* idB.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. normalize.  Qed.
 (** [] *)
 
 (* ################################################################# *)
@@ -810,7 +806,7 @@ Proof.
     T, Gamma)] for "update the partial function [Gamma] so that it
     maps [x] to [T]." *)
 
-Definition context := partial_map ty.
+Definition context := partial_map ty. (* note: recall [partial_map ty] is a type synonym for [total_map (option ty)], which ultimately stands for [string -> option ty]. All keys default to [None] in the empty map. *)
 
 (* ================================================================= *)
 (** ** Typing Relation *)
@@ -903,6 +899,9 @@ Proof. eauto 20. Qed.
     Prove the same result without using [auto], [eauto], or
     [eapply] (or [...]). *)
 
+Unset Printing All.
+
+(* 6:31 min *)
 Example typing_example_2_full :
   empty |--
     \x:Bool,
@@ -910,7 +909,10 @@ Example typing_example_2_full :
           (y (y x)) \in
     (Bool -> (Bool -> Bool) -> Bool).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  repeat apply T_Abs; (* every Coq variable used by [T_Abs] appears in its conclusion, so no need for [eapply]! *)
+  repeat apply T_App with (T2 := <{ Bool }>);
+  apply T_Var; reflexivity.
+Qed. 
 (** [] *)
 
 (** **** Exercise: 2 stars, standard (typing_example_3)
@@ -923,6 +925,7 @@ Proof.
              \in T.
 *)
 
+(* 5:32 min *)
 Example typing_example_3 :
   exists T,
     empty |--
@@ -932,12 +935,17 @@ Example typing_example_3 :
                (y (x z)) \in
       T.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  exists <{ (Bool -> Bool) -> (Bool -> Bool) -> Bool -> Bool }>.
+  repeat apply T_Abs;
+  repeat apply T_App with <{ Bool }>;
+  apply T_Var; reflexivity.
+Qed.
+
 (** [] *)
 
 (** We can also show that some terms are _not_ typable.  For example,
     let's check that there is no typing derivation assigning a type
-    to the term [\x:Bool, \y:Bool, x y] -- i.e.,
+    to the term [\x:Bool, \y:Bool, x y] -- i.e., (* note: [x] doesn't have a function type, it cannot be applied to [y] *)
 
     ~ exists T,
         empty |-- \x:Bool, \y:Bool, x y \in T.
@@ -969,12 +977,33 @@ Qed.
           empty |-- \x:S, x x \in T).
 *)
 
+(* 16:30 min *)
+
+Lemma discriminate_arrow : forall T1 T2,
+  <{ T1 }> <> <{ T1 -> T2 }>.
+Proof.
+  induction T1.
+  - discriminate.
+  - intros T2 Contra.
+    injection Contra; clear Contra.
+    intros; subst.
+    apply IHT1_1 in H0. contradiction.
+Qed.
+
 Example typing_nonexample_3 :
   ~ (exists S T,
         empty |--
           \x:S, x x \in T).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intro Hc. destruct Hc as [S [T Hc]].
+  inversion Hc; subst; clear Hc.
+  inversion H4; subst; clear H4.
+  inversion H5; subst; clear H5.
+  inversion H2; subst; clear H2.
+  rewrite H1 in H3. injection H3. intro. clear H1 H3.
+  apply discriminate_arrow in H. contradiction.
+Qed.
+
 (** [] *)
 
 End STLC.

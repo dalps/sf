@@ -64,9 +64,9 @@ Set Default Goal Selector "!".
 
     Starting from boolean constants and conditionals, we add three
     things:
-        - variables
-        - function abstractions
-        - application
+        - variables                 (names that can be bound to values)
+        - function abstractions     (expressions holding an unspecified value, to be replaced in a second moment)
+        - application               (the instantiation of the parameter of a function abstraction)
 
     This gives us the following collection of abstract syntax
     constructors (written out first in informal BNF notation -- we'll
@@ -127,6 +127,11 @@ Set Default Goal Selector "!".
         As in Coq, application associates to the left -- i.e., this
         expression is parsed as [((\x:Bool, \y:Bool, x) false) true].
 
+        note:
+        [((\x:Bool, \y:Bool, x) false) true -->
+         (\y:Bool, false) true -->
+         false]
+
       - [\f:Bool->Bool, f (f true)]
 
         A higher-order function that takes a _function_ [f] (from
@@ -134,6 +139,12 @@ Set Default Goal Selector "!".
         and applies [f] again to the result.
 
       - [(\f:Bool->Bool, f (f true)) (\x:Bool, false)]
+
+        note:
+        [(\f:Bool->Bool, f (f true)) (\x:Bool, false) -->
+         (\x:Bool, false) ((\x:Bool, false) true) -->
+         (\x:Bool, false) false -->
+         false]
 
         The same higher-order function, applied to the constantly
         [false] function. *)
@@ -154,7 +165,7 @@ Set Default Goal Selector "!".
     functions.
 
       T ::= Bool
-          | T -> T
+          | T -> T      (note: T need not be the same on both sides; the two uses of T are independent)
 *)
 (**
     For example:
@@ -202,7 +213,7 @@ Inductive tm : Type :=
 
 Declare Custom Entry stlc.
 Notation "<{ e }>" := e (e custom stlc at level 99).
-Notation "( x )" := x (in custom stlc, x at level 99).
+Notation "( x )" := x (in custom stlc, x at level 99). (* note: if notation's options begin with "in custom <entry>", then that notation must appear within the delimiters of <entry> *)
 Notation "x" := x (in custom stlc at level 0, x constr at level 0).
 Notation "S -> T" := (Ty_Arrow S T) (in custom stlc at level 50, right associativity).
 Notation "x y" := (tm_app x y) (in custom stlc at level 1, left associativity).
@@ -211,7 +222,7 @@ Notation "\ x : t , y" :=
                      t custom stlc at level 99,
                      y custom stlc at level 99,
                      left associativity).
-Coercion tm_var : string >-> tm.
+Coercion tm_var : string >-> tm. (* note: whenever you see a [string], treat it as a [tm] *)
 
 Notation "'Bool'" := Ty_Bool (in custom stlc at level 0).
 Notation "'if' x 'then' y 'else' z" :=
@@ -323,12 +334,19 @@ Hint Constructors value : core.
     _closed_ -- that is, that contains no free variables.
 
     (Conversely, a term that may contain free variables is often
-    called an _open term_.) *)
+    called an _open term_.) *) (* note: see open terms as terms waiting to be wrapped by an abstraction, or to be substituted *)
 
 (** Having made the choice not to reduce under abstractions, we don't
     need to worry about whether variables are values, since we'll
     always be reducing programs "from the outside in," and that means
     the [step] relation will always be working with closed terms.  *)
+
+(* note: here's an abstraction with an open term and where reduction is
+   possible:
+   [\x:Bool, if true then y else x].
+   If we chose to reduce under abstractions, the small-step relation
+   would have to handle the open term [y].
+*)
 
 (* ================================================================= *)
 (** ** Substitution *)
@@ -374,7 +392,7 @@ Hint Constructors value : core.
 
       - [[x:=true] (\y:Bool, y)] yields [\y:Bool, y]
 
-      - [[x:=true] (\x:Bool, x)] yields [\x:Bool, x]
+      - [[x:=true] (\x:Bool, x)] yields [\x:Bool, x] (* note: the second [x] is captured by the abstraction! You cannot substitute [true] for this [x] for the same reason you cannot substitute [true] for [y] in (\y:Bool, y). It's not as simple as string equality. *)
 
     The last example is key: substituting [x] with [true] in
     [\x:Bool, x] does _not_ yield [\x:Bool, true]!  The reason for
@@ -429,6 +447,8 @@ where "'[' x ':=' s ']' t" := (subst x s t) (in custom stlc).
 
 (** For example... *)
 Check <{[x:=true] x}>.
+
+Compute <{[z:=\x:Bool, y] \y:Bool, z}>.
 
 (** _Technical note_: Substitution also becomes trickier to define if
     we consider the case where [s], the term being substituted for a
@@ -487,18 +507,64 @@ Check <{[x:=true] x}>.
     constructors and prove that the relation you've defined coincides
     with the function given above. *)
 
+(* 11:54 min *)
 Inductive substi (s : tm) (x : string) : tm -> tm -> Prop :=
   | s_var1 :
       substi s x (tm_var x) s
-  (* FILL IN HERE *)
-.
+  | s_var2 : forall y,
+      y <> x -> substi s x (tm_var y) (tm_var y)
+  | s_abs1 : forall T t,
+      substi s x <{\x:T, t}> <{\x:T, t}>
+  | s_abs2 : forall T t t' y,
+      y <> x ->
+      substi s x t t' ->
+      substi s x <{\y:T,t}> <{\y:T,t'}>
+  | s_app : forall t1 t1' t2 t2',
+      substi s x t1 t1' ->
+      substi s x t2 t2' ->
+      substi s x <{t1 t2}> <{t1' t2'}>
+  | s_true : substi s x <{true}> <{true}>
+  | s_false : substi s x <{false}> <{false}>
+  | s_if : forall t1 t1' t2 t2' t3 t3',
+      substi s x t1 t1' ->
+      substi s x t2 t2' ->
+      substi s x t3 t3' ->
+      substi s x <{if t1 then t2 else t3}> <{if t1' then t2' else t3'}>.
 
 Hint Constructors substi : core.
 
+Print tm.
+Check tm_ind.
+
+(* Found this little gem in stdlib's String *)
+Local Ltac t_eqb :=
+  repeat first [ congruence
+               | progress subst
+               | apply conj
+               | match goal with
+                 | [ |- context[eqb ?x ?y] ] => destruct (eqb_spec x y)
+                 end
+               | intro ].
+
+(* 12:29 min -> + 13:02 <- *)
 Theorem substi_correct : forall s x t t',
   <{ [x:=s]t }> = t' <-> substi s x t t'.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros s x t t'.
+  split.
+  - generalize dependent t';
+    induction t; intros t' Et'; subst; simpl; auto;
+    (* tm_var and tm_abs *)
+    destruct (String.eqb_spec x s0); subst; auto.
+  - intro S; induction S; simpl; subst; auto;
+    (* s_var1 and s_abs1 *)
+    try (rewrite String.eqb_refl; reflexivity);
+    (* s_var2 and s_abs2 *)
+    try (apply String.eqb_neq in H;
+         rewrite String.eqb_sym;
+         rewrite H; auto).
+Qed. (* Remove most of the junk with [t_eqb] *)
+
 (** [] *)
 
 (* ================================================================= *)

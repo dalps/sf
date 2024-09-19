@@ -2347,6 +2347,28 @@ End Himp.
     (Hint: You may or may not -- depending how you approach it -- need
     to use [functional_extensionality] explicitly for this one.) *)
 
+(* 
+    Interfering:
+
+    X := Y ; Y := 1   st = empty_st, st0 = (X !-> st Y), st' = (Y !-> 1 ; X !-> st Y)
+    Y := 1 ; X := Y   st = empty_st, st0 = (Y !-> 1), st' = (X !-> st0 Y ; Y !-> 1)
+
+    (Y !-> 1 ; X !-> st Y) and (X !-> st0 Y ; Y !-> 1)
+    are NOT the same state
+
+    Non-interfering:
+
+    X := Y + 1 ; Z := 3   st = empty_st, st0 = (X !-> st Y + 1) st' = (Z !-> 3 ; X !-> st Y + 1)
+    Z := 3 ; X := Y + 1   st = empty_st, st0 = (Z !-> 3), st' = (X !-> st0 Y + 1 ; Z !-> 3)
+
+    (Z !-> 3 ; X !-> empty_st Y + 1) and (X !-> Y + 1 ; Z !-> 3)
+    are the same state
+*)
+
+(* 34:52 min to review material (long time no see) + proof 24:16 min *)
+Print var_not_used_in_aexp.
+Check aeval_weakening.
+
 Theorem swap_noninterfering_assignments: forall l1 l2 a1 a2,
   l1 <> l2 ->
   var_not_used_in_aexp l1 a2 ->
@@ -2355,7 +2377,16 @@ Theorem swap_noninterfering_assignments: forall l1 l2 a1 a2,
     <{ l1 := a1; l2 := a2 }>
     <{ l2 := a2; l1 := a1 }>.
 Proof.
-(* FILL IN HERE *) Admitted.
+  intros l1 l2 a1 a2 Hdiff NUl1 NUl2.
+  split; intro Hc;
+  inversion Hc; subst; clear Hc;
+  inversion H1; subst; 
+  inversion H4; subst; clear H1 H4;
+  rewrite aeval_weakening; try assumption;
+  rewrite t_update_permute; auto;
+  try (eapply E_Seq; eapply E_Asgn; auto using aeval_weakening).
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 4 stars, standard, optional (for_while_equiv)
@@ -2376,9 +2407,117 @@ Proof.
          c2
        end
 *)
-(* FILL IN HERE
 
-    [] *)
+Module ForImp.
+
+Inductive com : Type :=
+  | CSkip
+  | CAsgn (x : string) (a : aexp)
+  | CSeq (c1 c2 : com)
+  | CIf (b : bexp) (c1 c2 : com)
+  | CWhile (b : bexp) (c : com)
+  | CFor (cinit : com) (b : bexp) (cupdate c : com).
+
+Notation "'skip'"  :=
+         CSkip (in custom com at level 0) : com_scope.
+Notation "x := y"  :=
+         (CAsgn x y)
+            (in custom com at level 0, x constr at level 0,
+             y at level 85, no associativity) : com_scope.
+Notation "x ; y" :=
+         (CSeq x y)
+           (in custom com at level 90, right associativity) : com_scope.
+Notation "'if' x 'then' y 'else' z 'end'" :=
+         (CIf x y z)
+           (in custom com at level 89, x at level 99,
+            y at level 99, z at level 99) : com_scope.
+Notation "'while' x 'do' y 'end'" :=
+         (CWhile x y)
+            (in custom com at level 89, x at level 99, y at level 99) : com_scope.
+Notation "'for' w ; x ; y 'do' z 'end'" :=
+         (CFor w x y z)
+            (in custom com at level 89,
+                w at level 88, x at level 88, 
+                y at level 88, z at level 88) : com_scope.
+
+Inductive ceval : com -> state -> state -> Prop :=
+  | E_Skip : forall st,
+      st =[ skip ]=> st
+  | E_Asgn  : forall st a n x,
+      aeval st a = n ->
+      st =[ x := a ]=> (x !-> n ; st)
+  | E_Seq : forall c1 c2 st st' st'',
+      st  =[ c1 ]=> st'  ->
+      st' =[ c2 ]=> st'' ->
+      st  =[ c1 ; c2 ]=> st''
+  | E_IfTrue : forall st st' b c1 c2,
+      beval st b = true ->
+      st =[ c1 ]=> st' ->
+      st =[ if b then c1 else c2 end]=> st'
+  | E_IfFalse : forall st st' b c1 c2,
+      beval st b = false ->
+      st =[ c2 ]=> st' ->
+      st =[ if b then c1 else c2 end]=> st'
+  | E_WhileFalse : forall b st c,
+      beval st b = false ->
+      st =[ while b do c end ]=> st
+  | E_WhileTrue : forall st st' st'' b c,
+      beval st b = true ->
+      st  =[ c ]=> st' ->
+      st' =[ while b do c end ]=> st'' ->
+      st  =[ while b do c end ]=> st''
+  | E_For : forall b st st' ci cu c,
+      st =[ ci ; while b do c ; cu end ]=> st' ->
+      st =[ for ci ; b ; cu do c end ]=> st'
+  where "st '=[' c ']=>' st'" := (ceval c st st').
+
+Compute string_dec X X.
+
+Set Printing All.
+Theorem t_update_eq : forall (A : Type) (m : total_map A)
+  (x : string) (v : A),
+(x !-> v; m) x = v.
+Proof.
+  intros. unfold t_update, eqb_string.  Qed.
+
+(* took ~15 min to golf down author's proof *)
+Theorem ceval_deterministic: forall c st st1 st2,
+     st =[ c ]=> st1  ->
+     st =[ c ]=> st2 ->
+     st1 = st2.
+Proof.
+  intros c st st1 st2 E1 E2.
+  generalize dependent st2.
+  induction E1; intros st2 E2;
+  inversion E2; subst; clear E2; auto;
+  try (match goal with
+  | HT : ?B = true, HF : ?B = false |- _ =>
+      rewrite HT in HF; discriminate
+  end);
+  (* E_Seq + E_WhileTrue, b evaluates to true *)
+  rewrite (IHE1_1 st'0) in *; auto.
+Qed.
+
+Print t_update_eq.
+
+Definition cequiv (c1 c2 : com) : Prop :=
+  forall (st st' : state),
+    (st =[ c1 ]=> st') <-> (st =[ c2 ]=> st').
+
+(* 2:54 min *)
+Theorem for_while_equiv : forall b c1 c2 c3,
+  cequiv
+    <{ for c1 ; b ; c2 do c3 end }>
+    <{ c1 ; while b do c3 ; c2 end }>.
+Proof.
+  unfold cequiv. intros. split; intro Hc.
+  - inversion Hc; subst; clear Hc; assumption.
+  - constructor; assumption.
+Qed.
+
+End ForImp.
+
+(** [] *)
 
 (** **** Exercise: 4 stars, advanced, optional (capprox)
 
@@ -2388,6 +2527,10 @@ Proof.
     the initial states for which [c1] terminates, [c2] also terminates
     and produces the same final state. Formally, program approximation
     is defined as follows: *)
+
+(* note: basically, the left implication of [cequiv].
+   [c2] may still converge if there are some initial
+   states such that [c1] doesn't terminate. *)
 
 Definition capprox (c1 c2 : com) : Prop := forall (st st' : state),
   st =[ c1 ]=> st' -> st =[ c2 ]=> st'.
@@ -2406,31 +2549,144 @@ Definition capprox (c1 c2 : com) : Prop := forall (st st' : state),
 (** Find two programs [c3] and [c4] such that neither approximates
     the other. *)
 
-Definition c3 : com
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
-Definition c4 : com
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+(* i.e. there's some state(s) where [c3] converges but [c4] doesn't 
+   (disproving ->), and vice-versa, for some other state(s) (disproving <-).
+
+   BUT it can also be because the two programs, despite terminating, don't
+   converge both in the same final state (gosh, took me a while).
+*)
+
+(* 46:02 min - don't ask yourself why *)
+Definition c3 : com := <{ X := 0 }>.
+Definition c4 : com := <{ X := 1 }>.
 
 Theorem c3_c4_different : ~ capprox c3 c4 /\ ~ capprox c4 c3.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  split; unfold capprox, c3, c4; intro Contra;
+  [ assert (H : empty_st =[ X := 0 ]=> (X !-> 0))
+  | assert (H : empty_st =[ X := 1 ]=> (X !-> 1)) ];
+  try (apply E_Asgn; reflexivity);
+  apply Contra in H; inversion H; subst; simpl in H4;
+  assert ((X !-> 1) X = 1) by reflexivity;
+  [ rewrite H4 in H0 | rewrite <- H4 in H0 ];
+  rewrite t_update_eq in H0; discriminate.
+Qed.
 
 (** Find a program [cmin] that approximates every other program. *)
 
-Definition cmin : com
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+(* 2:28 min *)
+Definition cmin : com := loop.
 
 Theorem cmin_minimal : forall c, capprox cmin c.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  unfold capprox. intros. 
+  apply loop_never_stops in H. contradiction.  Qed.
 
 (** Finally, find a non-trivial property which is preserved by
     program approximation (when going from left to right). *)
 
-Definition zprop (c : com) : Prop
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+Fact capprox_refine : capprox = refines.
+Proof. reflexivity.  Qed.
+
+(* "[c] converges" *)
+Definition zprop_trivia (c : com) : Prop := forall st,
+  exists st', st =[ c ]=> st'.
+
+Theorem zprop_preserving_trivia : forall c c',
+  zprop_trivia c -> capprox c c' -> zprop_trivia c'.
+Proof. unfold zprop_trivia, capprox.
+  intros c c' C A st. edestruct C. eauto.
+Qed.
+
+(* can't come up with a good property even after 1h... :< *)
+Definition zprop (c : com) : Prop :=
+  cequiv <{ c ; skip }> c.
 
 Theorem zprop_preserving : forall c c',
   zprop c -> capprox c c' -> zprop c'.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. unfold zprop, capprox.
+  intros c c' C A st st'.
+  split; intro Hc.
+  - inversion Hc; subst. inversion H4; subst. assumption.
+  - apply skip_right; assumption.
+Qed.
+
+(** ###
+    Additional exercise from
+    https://www.codewars.com/kata/5cdcdefdf00ea9001ca2e8fa/train/coq
+    ###
+*)
+Definition cmax_exists := exists cmax, forall c, capprox c cmax.
+
+Hint Constructors ceval : core.
+
+(* There are many programs that always converge,
+   for infinitely many reasons. Finding a maximum program would involve
+   combining infinitely many reasons in a final state, but that cannot be
+   done in a finite amount of steps. *)
+
+(* 1:41 min - "dec" stands for decidable *)
+Theorem cmax_exists_dec : cmax_exists \/ ~ cmax_exists.
+Proof. right. unfold cmax_exists, capprox.
+  intro Contra. destruct Contra as [cmax C].
+  assert (A : exists st', ceval <{ cmax ; X := 1 + X }> empty_st st').
+  { eexists. eapply E_Seq.
+    - eapply C with <{ skip }>. auto.
+    - eapply E_Asgn. reflexivity. }
+  destruct A as [st' H].
+  inversion H; subst; clear H H2.
+  inversion H5; subst.
+  apply C in H5. cbn in H5.
+  rename st'0 into st.
+  assert (B : st =[ cmax ]=> st).
+  { apply C with <{ skip }>; auto. }
+  assert (E : (X !-> S (st X) ; st) = st).
+  { eapply ceval_deterministic; eassumption. }
+  assert (F : forall {A B : Type} (f g : A -> B),
+    f = g -> forall x, f x = g x) by congruence.
+  assert (N : forall n, S n <> n)
+   by (induction n; intro H; try discriminate; injection H; assumption).
+  eapply F in E. rewrite t_update_eq in E.
+  apply N in E. contradiction.
+Qed.
+
+  (* induction cmax.
+  - assert (empty_st =[ X := 1 ]=> (X !-> 1)) by auto.
+    apply H in H0. inversion H0; subst.
+    apply ef with (x := X) in H1.
+    discriminate.
+  - (* bruh *)
+    assert (N : forall n, n <> S n).
+    { induction n; intro C; try discriminate. injection C; assumption. }
+    assert (empty_st =[ x := 1 + a ]=> (x !-> 1 + aeval empty_st a)) by auto.
+      apply H in H0. inversion H0; subst.
+      apply ef with (x := x) in H5. rewrite 2 t_update_eq in H5.
+      apply N in H5. contradiction. *)
+
+    (* induction a.
+    + destruct n, (String.eqb_spec x X); subst.
+      * assert (empty_st =[ X := 1 ]=> (X !-> 1)) by auto.
+        apply H in H0. inversion H0; subst.
+        apply ef with (x := X) in H5. discriminate.
+      * assert (empty_st =[ X := 1 ]=> (X !-> 1)) by auto.
+        apply H in H0. inversion H0; subst.
+        apply ef with (x := X) in H5.
+        cbn in H5.
+        rewrite t_update_neq in H5; try assumption. discriminate.
+      * assert (empty_st =[ X := 0 ]=> (X !-> 0)) by auto.
+        apply H in H0. inversion H0; subst.
+        apply ef with (x := X) in H5.
+        cbn in H5.
+        discriminate.
+      * assert (empty_st =[ x := 0 ]=> (x !-> 0)) by auto.
+        apply H in H0. inversion H0; subst. cbn in H5.
+        apply ef with (x := x) in H5. rewrite 2 t_update_eq in H5.
+        discriminate.
+    + assert (empty_st =[ x := x0 + 1 ]=> (x !-> empty_st x0 + 1)) by auto.
+      apply H in H0. inversion H0; subst.
+      apply ef with (x := x) in H5. rewrite 2 t_update_eq in H5.
+      discriminate. *)
+
 (** [] *)
 
 (* 2024-01-02 21:54 *)

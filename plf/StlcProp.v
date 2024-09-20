@@ -37,6 +37,9 @@ Proof.
   inversion HT.
 Qed.
 
+Print has_type.
+Print value.
+
 Lemma canonical_forms_fun : forall t T1 T2,
   empty |-- t \in (T1 -> T2) ->
   value t ->
@@ -50,7 +53,7 @@ Qed.
 (* ################################################################# *)
 (** * Progress *)
 
-(** The _progress_ theorem tells us that closed, well-typed
+(** The _progress_ theorem tells us that closed, well-typed (* note: open terms get stuck *)
     terms are not stuck: either a well-typed term is a value, or it
     can take a reduction step.  The proof is a relatively
     straightforward extension of the progress proof we saw in the
@@ -112,7 +115,7 @@ Proof with eauto.
   - (* T_App *)
     (* [t] = [t1 t2].  Proceed by cases on whether [t1] is a
        value or steps... *)
-    right. destruct IHHt1...
+    right. destruct IHHt1... (* note: [...] seems to be akin to [; auto.]; takes care of triviality *)
     + (* t1 is a value *)
       destruct IHHt2...
       * (* t2 is also a value *)
@@ -140,13 +143,45 @@ Qed.
     Show that progress can also be proved by induction on terms
     instead of induction on typing derivations. *)
 
+Print tm.
+
+(* 21:06 min *)
 Theorem progress' : forall t T,
      empty |-- t \in T ->
      value t \/ exists t', t --> t'.
-Proof.
+Proof with eauto.
   intros t.
-  induction t; intros T Ht; auto.
-  (* FILL IN HERE *) Admitted.
+  induction t; intros T Ht; auto; right;
+  inversion Ht; subst.
+
+  - (* tm_var *) solve_by_invert.
+
+  - (* tm_app *)
+    edestruct IHt1 as [| [t1']]...
+    edestruct IHt2 as [| [t2']]...
+    specialize (canonical_forms_fun _ _ _ H2 H).
+
+    intros [x [t11]]; subst... (* Only works if you specify [Proof with eauto.]!*)
+
+  - (* tm_if *)
+    edestruct IHt1 as [| [t1']]...
+    specialize (canonical_forms_bool _ H3 H).
+
+    intros [ | ]; subst...
+Qed.
+
+  (* intros t.
+  induction t; intros T Ht; auto; right.
+  - (* tm_var *) solve_by_inverts 2.
+  - (* tm_app *) inversion Ht; subst.
+    edestruct IHt1 as [| [t1']]; try eassumption.
+    + edestruct IHt2 as [| [t2']]; try eassumption.
+      * specialize (canonical_forms_fun _ _ _ H2 H).
+        intros [x [t11]]; subst.
+        exists <{ [x:=t2]t11 }>;
+        apply ST_AppAbs; assumption.
+      * exists <{ t1 t2' }>; auto.
+    + exists <{ t1' t2 }>; auto. *)
 (** [] *)
 
 (* ################################################################# *)
@@ -189,6 +224,8 @@ Proof.
     context [Gamma].  (Recall the definition of "includedin" from
     Maps.v.) *)
 
+Print has_type.
+
 Lemma weakening : forall Gamma Gamma' t T,
      includedin Gamma Gamma' ->
      Gamma  |-- t \in T  ->
@@ -196,7 +233,28 @@ Lemma weakening : forall Gamma Gamma' t T,
 Proof.
   intros Gamma Gamma' t T H Ht.
   generalize dependent Gamma'.
-  induction Ht; eauto using includedin_update.
+  induction Ht;
+
+(* Needed to unfold to understand
+
+  intros ? Hinc; auto.
+  - (* T_Var *)
+    specialize (Hinc _ _ H).
+    constructor. assumption.
+  
+  - (* T_Abs *)
+    specialize (includedin_update _ _ _ x0 T2 Hinc).
+    intro Hinc'.
+    apply IHHt in Hinc'.
+    constructor. assumption.
+
+  - (* T_App *)
+    (* apply IHHt1 in Hinc. - I still need Hinc! *)
+    specialize (IHHt1 _ Hinc).
+    specialize (IHHt2 _ Hinc).
+    eauto. *)
+
+  eauto using includedin_update.
 Qed.
 
 (** The following simple corollary is what we actually need below. *)
@@ -207,7 +265,7 @@ Lemma weakening_empty : forall Gamma t T,
 Proof.
   intros Gamma t T.
   eapply weakening.
-  discriminate.
+  discriminate. (* I'm amazed by this *)
 Qed.
 
 (* ================================================================= *)
@@ -219,7 +277,7 @@ Qed.
 
 (** Formally, the so-called _substitution lemma_ says this:
     Suppose we have a term [t] with a free variable [x], and suppose
-    we've assigned a type [T] to [t] under the assumption that [x] has
+    we've assigned a type [T] to [t] under the assumption that [x] has (* note: [t] + the assumption is what you get when you step in an abstraction *)
     some type [U].  Also, suppose that we have some other term [v] and
     that we've shown that [v] has type [U].  Then, since [v] satisfies
     the assumption we made about [x] when typing [t], we can

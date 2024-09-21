@@ -383,6 +383,8 @@ Qed.
     Show that substitution_preserves_typing can also be
     proved by induction on typing derivations instead
     of induction on terms. *)
+
+(* 15:02 min *)
 Lemma substitution_preserves_typing_from_typing_ind : forall Gamma x U t v T,
   x |-> U ; Gamma |-- t \in T ->
   empty |-- v \in U   ->
@@ -392,7 +394,27 @@ Proof.
   remember (x |-> U; Gamma) as Gamma'.
   generalize dependent Gamma.
   induction Ht; intros Gamma' G; simpl; eauto.
- (* FILL IN HERE *) Admitted.
+
+  Print has_type.
+
+  - (* T_Var *)
+    destruct (eqb_spec x x0); subst.
+    + rewrite update_eq in H.
+      injection H as H; subst.
+      apply weakening_empty; auto.
+
+    + rewrite update_neq in H; auto.
+
+  - (* T_Abs *)
+    destruct (eqb_spec x x0); subst.
+
+    + rewrite update_shadow in Ht; auto.
+
+    + constructor.
+      apply IHHt with (Gamma := x0 |-> T2; Gamma').
+      rewrite update_permute; auto.
+Qed.
+
 (** [] *)
 
 (* ================================================================= *)
@@ -462,7 +484,7 @@ Proof with eauto.
        and [eauto] takes care of them *)
     + (* ST_AppAbs *)
       apply substitution_preserves_typing with T2...
-      inversion HT1...
+      inversion HT1... (* no need for IH here *)
 Qed.
 
 (** **** Exercise: 2 stars, standard, especially useful (subject_expansion_stlc)
@@ -474,14 +496,23 @@ Qed.
     if [t --> t'] and [empty |-- t' \in T], then [empty |-- t \in T].
     Show this by giving a counter-example that does _not involve
     conditionals_. *)
+    (* note: in Types you could confute it only by conditionals *)
 
 (* FILL IN HERE *)
 
+Print step.
+
+(* 5:36 min *)
 Theorem not_subject_expansion:
   exists t t' T, t --> t' /\ (empty |-- t' \in T) /\ ~ (empty |-- t \in T).
-Proof.
-  (* Write "exists <{ ... }>" to use STLC notation. *)
-  (* FILL IN HERE *) Admitted.
+Proof with auto.
+  exists <{ (\x : Bool -> Bool, x) true }>, <{ true }>, <{ Bool }>.
+
+  split... split...
+  
+  intro Bad. solve_by_inverts 3.
+Qed.
+
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_subject_expansion_stlc : option (nat*string) := None.
@@ -498,6 +529,7 @@ Definition manual_grade_for_subject_expansion_stlc : option (nat*string) := None
 Definition stuck (t:tm) : Prop :=
   (normal_form step) t /\ ~ value t.
 
+(* 9:33 min *)
 Corollary type_soundness : forall t t' T,
   empty |-- t \in T ->
   t -->* t' ->
@@ -506,7 +538,12 @@ Proof.
   intros t t' T Hhas_type Hmulti. unfold stuck.
   intros [Hnf Hnot_val]. unfold normal_form in Hnf.
   induction Hmulti.
-  (* FILL IN HERE *) Admitted.
+
+  - apply progress in Hhas_type; destruct Hhas_type; contradiction.
+
+  - specialize (preservation _ _ _ Hhas_type H); auto.
+Qed.
+
 (** [] *)
 
 (* ################################################################# *)
@@ -517,12 +554,31 @@ Proof.
     Another nice property of the STLC is that types are unique: a
     given term (in a given context) has at most one type. *)
 
+Print has_type.
+(* 10:06 min *)
 Theorem unique_types : forall Gamma e T T',
   Gamma |-- e \in T ->
   Gamma |-- e \in T' ->
   T = T'.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof with auto.
+  (** Idea: [has_type] is deterministic, i.e. at no point a typing derivation 
+      tree can branch because two different rules apply. *)
+  intros ? ? ? ? HT HT'.
+  generalize dependent T'.
+  induction HT; intros ? HT'; inversion HT'; subst; clear HT'...
+
+  - (* T_Var *)
+    congruence.
+
+  - (* T_Abs *) specialize (IHHT T0 H4); congruence.
+
+  - (* T_App *)
+    specialize (IHHT1 _ H2).
+    specialize (IHHT2 _ H4).
+    subst.
+    congruence. (* Does [injection] for us *)
+Qed.
+
 (** [] *)
 
 (* ################################################################# *)
@@ -585,7 +641,7 @@ Definition closed (t:tm) :=
 (** Conversely, an _open_ term is one that may contain free
     variables.  (I.e., every term is an open term; the closed terms
     are a subset of the open ones.  "Open" precisely means "possibly
-    containing free variables.") *)
+    containing free variables.") *) (* note: open is to be intended as the universe of terms, not the difference between the universe and the closed subset *)
 
 (** **** Exercise: 1 star, standard, optional (afi)
 
@@ -598,7 +654,28 @@ Definition closed (t:tm) :=
     crucial to understanding substitution and its properties, which
     are really the crux of the lambda-calculus. *)
 
-(* FILL IN HERE *)
+(* 4:03 min
+                                                 y <> x
+                                                afi x t1
+      ------------------- [afi_var]     ------------------------ [afi_abs]
+          afi x <{ x }>                  afi x <{ \x : T, t1 }>
+
+           afi x t1                            afi x t2
+      ------------------- [afi_app1]    ------------------------ [afi_app2]
+       afi x <{ t1 t2 }>                   afi x <{ t1 t2 }>
+
+                 afi x t1
+      ------------------------------- [afi_if1]
+      afi x <{ if t1 then t2 else t3}
+
+                 afi x t2
+      ------------------------------- [afi_if2]
+      afi x <{ if t1 then t2 else t3}
+      
+                 afi x t3
+      ------------------------------- [afi_if3]
+      afi x <{ if t1 then t2 else t3}
+*)
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_afi : option (nat*string) := None.
@@ -606,7 +683,7 @@ Definition manual_grade_for_afi : option (nat*string) := None.
 
 (** Next, we show that if a variable [x] appears free in a term [t],
     and if we know [t] is well typed in context [Gamma], then it
-    must be the case that [Gamma] assigns a type to [x]. *)
+    must be the case that [Gamma] assigns a type to [x]. *) (* note: meaning that we got here by entering an abstraction in the past! *)
 
 Lemma free_in_context : forall x t T Gamma,
    appears_free_in x t ->
@@ -646,12 +723,20 @@ Lemma free_in_context : forall x t T Gamma,
 
     Complete the following proof. *)
 
+(* 5:32 min *)
 Proof.
   intros x t T Gamma H H0. generalize dependent Gamma.
   generalize dependent T.
   induction H as [| | |y T1 t1 H H0 IHappears_free_in| | |];
          intros; try solve [inversion H0; eauto].
-  (* FILL IN HERE *) Admitted.
+  
+    (* afi_abs *)
+    inversion H1; subst.
+    destruct (IHappears_free_in _ _ H7) as [T' EqT'].
+    exists T'.
+    rewrite update_neq in EqT'; assumption.
+Qed.
+
 (** [] *)
 
 (** From the [free_in_context] lemma, it immediately follows that any
@@ -659,11 +744,21 @@ Proof.
     no free variables). *)
 
 (** **** Exercise: 2 stars, standard, optional (typable_empty__closed) *)
+
+(* 5:15 min *)
 Corollary typable_empty__closed : forall t T,
     empty |-- t \in T  ->
     closed t.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold closed. intros ? ? HT x Bad.
+
+  specialize (free_in_context _ _ _ _ Bad HT).
+  intros [T'].
+
+  (* No variable is typed in the empty context. *)
+  inversion H.
+Qed.
+
 (** [] *)
 
 (** Finally, we establish _context_invariance_.  It is useful in cases
@@ -676,8 +771,10 @@ Proof.
 
 Lemma context_invariance : forall Gamma Gamma' t T,
      Gamma |-- t \in T  ->
-     (forall x, appears_free_in x t -> Gamma x = Gamma' x) ->
+     (forall x, appears_free_in x t -> Gamma x = Gamma' x) -> (* [Gamma] and [Gamma'] agree on the types of free variables *)
      Gamma' |-- t \in T.
+
+Print has_type.
 
 (** _Proof_: By induction on the derivation of [Gamma |-- t \in T].
 
@@ -721,11 +818,42 @@ Lemma context_invariance : forall Gamma Gamma' t T,
 (** **** Exercise: 3 stars, standard, optional (context_invariance)
 
     Complete the following proof. *)
-Proof.
+
+(* 1:16 min - tried to work out the informal proof beforehand by myself, took
+   quite a beating *)
+Proof with auto.
   intros.
   generalize dependent Gamma'.
   induction H as [| ? x0 ????? | | | |]; intros; auto.
-  (* FILL IN HERE *) Admitted.
+  
+  - (* T_Var *)
+    assert (Hafi : appears_free_in x0 x0) by auto.
+    specialize (H0 _ Hafi).
+    rewrite H0 in H.
+    auto.
+
+  - (* T_Abs *)
+    constructor.
+    apply IHhas_type.
+    intros x1 Hafi_x1.
+
+    destruct (eqb_spec x0 x1); subst.
+    + (* [x = y]: equality brought by new bindings *)
+      rewrite 2 update_eq...
+
+    + (* [x <> y]: equality brought by H0 *)
+      rewrite 2 update_neq...
+
+  - (* T_App *)
+    apply T_App with T2.
+
+    + (* afi_app1 *)
+      apply IHhas_type1...
+
+    + (* afi_app2 *)
+      apply IHhas_type2...
+Qed.
+
 (** [] *)
 
 (** The context invariance lemma can actually be used in place of the

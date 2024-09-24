@@ -771,7 +771,7 @@ Qed.
 
 Lemma context_invariance : forall Gamma Gamma' t T,
      Gamma |-- t \in T  ->
-     (forall x, appears_free_in x t -> Gamma x = Gamma' x) -> (* [Gamma] and [Gamma'] agree on the types of free variables *)
+     (forall x, appears_free_in x t -> Gamma x = Gamma' x) -> (* [Gamma] and [Gamma'] agree on the types of free variables in [t] *)
      Gamma' |-- t \in T.
 
 Print has_type.
@@ -870,11 +870,30 @@ Qed.
     preservation theorems for the simply typed lambda-calculus (as Coq
     theorems).  You can write [Admitted] for the proofs. *)
 
-(* FILL IN HERE *)
+(* ~5 min *)
+
+(* Check *)
+Theorem my_progress : forall t T,
+  empty |-- t \in T ->
+  ~ stuck t.
+Proof. Admitted.
+
+(* Check *)
+Theorem my_preservation : forall t t' T,
+  empty |-- t \in T ->
+  t --> t' ->
+  empty |-- t' \in T.
+Proof. Admitted.
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_progress_preservation_statement : option (nat*string) := None.
 (** [] *)
+
+Example c1 : <{(\x : Bool -> Bool, x false) idB}> -->* <{false}>.
+Proof with auto.
+  eapply multi_step... simpl.
+  eapply multi_step...
+Qed.
 
 (** **** Exercise: 2 stars, standard (stlc_variation1)
 
@@ -894,16 +913,39 @@ and the following typing rule:
     false, give a counterexample.
 
       - Determinism of [step]
-(* FILL IN HERE *)
+        Becomes false. Any term can be zapped.
+
+        idBB idB -> idB
+        idBB idB -> zap
+        idB != zap
+
       - Progress
-(* FILL IN HERE *)
+        Remains true, because [zap] can be typed and it can take a step to
+        itself, so it never gets stuck.
+
       - Preservation
-(* FILL IN HERE *)
+        Remains true, because by the rule T_Zap, [zap] can have any type,
+        and the type of each occurrence of [zap] is indifferent of the others.
+
+        empty |-- (\x : Bool -> Bool, x zap) zap \in T
+        (\x : Bool -> Bool, x zap) zap --> zap zap
+        empty |-- zap zap \in T
+
+  (* 20:45 mins *)
 *)
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_stlc_variation1 : option (nat*string) := None.
 (** [] *)
+
+Print step.
+
+Example true_true_stuck : stuck <{true true}>.
+Proof. unfold stuck, normal_form.
+  split.
+  - intros [t']. solve_by_inverts 2.
+  - intros Hv. solve_by_invert.
+Qed.
 
 (** **** Exercise: 2 stars, standard (stlc_variation2)
 
@@ -922,31 +964,68 @@ Definition manual_grade_for_stlc_variation1 : option (nat*string) := None.
     false, give a counterexample.
 
       - Determinism of [step]
-(* FILL IN HERE *)
+        Remains true, because there is no previous rule whose LHS matches an abstraction.
+        ^^^ WRONG ^^^
+
+        Becomes false.
+        Both [ST_App1] and [ST_AppAbs] apply to this well typed term:
+        [idB true]
+
+        idB true --> true                   [ST_AppAbs]
+        idB true --> foo true               [ST_App1] and [ST_Foo1]
+
+        Clearly, true != foo true
+
       - Progress
-(* FILL IN HERE *)
+        Becomes false. Consider the term [idB true], short for
+        [(\x:Bool, x) true]. [idB true] is well typed, and it has type [Bool].
+        However, due to nondeterminism of step, it can get stuck:
+
+                  [ST_App1]            [ST_App1]
+        idB true ----------> foo true ----------> true true
+
+        [true true] cannot take a step, and it's not a value, it's stuck.
+
       - Preservation
-(* FILL IN HERE *)
+        Becomes false.
+
+        There's not typing rule for [foo]. That means any term containing [foo]
+        can't be typed.
+
+        empty |-- idB true \in Bool
+        idB true --> foo true
+        empty |-- foo true \in Bool (* !? *)
+        
+(* 21:13 min *)
 *)
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_stlc_variation2 : option (nat*string) := None.
 (** [] *)
 
+Print step.
 (** **** Exercise: 2 stars, standard (stlc_variation3)
 
     Suppose instead that we remove the rule [ST_App1] from the [step]
     relation. Which of the following properties of the STLC remain
-    true in the presence of this rule?  For each one, write either
+    true in the presence of this rule?  For each one, write either  (* absence *)
     "remains true" or else "becomes false." If a property becomes
     false, give a counterexample.
 
       - Determinism of [step]
-(* FILL IN HERE *)
+        Remains true.
+
       - Progress
-(* FILL IN HERE *)
+        Obviously becomes false.
+
+        [(idBB idB) true] is well typed, but it's stuck: neither of the rules
+        [ST_AppAbs] or [ST_App2] apply, because the left term is an application.
+
       - Preservation
-(* FILL IN HERE *)
+        Remains true. The well-typed applications that can take a step still
+        produce well-typed values.
+
+(* 16:03 min *)
 *)
 
 (* Do not modify the following line: *)
@@ -967,11 +1046,23 @@ Definition manual_grade_for_stlc_variation3 : option (nat*string) := None.
     false, give a counterexample.
 
       - Determinism of [step]
-(* FILL IN HERE *)
+        Becomes false.
+
+        if true then false else true --> false     [ST_IfTrue]
+        if true then false else true --> true      [ST_FunnyIfTrue]
+        false != true
+
       - Progress
-(* FILL IN HERE *)
+        Remains true.
+
       - Preservation
-(* FILL IN HERE *)
+        Becomes false.
+
+        [if true then idB else (\y:Bool, false)] has type [Bool -> Bool]
+        and it can take a step to [true] by [ST_FunnyIfTrue], however
+        [empty |-- true \in Bool -> Bool] is unprovable.
+
+(* 7:26 min *)
 *)
 (** [] *)
 
@@ -991,11 +1082,26 @@ Definition manual_grade_for_stlc_variation3 : option (nat*string) := None.
     false, give a counterexample.
 
       - Determinism of [step]
-(* FILL IN HERE *)
+        Remains true.
+
       - Progress
-(* FILL IN HERE *)
+        Remains true. The applications [T_FunnyApp] assings a type to may always
+        make progress.
+
+        empty |-- (\y:Bool, idB) true \in Bool
+        (\y:Bool, idB) true steps to idB, which is a value.
+
+        empty |-- (\y:Bool, \x:Bool, false) true \in Bool
+        (\y:Bool, \x:Bool, false) true --> [y:=true](\x:Bool, false) = \x:Bool, false
+
       - Preservation
-(* FILL IN HERE *)
+        Becomes false.
+
+        empty |-- (\y:Bool, idB) true \in Bool
+        (\y:Bool, idB) true --> idB
+        empty |-- idB \in Bool  (* unprovable *)
+
+(* 16:29 min *)
 *)
 (** [] *)
 
@@ -1015,13 +1121,45 @@ Definition manual_grade_for_stlc_variation3 : option (nat*string) := None.
     false, give a counterexample.
 
       - Determinism of [step]
-(* FILL IN HERE *)
+        Remains true.
+        
       - Progress
-(* FILL IN HERE *)
+        Becomes false.
+        
+        [true true] is well typed to according to [T_FunnyApp'],
+        but it's stuck, contrary to what Progress wants.
+
       - Preservation
-(* FILL IN HERE *)
+        Remains true (can't think of a counterexample).
+
+        Can a term typed with T_FunnyApp' ever take a step?
+
+        empty |-- idB (true true) \in Bool
+        idB (true true) --> true true
+        empty |-- true true \in Bool    (* good *)
+
+        empty |-- (true true) (idB false)
+        (true true) (idB false) --> (* stuck, good *)
+
+        empty |-- (idB false) (idB true) \in Bool
+        (idB false) (idB true) --> false (idB true)
+        empty |-- false (idB true) \in Bool
+
+        empty |-- true (idB true) \in Bool
+        true (idB true) --> true true
+        empty |-- true true
+
+(* ~21 min *)
 *)
 (** [] *)
+
+Print has_type.
+
+Example t1 : empty |-- idB \in <{Bool -> Bool}>.
+Proof. auto.  Qed.
+
+Example t2 : exists t, empty |-- idBB idB \in t.
+Proof. eexists. eapply T_App; eauto.  Qed.
 
 (** **** Exercise: 2 stars, standard, optional (stlc_variation7)
 
@@ -1037,11 +1175,67 @@ Definition manual_grade_for_stlc_variation3 : option (nat*string) := None.
     false, give a counterexample.
 
       - Determinism of [step]
-(* FILL IN HERE *)
+        Remains true.
+
       - Progress
-(* FILL IN HERE *)
+        Remains true.
+        (* ^^^ WRONG ^^^ *)
+        
+        [idB] can have two types now, [Bool -> Bool] by [T_Abs] and [Bool] by
+        [T_FunnyAbs]. Whatever the type, [idB] is still a value because it is
+        an abstraction, so Progress is happy.
+
+        If an abstraction typed by [T_FunnyAbs] appears within an application,
+        the application may take a step anyway since it doesn't care about
+        types and performs substitution regardlessly.
+
+        (\x:Bool, x x) can only be typed with [T_FunnyAbs] to [Bool].
+        An abstraction typed by [T_Funny] can never appear as the LHS of an
+        application, since it requires an arrow type. Therefore Progress
+        doesn't apply to this term:
+
+        (\x:Bool, x x) true
+
+        which does get stuck.
+
+        (\y:Bool, \x:Bool, y x) true
+
+        empty |-- (\y:Bool, \x:Bool, y x) true \in Bool
+        (\y:Bool, \x:Bool, y x) true --> \x:Bool, true x
+        \x:Bool, true x is a value
+
+        (* ^^^ WRONG ^^^ *)
+
+        Becomes false.
+
+        [if (\x:Bool, x) then true else false \in Bool] is well typed,
+        however no small step rule applies to this term, and it is not a value.
+
       - Preservation
-(* FILL IN HERE *)
+        Remains true, since abstractions can be typed by more than one rule.
+        (Still not convinced, but can't spend too much time on this)
+
+        empty |-- (\y:Bool, \x:Bool, y x) true \in Bool (* WRONG: T_FunnyAbs applies only in the empty context *)
+        (\y:Bool, \x:Bool, y x) true --> \x:Bool, true x
+        empty |-- \x:Bool, true x \in Bool
+
+        empty |-- idB idB \in Bool (* First idB typed with [T_Abs], second with [T_FunnyAbs] *)
+        (\x:Bool, x) idB --> idB
+        empty |-- idB \in Bool (* works *)
+
+        empty |-- (\y:Bool, ) true \in Bool
+        (\x:Bool, x) idB --> idB
+        empty |-- idB \in Bool (* works *)
+
+        empty |-- idBB idB \in Bool -> Bool
+        idBB idB --> idB
+        empty |-- idB \in Bool -> Bool
+
+        empty |-- idB idBB \in Bool
+        idB idBB --> idBB
+        empty |-- idBB \in Bool  (* yup, still an abstraction! *)
+
+(* 57:11 min *)
 *)
 (** [] *)
 
@@ -1072,7 +1266,7 @@ Inductive tm : Type :=
   | tm_var : string -> tm
   | tm_app : tm -> tm -> tm
   | tm_abs : string -> ty -> tm -> tm
-  | tm_const  : nat -> tm
+  | tm_const  : nat -> tm (* this defeats the point of having [succ] tho... *)
   | tm_succ : tm -> tm
   | tm_pred : tm -> tm
   | tm_mult : tm -> tm -> tm
@@ -1129,26 +1323,88 @@ Coercion tm_const : nat >-> tm.
 Reserved Notation "'[' x ':=' s ']' t" (in custom stlc at level 20, x constr).
 
 (** **** Exercise: 5 stars, standard (STLCArith.subst) *)
-Fixpoint subst (x : string) (s : tm) (t : tm) : tm
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
 
-(** (You'll need to add remove the period at the end of this
-    definition and add
+Print tm.
+(*
+  [x:=s] x                        = s
+  [x:=s] y                        = y             if x <> y
+  [x:=s] \x:T,t                   = \x:T,t
+  [x:=s] \y:T,t                   = \y:T,[x:=s]t  if x <> y
+  [x:=s] t1 t2                    = [x:=s]t1 [x:=s]t2
+  [x:=s] n                        = n             n:nat
+  [x:=s] succ t                   = succ [x:=s]t
+  [x:=s] pred t                   = pred [x:=s]t
+  [x:=s] t1 * t2                  = [x:=s]t1 * [x:=s]t2
+  [x:=s] if0 t1 then t2 else t3   =
+                    if0 [x:=s]t1 then [x:=s]t2 else [x:=s]t3
+*)
 
-    where "'[' x ':=' s ']' t" := (subst x s t) (in custom stlc).
-
-    when you fill it in.) *)
+(* 16:24 min + *)
+Fixpoint subst (x : string) (s : tm) (t : tm) : tm :=
+  match t with
+  | tm_var y => if String.eqb x y then s else <{ y }> (* can't use the pattern <{ y }>, because x is coerced to [tm] *)
+  | <{ \y:T, t1 }> => if String.eqb x y then t else <{ \y:T, [x:=s]t1 }>
+  | <{ t1 t2 }> => <{ ([x:=s]t1) ([x:=s]t2) }>
+  | tm_const n => n
+  | <{ succ t1 }> => <{ succ ([x:=s]t1) }>
+  | <{ pred t1 }> => <{ pred ([x:=s]t1) }>
+  | <{ t1 * t2 }> => <{ ([x:=s]t1) * ([x:=s]t2) }>
+  | <{ if0 t1 then t2 else t3 }> =>
+      <{ if0 ([x:=s]t1) then ([x:=s]t2) else ([x:=s]t3) }>
+  end
+  where "'[' x ':=' s ']' t" := (subst x s t) (in custom stlc).
 
 Inductive value : tm -> Prop :=
-  (* FILL IN HERE *)
-.
+  | v_abs : forall x t T, value <{\x:T,t}>
+  | v_nat : forall (n : nat), value <{ n }>
+  | v_succ : forall (n : nat), value <{ succ n }>.
 
 Hint Constructors value : core.
 
 Reserved Notation "t '-->' t'" (at level 40).
 
+Print step.
+
+(* 20:36 min *)
 Inductive step : tm -> tm -> Prop :=
-  (* FILL IN HERE *)
+  | STA_AppAbs : forall x T t1 v2,
+      value v2 ->
+      <{ (\x:T,t1) v2 }> --> <{ [x:=v2]t1 }>
+  | STA_App1 : forall t1 t1' t2,
+      t1 --> t1' ->
+      <{ t1 t2 }> --> <{ t1' t2 }>
+  | STA_App2 : forall v1 t2 t2',
+      value v1 ->
+      t2 --> t2' ->
+      <{ v1 t2 }> --> <{ v1 t2' }>
+  | STA_If0 : forall t1 t1' t2 t3,
+      t1 --> t1' ->
+      <{ if0 t1 then t2 else t3 }> --> <{ if0 t1' then t2 else t3 }>
+  | STA_IfFalse : forall t2 t3,
+      <{ if0 0 then t2 else t3 }> --> t3
+  | STA_IfTrue : forall n t2 t3,
+      n <> 0 ->
+      <{ if0 n then t2 else t3 }> --> t2
+  | STA_Succ : forall t t',
+      t --> t' ->
+      <{ succ t }> --> <{ succ t'}>
+  | STA_Pred : forall t t',
+      t --> t' ->
+      <{ pred t }> --> <{ pred t'}>
+  | STA_PredNat : forall (n n' : nat),
+      n <> 0 ->
+      n' = pred n ->
+      <{ pred n }> --> <{ n' }>
+  | STA_Mult1 : forall t1 t1' t2,
+      t1 --> t1' ->
+      <{ t1 * t2 }> --> <{ t1' * t2 }>
+  | STA_Mult2 : forall v1 t2 t2',
+      value v1 ->
+      t2 --> t2' ->
+      <{ v1 * t2 }> --> <{ v1 * t2' }>
+  | STA_Mult : forall (n1 n2 p : nat),
+      p = n1 * n2 ->
+      <{ n1 * n2 }> --> <{ p }>
 where "t '-->' t'" := (step t t').
 
 Notation multistep := (multi step).
@@ -1160,7 +1416,14 @@ Hint Constructors step : core.
 
 Example Nat_step_example : exists t,
 <{(\x: Nat, \y: Nat, x * y ) 3 2 }> -->* t.
-Proof. (* FILL IN HERE *) Admitted.
+Proof with (auto; simpl).
+  exists <{ 6 }>.
+  eapply multi_step...
+  eapply multi_step...
+  eapply multi_step...
+
+  (* or simply [eauto] *)
+Qed.
 
 (* Typing *)
 
@@ -1168,8 +1431,36 @@ Definition context := partial_map ty.
 
 Reserved Notation "Gamma '|--' t '\in' T" (at level 101, t custom stlc, T custom stlc at level 0).
 
+Print has_type.
+
+(* 15:12 min *)
 Inductive has_type : context -> tm -> ty -> Prop :=
-  (* FILL IN HERE *)
+  | T_Const : forall Gamma (n : nat), Gamma |-- n \in Nat
+  | T_Var : forall Gamma (x : string) T,
+      Gamma x = Some T ->
+      Gamma |-- x \in T
+  | T_Abs : forall Gamma x t T1 T2,
+      (x |-> T1 ; Gamma) |-- t \in T2 ->
+      Gamma |-- <{ \x:T1, t }> \in (T1 -> T2)
+  | T_App : forall Gamma t1 t2 A B,
+      Gamma |-- t1 \in (A -> B) ->
+      Gamma |-- t2 \in A ->
+      Gamma |-- <{ t1 t2 }> \in B
+  | T_If0 : forall Gamma t1 t2 t3 T,
+      Gamma |-- t1 \in Nat ->
+      Gamma |-- t2 \in T ->
+      Gamma |-- t3 \in T ->
+      Gamma |-- <{ if0 t1 then t2 else t3 }> \in T
+  | T_Succ : forall Gamma t,
+      Gamma |-- t \in Nat ->
+      Gamma |-- <{ succ t }> \in Nat
+  | T_Pred : forall Gamma t,
+      Gamma |-- t \in Nat ->
+      Gamma |-- <{ pred t }> \in Nat
+  | T_Mult : forall Gamma t1 t2,
+      Gamma |-- t1 \in Nat ->
+      Gamma |-- t2 \in Nat ->
+      Gamma |-- <{ t1 * t2 }> \in Nat
 where "Gamma '|--' t '\in' T" := (has_type Gamma t T).
 
 Hint Constructors has_type : core.
@@ -1178,8 +1469,10 @@ Hint Constructors has_type : core.
 
 Example Nat_typing_example :
    empty |-- ( \x: Nat, \y: Nat, x * y ) 3 2 \in Nat.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof with auto.
+  eapply T_App...
+  eapply T_App...
+Qed.
 
 (** [] *)
 

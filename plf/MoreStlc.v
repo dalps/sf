@@ -485,10 +485,10 @@ Set Default Goal Selector "!".
 
    Note that the right-hand side of this binder mentions [fact], the
    variable being bound -- something that is not allowed according
-   to the way we defined [let] above. *) (* step gets stuck when it encounters a non-substituted variable, like [fact] in the body *)
+   to the way we defined [let] above. *) (* step gets stuck when it encounters a non-substituted variable, like [fact], either in the [let]-bound expression or in the [let]-body *)
 
 (** (The body of a [let] is typechecked in the same context as the
-   [let] itself, which means that the recursive occurrence of [fact] in the
+   [let] itself, which means that the recursive occurrence of [fact] in the (* don't they mean the [let]-bound expression? Because the body is typechecked in (fact|->T2 ; Gamma), where [fact] does have a type *)
    body will not have a type in the context when it is looked up by the
    [T_Var] rule.) *)
 
@@ -576,7 +576,7 @@ Set Default Goal Selector "!".
                            Gamma |-- fix t1 \in T1
 *)
 
-(** Let's see how [ST_FixAbs] works by reducing [fact 3 = fix F 3],
+(** Let's see how [ST_FixAbs] works by reducing [fact 3 = fix F 3], (* since application is left-associative, that would be [(fix F) 3] *)
     where
 
     F = (\f. \x. if x=0 then 1 else x * (f (pred x)))
@@ -587,7 +587,7 @@ Set Default Goal Selector "!".
 
 [-->] [ST_FixAbs] + [ST_App1]
 
-    (\x. if x=0 then 1 else x * (fix F (pred x))) 3
+    (\x. if x=0 then 1 else x * (fix F (pred x))) 3                             (* replace [fix F] for [f] in [\x. if x=0 then 1 else x * (f (pred x))] *)
 
 [-->] [ST_AppAbs]
 
@@ -599,7 +599,7 @@ Set Default Goal Selector "!".
 
 [-->] [ST_FixAbs + ST_Mult2]
 
-    3 * ((\x. if x=0 then 1 else x * (fix F (pred x))) (pred 3))
+    3 * ((\x. if x=0 then 1 else x * (fix F (pred x))) (pred 3))                (* note: unfold F a second time *)
 
 [-->] [ST_PredNat + ST_Mult2 + ST_App2]
 
@@ -615,7 +615,7 @@ Set Default Goal Selector "!".
 
 [-->] [ST_FixAbs + 2 x ST_Mult2]
 
-    3 * (2 * ((\x. if x=0 then 1 else x * (fix F (pred x))) (pred 2)))
+    3 * (2 * ((\x. if x=0 then 1 else x * (fix F (pred x))) (pred 2)))          (* descend in the second operand of the second operand, apply [ST_FixAbs] *)
 
 [-->] [ST_PredNat + 2 x ST_Mult2 + ST_App2]
 
@@ -627,7 +627,7 @@ Set Default Goal Selector "!".
 
 [-->] [ST_If0_Nonzero + 2 x ST_Mult2]
 
-    3 * (2 * (1 * (fix F (pred 1))))
+    3 * (2 * (1 * (fix F (pred 1))))                                            (* By now it should be clear that the argument is the one who's driving the recursion. Under this analogy, the body of [F] represents the road, the parameter [f] plays a road sign, and the stopping condition is the destination. [fix] acts as the fuel. *)
 
 [-->] [ST_FixAbs + 3 x ST_Mult2]
 
@@ -664,6 +664,8 @@ Set Default Goal Selector "!".
 
 (** **** Exercise: 1 star, standard, optional (halve_fix)
 
+(* 2:47 min *)
+
     Translate this informal recursive definition into one using [fix]:
 
       halve =
@@ -672,7 +674,13 @@ Set Default Goal Selector "!".
            else if (pred x)=0 then 0
            else 1 + (halve (pred (pred x)))
 
-    (* FILL IN HERE *)
+      halve = fix H
+        fix
+          (\h:Nat->Nat,
+            \x:Nat,
+            if x=0 then 0
+            else if (pred x)=0 then 0
+            else 1 + (h (pred (pred x)))
 *)
 (** [] *)
 
@@ -682,7 +690,46 @@ Set Default Goal Selector "!".
     through to reduce to a normal form (assuming the usual reduction
     rules for arithmetic operations).
 
-    (* FILL IN HERE *)
+(* 11:37 min *)
+
+    fact 1
+
+[-->] [ST_Var]
+
+    fix F 1
+    (where [F = \f. \x. if x=0 then 1 else x * (f (pred x))])
+
+[-->] [ST_App1], [ST_FixAbs]
+
+    (\x. if x=0 then 1 else x * (fix F (pred x))) 1
+
+[-->] [ST_AppAbs]
+
+    if 1=0 then 1 else 1 * (fix F (pred 1))
+
+[-->] [ST_If0_NonZero]
+
+    1 * (fix F (pred 1))
+
+[-->] [ST_Mult2], [ST_App1], [ST_FixAbs]
+
+    1 * ((\x. if x=0 then 1 else x * (fix F (pred x))) (pred 1))
+
+[-->] [ST_Mult2], [ST_App2], [ST_PredNat]
+
+    1 * ((\x. if x=0 then 1 else x * (fix F (pred x))) 0)
+
+[-->] [ST_Mult2], [ST_AppAbs]
+
+    1 * (if 0=0 then 1 else 0 * (fix F (pred 0)))
+
+[-->] [ST_Mult2], [ST_If0Zero]
+
+    1 * 1
+
+[-->] [ST_MultNat]
+
+    1
 *)
 (** [] *)
 
@@ -691,7 +738,9 @@ Set Default Goal Selector "!".
     implies that _every_ type is inhabited by some term.  To see this,
     observe that, for every type [T], we can define the term
 
-    fix (\x:T,x)
+    fix (\x:T,x)  (* note: [-->] fix (\x:T,x) *)
+
+                  (* |-- \x:T, x \in (T->T) -> |-- fix (\x:T,x) \in T *)
 
     By [T_Fix]  and [T_Abs], this term has type [T].  By [ST_FixAbs]
     it reduces to itself, over and over again.  Thus it is a
@@ -710,9 +759,9 @@ Set Default Goal Selector "!".
 *)
 (** And finally, here is an example where [fix] is used to define a
     _pair_ of recursive functions (illustrating the fact that the type
-    [T1] in the rule [T_Fix] need not be a function type):
+    [T1] in the rule [T_Fix] need not be a function type):  (* [T1] is the type of the binder (or first parameter) of [t1] in [fix t1]*)
 
-    let evenodd =
+    let evenodd =                                                 (* Mutual recursion!!! *)
          fix
            (\eo: ((Nat -> Nat) * (Nat -> Nat)),
               (\n:Nat, if0 n then 1 else (eo.snd (pred n)),
@@ -720,6 +769,13 @@ Set Default Goal Selector "!".
     let even = evenodd.fst in
     let odd  = evenodd.snd in
     (even 3, even 4)}
+
+even 3 --> evenodd.fst 3 --> (fix EO).fst 3
+  --> (\n:Nat, if0 n then 1 else ((fix EO).snd (pred n)),
+       \n:Nat, if0 n then 0 else ((fix EO).fst (pred n))))
+  --> eo.fst 3 --> eo.snd 2 --> eo.fst 1 --> eo.snd 0 --> 0                     (* even 3 = false *)
+
+even 4 --> eo.fst 4 --> eo.snd 3 --> eo.fst 2 --> eo.snd 1 --> eo.fst 0 --> 1   (* even 4 = true *)
 *)
 
 (* ================================================================= *)
@@ -740,11 +796,11 @@ Set Default Goal Selector "!".
 
        v ::=                          Values
            | ...
-           | {i1=v1, ..., in=vn}         record value
+           | {i1=v1, ..., in=vn}         record value                           (* a record is a value when each field has its value fully reduced *)
 
        T ::=                          Types
            | ...
-           | {i1:T1, ..., in:Tn}         record type
+           | {i1:T1, ..., in:Tn}         record type                            (* note: the type now includes strings for labels *)
 *)
 
 (** The generalization from products should be pretty obvious.  But
@@ -785,7 +841,7 @@ Set Default Goal Selector "!".
 
                     Gamma |-- t0 \in {..., i:Ti, ...}
                     ---------------------------------                  (T_Proj)
-                          Gamma |-- t0.i \in Ti
+                          Gamma |-- t0.i \in Ti                                 (* paraphrase: in [Gamma], the projection of [t0] onto [i] has type [Ti] if in [Gamma], [t0] has the record type [{..., i:Ti, ...}] where, in particular, the field [i] has type [Ti]. *)
 *)
 
 (** There are several ways to approach formalizing the above

@@ -1354,10 +1354,17 @@ Fixpoint subst (x : string) (s : tm) (t : tm) : tm :=
   end
   where "'[' x ':=' s ']' t" := (subst x s t) (in custom stlc).
 
+(* Inductive nvalue : tm -> Prop :=
+  | nv_nat : forall (n : nat), nvalue <{ n }>
+  | nv_succ : forall v, nvalue v -> nvalue <{ succ v }>.
+
 Inductive value : tm -> Prop :=
   | v_abs : forall x t T, value <{\x:T,t}>
-  | v_nat : forall (n : nat), value <{ n }>
-  | v_succ : forall (n : nat), value <{ succ n }>.
+  | v_nat : forall t, nvalue t -> value t. *)
+
+Inductive value : tm -> Prop :=
+  | v_abs : forall x t T, value <{\x:T,t}>
+  | v_nat : forall (n : nat), value <{ n }>.
 
 Hint Constructors value : core.
 
@@ -1380,19 +1387,24 @@ Inductive step : tm -> tm -> Prop :=
   | STA_If0 : forall t1 t1' t2 t3,
       t1 --> t1' ->
       <{ if0 t1 then t2 else t3 }> --> <{ if0 t1' then t2 else t3 }>
-  | STA_IfFalse : forall t2 t3,
+  | STA_If0False : forall t2 t3,
       <{ if0 0 then t2 else t3 }> --> t3
-  | STA_IfTrue : forall n t2 t3,
+  | STA_If0True : forall n t2 t3,
       n <> 0 ->
       <{ if0 n then t2 else t3 }> --> t2
+  | STA_If0Succ : forall n t2 t3,
+      <{ if0 succ n then t2 else t3 }> --> t2
   | STA_Succ : forall t t',
       t --> t' ->
       <{ succ t }> --> <{ succ t'}>
+  | STA_SuccNat : forall (n n' : nat),
+      n' = S n ->
+      <{ succ n }> --> <{ n' }>
   | STA_Pred : forall t t',
       t --> t' ->
       <{ pred t }> --> <{ pred t'}>
   | STA_PredNat : forall (n n' : nat),
-      n <> 0 ->
+      (* n <> 0 -> *)
       n' = pred n ->
       <{ pred n }> --> <{ n' }>
   | STA_Mult1 : forall t1 t1' t2,
@@ -1482,13 +1494,75 @@ Qed.
 (** The next lemmas are proved _exactly_ as before. *)
 
 (** **** Exercise: 4 stars, standard (STLCArith.weakening) *)
+
+(* 13:07 min *)
 Lemma weakening : forall Gamma Gamma' t T,
      includedin Gamma Gamma' ->
      Gamma  |-- t \in T  ->
      Gamma' |-- t \in T.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  unfold includedin.
+  intros ? ? ? ? ? HGamma.
+  generalize dependent Gamma'.
+  induction HGamma; intros Gamma' Hinc; eauto.
 
-(* FILL IN HERE *)
+  - (* T_Abs *) constructor.
+    specialize (IHHGamma (x0 |-> T1 ; Gamma')).
+    apply IHHGamma; intros.
+
+    destruct (String.eqb_spec x0 x1); subst.
+    + rewrite update_eq in *; auto.
+    + rewrite update_neq in *; auto.
+Qed.
+
+Lemma weakening_empty : forall Gamma t T,
+  empty |-- t \in T ->
+  Gamma |-- t \in T.
+Proof.
+  intros.
+  apply (weakening empty).
+  - unfold includedin; intros; inversion H0.
+  - assumption.
+Qed.
+
+(* Attempt off of memory: close enough!
+  
+  Lemma substitution_preserves_typing : forall x s t S T,
+    empty |-- s \in S ->
+    (x |-> S ; empty) |-- t \in T ->
+    empty |-- [x:=s]t \in T. *)
+
+(* 39:02 min - took some time for revising *)
+Lemma substitution_preserves_typing : forall Gamma x s t S T,
+  empty |-- s \in S ->
+  (x |-> S ; Gamma) |-- t \in T ->
+  Gamma |-- [x:=s]t \in T.
+Proof.
+  intros.
+  generalize dependent Gamma.
+  generalize dependent T.
+  induction t; simpl; intros;
+  inversion H0; subst; clear H0; eauto.
+
+  - (* tm_var *)
+    destruct (String.eqb_spec x0 s0); subst.
+
+    + rewrite update_eq in H3;
+      injection H3; intro; subst;
+      auto using weakening_empty.
+
+    + rewrite update_neq in H3; auto.
+
+  - (* tm_abs *)
+    destruct (String.eqb_spec x0 s0); subst.
+
+    + (* binder is not substituted *)
+      rewrite update_shadow in H6; auto.
+
+    + (* substitution occurs in body *)
+      constructor. apply IHt.
+      rewrite update_permute in H6; auto.
+Qed.
 
 (** [] *)
 
@@ -1496,11 +1570,24 @@ Proof. (* FILL IN HERE *) Admitted.
 (* Hint: You will need to define and prove the same helper lemmas we used before *)
 
 (** **** Exercise: 4 stars, standard (STLCArith.preservation) *)
+
+(* ~21:43 min *)
 Theorem preservation : forall t t' T,
   empty |-- t \in T  ->
   t --> t'  ->
   empty |-- t' \in T.
-Proof with eauto. (* FILL IN HERE *) Admitted.
+Proof with eauto.
+  intros ? ? ? Ht.
+  generalize dependent t'.
+  (* I forgot to remember empty... (wasted 5 min...) *)
+  remember empty as Gamma.
+  induction Ht; intros t' Hstep;
+  inversion Hstep; subst; clear Hstep... (* wowzers ^^ *)
+
+  - (* [T_App] and [ST_AppAbs] *)
+    inversion Ht1; subst; clear Ht1.
+    apply substitution_preserves_typing with (S:=A); auto.
+Qed.
 
 (** [] *)
 
@@ -1510,7 +1597,47 @@ Proof with eauto. (* FILL IN HERE *) Admitted.
 Theorem progress : forall t T,
   empty |-- t \in T ->
   value t \/ exists t', t --> t'.
-Proof with eauto. (* FILL IN HERE *) Admitted.
+Proof with eauto.
+  intros.
+  remember empty as Gamma.
+  induction H; subst...
+
+  - (* T_Var *) inversion H.
+
+  - (* T_App *)
+    destruct IHhas_type1...
+    + inversion H1; subst; clear H1;
+      inversion H; subst; clear H.
+
+      destruct IHhas_type2...
+      destruct H...
+    
+    + destruct H1...
+
+  - (* T_If0 *)
+    destruct IHhas_type1...
+    + inversion H2; subst; clear H2;
+      inversion H; subst; clear H...
+      destruct n...
+
+    + destruct H2...
+
+  - (* T_Succ *)
+    destruct IHhas_type...
+    all: destruct H0...
+      inversion H.
+
+  - (* T_Pred *)
+    destruct IHhas_type...
+    all: destruct H0...
+      inversion H.
+
+  - (* T_Mult *)
+    destruct IHhas_type1, IHhas_type2...
+    all: destruct H1, H2...
+    all: solve_by_invert.
+Qed.
+
 (** [] *)
 
 End STLCArith.

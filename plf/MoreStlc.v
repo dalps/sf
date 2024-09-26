@@ -46,7 +46,7 @@ Set Default Goal Selector "!".
     calculated by calculating the type of the [let]-bound term,
     extending the context with a binding with this type, and in this
     enriched context calculating the type of the body (which is then
-    the type of the whole [let] expression).
+    the type of the whole [let] expression). (* It's sugar for the term [(\x:T,t2) t1], basically *)
 
     At this point in the book, it's probably easier simply to look at
     the rules defining this new feature than to wade through a lot of
@@ -72,7 +72,7 @@ Set Default Goal Selector "!".
     Typing:
 
              Gamma |-- t1 \in T1      x|->T1; Gamma |-- t2 \in T2
-             ----------------------------------------------------      (T_Let)
+             ----------------------------------------------------      (T_Let)  (* a sort of combination of [T_App] and [T_Abs] *)
                         Gamma |-- let x=t1 in t2 \in T2
 *)
 
@@ -135,10 +135,10 @@ Set Default Goal Selector "!".
                          (v1,t2) --> (v1,t2')
 
                                t1 --> t1'
-                           ------------------                        (ST_Fst1)
+                           ------------------                        (ST_Fst1)  (* reduce the argument of fst (snd); note: it can be a partially reduced pair like (v1,t2) *)
                            t1.fst --> t1'.fst
 
-                          ------------------                       (ST_FstPair)
+                          ------------------                       (ST_FstPair) (* fst and snd can only take a step if applied to a (fully reduced) pair *)
                           (v1,v2).fst --> v1
 
                                t1 --> t1'
@@ -148,6 +148,8 @@ Set Default Goal Selector "!".
                           ------------------                       (ST_SndPair)
                           (v1,v2).snd --> v2
 *)
+(* note: though in theory they are functions, [fst] and [snd] are formalized as
+   keywords; they don't expand to an abstraction. *)
 
 (** Rules [ST_FstPair] and [ST_SndPair] say that, when a fully
     reduced pair meets a first or second projection, the result is
@@ -191,7 +193,7 @@ Set Default Goal Selector "!".
 (** ** Unit *)
 
 (** Another handy base type, found especially in functional languages,
-    is the singleton type [Unit].
+    is the singleton type [Unit]. (* the result of nullary computations; those that are intended to return no value; usually employed in effectful computations *)
 
     It has a single element -- the term constant [unit] (with a small
     [u]) -- and a typing rule making [unit] an element of [Unit].  We
@@ -259,7 +261,7 @@ Set Default Goal Selector "!".
     components of the sum type [Nat+Bool].  (But note that we don't
     actually treat them as functions in the way we formalize them:
     [inl] and [inr] are keywords, and [inl t] and [inr t] are primitive
-    syntactic forms, not function applications.) *)
+    syntactic forms, not function applications.) *) (* note: just like [t.fst] and [t.snd] *)
 
 (** In general, the elements of a type [T1 + T2] consist of the
     elements of [T1] tagged with the token [inl], plus the elements of
@@ -268,7 +270,7 @@ Set Default Goal Selector "!".
 (** As we've seen in Coq programming, one important use of sums is
     signaling errors:
 
-      div \in Nat -> Nat -> (Nat + Unit)
+      div \in Nat -> Nat -> (Nat + Unit)            (* note: <type of legal calculations> + <type of illegal calculations> *)
       div =
         \x:Nat, \y:Nat,
           if iszero y then
@@ -307,7 +309,7 @@ Set Default Goal Selector "!".
 
        v ::=                Values
            | ...
-           | inl T v           tagged value (left)
+           | inl T v           tagged value (left)  (* value [v] belonging to the left (right) component of the sum type whose second (first) component has [T] *)
            | inr T v           tagged value (right)
 
        T ::=                Types
@@ -326,11 +328,11 @@ Set Default Goal Selector "!".
                         inr T1 t2 --> inr T1 t2'
 
                                t0 --> t0'
-               -------------------------------------------            (ST_Case)
+               -------------------------------------------            (ST_Case) (* scrutinee takes a step *)
                 case t0 of inl x1 => t1 | inr x2 => t2 -->
                case t0' of inl x1 => t1 | inr x2 => t2
 
-            -----------------------------------------------        (ST_CaseInl)
+            -----------------------------------------------        (ST_CaseInl) (* the scrutinee is reduced to a left tagged value [v1]: replace [v1] for the pattern [x1] in [t1] *)
             case (inl T2 v1) of inl x1 => t1 | inr x2 => t2
                            -->  [x1:=v1]t1
 
@@ -385,7 +387,7 @@ Set Default Goal Selector "!".
     constructor is [List].  For every type [T], the type [List T]
     describes finite-length lists whose elements are drawn from [T].
 
-    In principle, we could encode lists using pairs, sums and
+    In principle, we could encode lists using pairs, sums and   (* isn't it how OCaml defines sequences? e.g. List T := Unit + T * List T *)
     _recursive_ types. But giving semantics to recursive types is
     non-trivial. Instead, we'll just discuss the special case of lists
     directly.
@@ -450,7 +452,7 @@ Set Default Goal Selector "!".
 
             ------------------------------------------------     (ST_LcaseCons)
             (case (cons vh vt) of nil => t2 | xh::xt => t3)
-                          --> [xh:=vh,xt:=vt]t3
+                          --> [xh:=vh,xt:=vt]t3     (* [xh:=vh]([xt:=vt]t3) *)
 *)
 
 (** Typing:
@@ -483,7 +485,7 @@ Set Default Goal Selector "!".
 
    Note that the right-hand side of this binder mentions [fact], the
    variable being bound -- something that is not allowed according
-   to the way we defined [let] above. *)
+   to the way we defined [let] above. *) (* step gets stuck when it encounters a non-substituted variable, like [fact] in the body *)
 
 (** (The body of a [let] is typechecked in the same context as the
    [let] itself, which means that the recursive occurrence of [fact] in the

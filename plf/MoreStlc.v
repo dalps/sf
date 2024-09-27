@@ -892,19 +892,25 @@ even 4 --> eo.fst 4 --> eo.snd 3 --> eo.fst 2 --> eo.snd 1 --> eo.fst 0 --> 1   
     tuple, [{5,6}] is a 2-tuple (morally the same as a pair),
     [{5,6,7}] is a triple, etc.
 
-      {} ----> unit {t1, t2, ..., tn} ----> (t1, trest) where {t2,
+      {} ----> unit
+      
+      {t1, t2, ..., tn} ----> (t1, trest) where {t2,                            (* added a few newlines for clarity. Note: implementing tuples with lists would _not_ be wise. [List T] is inhabited by lists of different lengths, while all tuples that inhabit a product type have fixed length. *)
       ..., tn} ----> trest
 
     Similarly, we can encode tuple types using nested product types:
 
-      {} ----> Unit {T1, T2, ..., Tn} ----> T1 * TRest where {T2, ...,
+      {} ----> Unit                                                             (* The tuple type [{}] (inhabited by [()]) is encoded as [Unit] *)
+      
+      {T1, T2, ..., Tn} ----> T1 * TRest where {T2, ...,                        (* The tuple type [{T1, T2, ..., Tn}] is encoded as the product type [T1 * TRest], where TRest encodes the tuple type [{T2, ..., Tn}] *)
       Tn} ----> TRest
 
     The operation of projecting a field from a tuple can be encoded
     using a sequence of second projections followed by a first
     projection:
 
-      t.0 ----> t.fst t.(n+1) ----> (t.snd).n
+      t.0 ----> t.fst 
+      
+      t.(n+1) ----> (t.snd).n
 
     Next, suppose that there is some total ordering on record labels,
     so that we can associate each label with a unique natural number.
@@ -929,18 +935,28 @@ even 4 --> eo.fst 4 --> eo.snd 3 --> eo.fst 2 --> eo.snd 1 --> eo.fst 0 --> 1   
 
     We do exactly the same thing with record types:
 
-      {a:Nat,b:Nat} ----> {Nat,Nat} {c:Nat,a:Nat} ----> {Nat,Unit,Nat}
+      {a:Nat,b:Nat} ----> {Nat,Nat}
+      {c:Nat,a:Nat} ----> {Nat,Unit,Nat}
       {f:Nat,c:Nat} ----> {Unit,Unit,Nat,Unit,Unit,Nat}
 
     Finally, record projection is encoded as a tuple projection from
     the appropriate position:
 
-      t.l ----> t.(position of l)
+      t.l ----> t.(position of l)   (* to compute [position of l], take the base 26 representation of [l] *)
 
     It is not hard to check that all the typing rules for the original
     "direct" presentation of records are validated by this
     encoding.  (The reduction rules are "almost validated" -- not
-    quite, because the encoding reorders fields.) *)
+    quite, because the encoding reorders fields.) *)  (* [ST_Rcd] is affected by this encoding in particular *)
+
+(* 
+  {c=3,a=true} : {c:Nat,a:Bool}   ---->
+  {true,unit,3} : {Bool,Unit,Nat} ---->
+  (true, (unit, 3)) : Bool * (Unit * Nat)
+
+  Example:  {c=3,a=true}.a ----> {true,unit,3}.0 ----> (true, (unit, 3)).fst ----> true
+  Example:  {c=3,a=true}.b ----> {true,unit,3}.1 ----> ((true, (unit, 3)).snd).0 ----> (unit, 3).fst ----> unit
+*)
 
 (** Of course, this encoding will not be very efficient if we
     happen to use a record with label [foo]!  But things are not
@@ -1042,7 +1058,7 @@ Inductive tm : Type :=
   | tm_let : string -> tm -> tm -> tm
          (* i.e., [let x = t1 in t2] *)
   (* fix *)
-  | tm_fix  : tm -> tm.
+  | tm_fix  : tm -> tm. (* feed generator *)
 
 (** Note that, for brevity, we've omitted booleans and instead
     provided a single [if0] form combining a zero test and a
@@ -1150,14 +1166,23 @@ Notation "'fix' t" := (tm_fix t) (in custom stlc at level 0).
 
 Reserved Notation "'[' x ':=' s ']' t" (in custom stlc at level 20, x constr).
 
+(*
+  (\x:Nat+Bool, case x of | inl xl => xl | inr xr => 1) (inl Bool 3)
+  [x:=inl Bool 3](case x of | inl xl => xl | inr xr => 1)
+  case [x:=inl Bool 3]x of | inl xl => [x:=inl Bool 3]xl | inr xr => [x:=inl Bool 3]1
+  case (inl Bool 3) of | inl xl => xl | inr xr => 1
+*)
+
 (** **** Exercise: 3 stars, standard (STLCExtended.subst) *)
+
+(* 11:44 min to read rules + 17:58 min new ones *)
 Fixpoint subst (x : string) (s : tm) (t : tm) : tm :=
   match t with
   (* pure STLC *)
   | tm_var y =>
       if String.eqb x y then s else t
   | <{\y:T, t1}> =>
-      if String.eqb x y then t else <{\y:T, [x:=s] t1}>
+      if String.eqb x y then t else <{\y:T, [x:=s] t1}>                         (* don't substitute if the abstraction binds the same varialble *)
   | <{t1 t2}> =>
       <{([x:=s] t1) ([x:=s] t2)}>
   (* numbers *)
@@ -1178,7 +1203,7 @@ Fixpoint subst (x : string) (s : tm) (t : tm) : tm :=
       <{inr T1 ( [x:=s] t2) }>
   | <{case t0 of | inl y1 => t1 | inr y2 => t2}> =>
       <{case ([x:=s] t0) of
-         | inl y1 => { if String.eqb x y1 then t1 else <{ [x:=s] t1 }> }
+         | inl y1 => { if String.eqb x y1 then t1 else <{ [x:=s] t1 }> }        (* don't substitute if the pattern binds the same variable we're substituting for. *)
          | inr y2 => {if String.eqb x y2 then t2 else <{ [x:=s] t2 }> } }>
   (* lists *)
   | <{nil _}> =>
@@ -1192,19 +1217,28 @@ Fixpoint subst (x : string) (s : tm) (t : tm) : tm :=
         {if String.eqb x y1 then
            t3
          else if String.eqb x y2 then t3
-              else <{ [x:=s] t3 }> } }>
+              else <{ [x:=s] t3 }> } }>                                         (* don't substitute if any of the patterns binds the same variable. It's the programmer's responsibility to choose their binder names with care as to avoid unintentional name shadowing. *)
   (* unit *)
   | <{unit}> => <{unit}>
 
   (* Complete the following cases. *)
 
   (* pairs *)
-  (* FILL IN HERE *)
+  | <{(t1,t2)}> =>
+      <{ ( [x:=s] t1 , [x:=s] t2 ) }>
+  | <{t.fst}> =>
+      <{( [x:=s]t ).fst}>
+  | <{t.snd}> =>
+      <{( [x:=s]t ).snd}>
+
   (* let *)
-  (* FILL IN HERE *)
+  | <{let y = t1 in t2}> =>
+      <{let y = [x:=s] t1 in 
+                          { if String.eqb x y then t2 else <{ [x:=s] t2 }> } }>
+
   (* fix *)
-  (* FILL IN HERE *)
-  | _ => t  (* ... and delete this line when you finish the exercise *)
+  | <{fix F}> =>
+      <{fix ( [x:=s] F )}>
   end
 
 where "'[' x ':=' s ']' t" := (subst x s t) (in custom stlc).
@@ -1212,27 +1246,20 @@ where "'[' x ':=' s ']' t" := (subst x s t) (in custom stlc).
 (* Make sure the following tests are valid by reflexzivity: *)
 Example substeg1 :
   <{ [z:=0] (let w = z in z) }> = <{ let w = 0 in 0 }>.
-Proof.
-(* 
-  reflexivity.
-*)
-(* FILL IN HERE *) Admitted.
+Proof. reflexivity.  Qed.
 
 Example substeg2 :
   <{ [z:=0] (let w = z in w) }> = <{ let w = 0 in w }>.
-Proof.
-(* 
-  reflexivity.
-*)
-(* FILL IN HERE *) Admitted.
+Proof. reflexivity.  Qed.
 
 Example substeg3 :
   <{ [z:=0] (let y = succ 0 in z) }> = <{ let y = succ 0 in 0 }>.
-Proof.
-(* 
-  reflexivity.
-*)
-(* FILL IN HERE *) Admitted.
+Proof. reflexivity.  Qed.
+
+(* deliberately added this one *)
+Example substeg4 :
+  <{ [z:=0] (let z = succ 0 in z) }> = <{ let z = succ 0 in z }>.
+Proof. reflexivity.  Qed.
 
 (** [] *)
 
@@ -1274,6 +1301,8 @@ Hint Constructors value : core.
 Reserved Notation "t '-->' t'" (at level 40).
 
 (** **** Exercise: 3 stars, standard (STLCExtended.step) *)
+
+(* 11:31 min + 12:55 min *)
 Inductive step : tm -> tm -> Prop :=
   (* pure STLC *)
   | ST_AppAbs : forall x T2 t1 v2,
@@ -1291,7 +1320,7 @@ Inductive step : tm -> tm -> Prop :=
          t1 --> t1' ->
          <{succ t1}> --> <{succ t1'}>
   | ST_SuccNat : forall n : nat,
-         <{succ n}> --> <{ {S n} }>
+         <{succ n}> --> <{ {S n} }>  (* NB the use of braces to temporarily escape the custom notation scope and write plain Coq *)
   | ST_Pred : forall t1 t1',
          t1 --> t1' ->
          <{pred t1}> --> <{pred t1'}>
@@ -1353,11 +1382,40 @@ Inductive step : tm -> tm -> Prop :=
   (* Add rules for the following extensions. *)
 
   (* pairs *)
-  (* FILL IN HERE *)
+  | ST_Pair1 : forall t1 t1' t2,
+       t1 --> t1' ->
+       <{(t1,t2)}> --> <{(t1',t2)}>
+  | ST_Pair2 : forall v1 t2 t2',
+       value v1 ->
+       t2 --> t2' ->
+       <{(v1,t2)}> --> <{(v1,t2')}>
+  | ST_Fst1 : forall t t',
+       t --> t' ->
+       <{t.fst}> --> <{t'.fst}>
+  | ST_FstPair : forall v1 v2,
+       value v1 ->
+       value v2 ->
+       <{(v1,v2).fst}> --> v1
+  | ST_Snd1 : forall t t',
+       t --> t' ->
+       <{t.snd}> --> <{t'.snd}>
+  | ST_SndPair : forall v1 v2,
+       value v1 ->
+       value v2 ->
+       <{(v1,v2).snd}> --> v2
   (* let *)
-  (* FILL IN HERE *)
+  | ST_Let1 : forall x t1 t1' t2,
+       t1 --> t1' ->
+       <{let x = t1 in t2}> --> <{let x = t1' in t2}>
+  | ST_LetValue : forall x v1 t2, 
+       value v1 ->
+       <{let x = v1 in t2}> --> <{ [x:=v1] t2 }>
   (* fix *)
-  (* FILL IN HERE *)
+  | ST_Fix1 : forall t t',
+       t --> t' ->
+       <{fix t}> --> <{fix t'}>
+  | ST_FixAbs : forall xf T t,
+       <{fix (\xf:T, t)}> --> <{[xf:=fix (\xf:T, t)] t}>
 
   where "t '-->' t'" := (step t t').
 
@@ -1440,11 +1498,25 @@ Inductive has_type : context -> tm -> ty -> Prop :=
   (* Add rules for the following extensions. *)
 
   (* pairs *)
-  (* FILL IN HERE *)
+  | T_Pair : forall Gamma T1 t1 T2 t2,
+      Gamma |-- t1 \in T1 ->
+      Gamma |-- t2 \in T2 ->
+      Gamma |-- (t1,t2) \in (T1 * T2)
+  | T_Fst : forall Gamma T1 T2 t1,
+      Gamma |-- t1 \in (T1 * T2) ->
+      Gamma |-- t1.fst \in T1
+  | T_Snd : forall Gamma T1 T2 t1,
+      Gamma |-- t1 \in (T1 * T2) ->
+      Gamma |-- t1.snd \in T2
   (* let *)
-  (* FILL IN HERE *)
+  | T_Let : forall Gamma x T1 t1 T2 t2,
+      Gamma |-- t1 \in T1 ->
+      (x |-> T1; Gamma) |-- t2 \in T2 ->
+      Gamma |-- let x = t1 in t2 \in T2
   (* fix *)
-  (* FILL IN HERE *)
+  | T_Fix : forall Gamma T1 tf,
+      Gamma |-- tf \in (T1 -> T1) ->
+      Gamma |-- fix tf \in T1
 
 where "Gamma '|--' t '\in' T" := (has_type Gamma t T).
 
@@ -1471,6 +1543,8 @@ Hint Constructors has_type : core.
     The later examples require all the features together, so you'll
     need to come back to these when you've got all the definitions
     filled in. *)
+
+(* ~1 hour - very straighforward, not worth 5 start. Found 3 small mistakes my formalization of step *)
 
 Module Examples.
 
@@ -1541,15 +1615,15 @@ Proof.
      to increase the max search depth of [auto] from the
      default 5 to 10. *)
   auto 10.
-(* FILL IN HERE *) Admitted.
+Qed.
 
 Example reduces :
   tm_test -->* 5.
 Proof.
-(* 
-  unfold tm_test. normalize.
-*)
-(* FILL IN HERE *) Admitted.
+
+  unfold tm_test. normalize.  (* recall this handy tactic from Stlc.v *)
+
+Qed.
 
 End Numtest.
 
@@ -1563,15 +1637,15 @@ Definition tm_test :=
 
 Example typechecks :
   empty |-- tm_test \in Nat.
-Proof. unfold tm_test. eauto. (* FILL IN HERE *) Admitted.
+Proof. unfold tm_test. eauto.  Qed.
 
 Example reduces :
   tm_test -->* 6.
 Proof.
-(* 
+
   unfold tm_test. normalize.
-*)
-(* FILL IN HERE *) Admitted.
+
+Qed.
 
 End ProdTest.
 
@@ -1586,16 +1660,15 @@ Definition tm_test :=
 
 Example typechecks :
   empty |-- tm_test \in Nat.
-Proof. unfold tm_test. eauto.
-(* FILL IN HERE *) Admitted.
+Proof. unfold tm_test. eauto.  Qed.
 
 Example reduces :
   tm_test -->* 6.
 Proof.
-(* 
+
   unfold tm_test. normalize.
-*)
-(* FILL IN HERE *) Admitted.
+
+Qed.
 
 End LetTest.
 
@@ -1607,16 +1680,15 @@ Definition tm_test :=
 
 Example typechecks :
   empty |-- tm_test \in Nat.
-Proof. unfold tm_test. eauto.
-(* FILL IN HERE *) Admitted.
+Proof. unfold tm_test. eauto.  Qed.
 
 Example reduces :
   tm_test -->* 6.
 Proof.
-(* 
+
   unfold tm_test. normalize.
-*)
-(* FILL IN HERE *) Admitted.
+
+Qed.
 
 End LetTest1.
 
@@ -1626,21 +1698,21 @@ End LetTest1.
 Module Sumtest1.
 
 Definition tm_test :=
-  <{case (inl Nat 5) of
+  <{case (inl Nat 5) of (* Nat+Nat *)
     | inl x => x
     | inr y => y}>.
 
 Example typechecks :
   empty |-- tm_test \in Nat.
-Proof. unfold tm_test. eauto. (* FILL IN HERE *) Admitted.
+Proof. unfold tm_test. eauto.  Qed.
 
 Example reduces :
   tm_test -->* 5.
 Proof.
-(* 
+
   unfold tm_test. normalize.
-*)
-(* FILL IN HERE *) Admitted.
+
+Qed.
 
 End Sumtest1.
 
@@ -1663,15 +1735,15 @@ Definition tm_test :=
 
 Example typechecks :
   empty |-- tm_test \in (Nat * Nat).
-Proof. unfold tm_test. eauto 10. (* FILL IN HERE *) Admitted.
+Proof. unfold tm_test. eauto 10.  Qed.
 
 Example reduces :
   tm_test -->* <{(5, 0)}>.
 Proof.
-(* 
+
   unfold tm_test. normalize.
-*)
-(* FILL IN HERE *) Admitted.
+
+Qed.
 
 End Sumtest2.
 
@@ -1693,15 +1765,15 @@ Definition tm_test :=
 
 Example typechecks :
   empty |-- tm_test \in Nat.
-Proof. unfold tm_test. eauto. (* FILL IN HERE *) Admitted.
+Proof. unfold tm_test. eauto.  Qed.
 
 Example reduces :
   tm_test -->* 25.
 Proof.
-(* 
+
   unfold tm_test. normalize.
-*)
-(* FILL IN HERE *) Admitted.
+
+Qed.
 
 End ListTest.
 
@@ -1721,15 +1793,28 @@ Definition fact :=
 
 Example typechecks :
   empty |-- fact \in (Nat -> Nat).
-Proof. unfold fact. auto 10. (* FILL IN HERE *) Admitted.
+Proof with auto. unfold fact. auto 10.
+  (* apply T_Fix.
+  apply T_Abs.
+  apply T_Abs.
+  apply T_If0.
+  - apply T_Var...
+  - apply T_Nat.
+  - apply T_Mult.
+    + apply T_Var...
+    + eapply T_App.
+      * apply T_Var...
+      * apply T_Pred.
+        apply T_Var... *)
+Qed.
 
 Example reduces :
   <{fact 4}> -->* 24.
 Proof.
-(* 
+
   unfold fact. normalize.
-*)
-(* FILL IN HERE *) Admitted.
+
+Qed.
 
 End FixTest1.
 
@@ -1742,21 +1827,21 @@ Definition map :=
             \l:List Nat,
                case l of
                | nil => nil Nat
-               | x::l => ((g x)::(f l)))}>.
+               | x::l => ((g x)::(f l)))}>.  (* of course, the generator  envelops only the decreasing argument of [map] *)
 
 Example typechecks :
   empty |-- map \in
     ((Nat -> Nat) -> ((List Nat) -> (List Nat))).
-Proof. unfold map. auto 10. (* FILL IN HERE *) Admitted.
+Proof. unfold map. auto 10.  Qed.
 
 Example reduces :
-  <{map (\a:Nat, succ a) (1 :: 2 :: (nil Nat))}>
+  <{map (\a:Nat, succ a) (1 :: 2 :: (nil Nat))}>  (* [map] is a Coq variable, not a [tm_var] - really, it's a [tm_abs] *)
   -->* <{2 :: 3 :: (nil Nat)}>.
 Proof.
-(* 
-  unfold map. normalize.
-*)
-(* FILL IN HERE *) Admitted.
+
+  unfold map. normalize. (* sweet *)
+
+Qed.
 
 End FixTest2.
 
@@ -1773,24 +1858,24 @@ Definition equal :=
 
 Example typechecks :
   empty |-- equal \in (Nat -> Nat -> Nat).
-Proof. unfold equal. auto 10. (* FILL IN HERE *) Admitted.
+Proof. unfold equal. auto 10.  Qed.
 
 Example reduces :
   <{equal 4 4}> -->* 1.
 Proof.
-(* 
+
   unfold equal. normalize.
-*)
-(* FILL IN HERE *) Admitted.
+
+Qed.
 (* GRADE_THEOREM 0.25: reduces *)
 
 Example reduces2 :
   <{equal 4 5}> -->* 0.
 Proof.
-(* 
+
   unfold equal. normalize.
-*)
-(* FILL IN HERE *) Admitted.
+
+Qed.
 (* GRADE_THEOREM 0.25: reduces2 *)
 
 End FixTest3.
@@ -1809,14 +1894,14 @@ Definition eotest :=
 
 Example typechecks :
   empty |-- eotest \in (Nat * Nat).
-Proof. unfold eotest. eauto 30. (* FILL IN HERE *) Admitted.
+Proof. unfold eotest. eauto 30.  Qed.
 
 Example reduces :
   eotest -->* <{(0, 1)}>.
 Proof.
-(* 
-  unfold eotest. eauto 10. normalize.
-*)
+
+  unfold eotest. eauto 10. normalize.  (* works without [eauto 10] too *)
+
 (* FILL IN HERE *) Admitted.
 
 End FixTest4.

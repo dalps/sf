@@ -1377,7 +1377,8 @@ Inductive step : tm -> tm -> Prop :=
        value v1 ->
        value vl ->
        <{case v1 :: vl of | nil => t2 | x1 :: x2 => t3}>
-         -->  <{ [x2 := vl] ([x1 := v1] t3) }>
+         -->  <{ [x2 := vl] ([x1 := v1] t3) }> (* they're doing the substitution in the opposite order of the informal rule! - [xh:=vh]([xt:=vt]t3). In the typing rule T_LcaseCons, [xh] is typed on top of [xt].
+         If [xh=xt], then the type of [xh] wins, so were [t3] to reference [xh], it would be typed using the element type. *)
 
   (* Add rules for the following extensions. *)
 
@@ -1902,7 +1903,7 @@ Proof.
 
   unfold eotest. eauto 10. normalize.  (* works without [eauto 10] too *)
 
-(* FILL IN HERE *) Admitted.
+Qed.
 
 End FixTest4.
 End Examples.
@@ -1927,6 +1928,8 @@ End Examples.
       2. t --> t' for some t'.
 
     Proof: By induction on the given typing derivation. *)
+
+(* 11:38 min reading + 16:04 min new rules *)
 Theorem progress : forall t T,
      empty |-- t \in T ->
      value t \/ exists t', t --> t'.
@@ -2068,14 +2071,53 @@ Proof with eauto.
     left...
 
   (* Complete the proof. *)
+  (* 16:04 min *)
 
   (* pairs *)
-  (* FILL IN HERE *)
+  - (* T_Pair *)
+    destruct IHHt1...
+    + (* t1 is a value *)
+      destruct IHHt2...
+      * (* t2 steps *)
+        right. destruct H0 as [t2' Hstp].
+        exists <{(t1,t2')}>...
+      (* t2 is a value: exists <{(t1, t2)}>...*)
+    + (* t1 steps *)
+      destruct H as [t1' Hstp].
+      right. exists <{(t1',t2)}>...
+  - (* T_Fst *)
+    destruct IHHt...
+    + (* t1 is a value *)
+      destruct H; try solve_by_invert.
+      right. exists v1...
+    + (* t1 steps *)
+      destruct H as [t1' Hstp].
+      right. exists <{t1'.fst}>...
+  - (* T_Snd *)
+    destruct IHHt...
+    + (* t1 is a value *)
+      destruct H; try solve_by_invert.
+      right. exists v2...
+    + (* t1 steps *)
+      destruct H as [t1' Hstp].
+      right. exists <{t1'.snd}>...
   (* let *)
-  (* FILL IN HERE *)
+  - (* T_Let *)
+    right.
+    destruct IHHt1...
+    + (* t1 step *)
+      destruct H as [t1' Hstp]...
   (* fix *)
-  (* FILL IN HERE *)
-(* FILL IN HERE *) Admitted.
+  - (* T_Fix *)
+    right.
+    destruct IHHt...
+    + (* tf is a value *)
+      destruct H; try solve_by_invert.
+      exists <{ [x0:=(fix (\x0:T2,t1))] t1 }>...
+    + (* tf steps *)
+      destruct H as [tf' Hstp].
+      exists <{fix tf'}>...
+Qed.
 
 (** [] *)
 
@@ -2112,6 +2154,19 @@ Qed.
 
     Complete the proof of [substitution_preserves_typing]. *)
 
+(* 32:19 min reading + 5:28 min new rules *)
+
+Compute <{ [x:=nil Nat] ([x:=3] x) }>.
+Compute <{ [x:=nil Nat] ([x:=3 * x] x) }>.
+Compute <{ [x:=nil Nat] ([x:=x * x] x) }>.
+Example c1 : exists t', <{
+  case 3 :: 2 :: 1 :: nil Nat of
+  | nil => nil <{{Nat*Nat}}>
+  | x::x => (x,succ x) :: nil <{{Nat*Nat}}>
+}> -->* t'.
+Proof. eexists. normalize.  Qed.
+
+Print subst.
 Lemma substitution_preserves_typing : forall Gamma x U t v T,
   (x |-> U ; Gamma) |-- t \in T ->
   empty |-- v \in U   ->
@@ -2128,6 +2183,8 @@ Proof with eauto.
   induction t; intros T Gamma H;
   (* in each case, we'll want to get at the derivation of H *)
     inversion H; clear H; subst; simpl; eauto.
+
+  (* my note: [fix] is handled automatically because it doesn't bind any variable *)
   - (* var *)
     rename s into y. destruct (eqb_spec x y); subst.
     + (* x=y *)
@@ -2147,11 +2204,11 @@ Proof with eauto.
 
   - (* tm_case *)
     rename s into x1, s0 into x2.
-    eapply T_Case...
+    eapply T_Case... (* uses H7 *)
     + (* left arm *)
       destruct (eqb_spec x x1); subst.
       * (* x = x1 *)
-        rewrite update_shadow in H8. assumption.
+        rewrite update_shadow in H8. assumption. (* [x] has been shadowed by the binder *)
       * (* x <> x1 *)
         apply IHt2.
         rewrite update_permute; auto.
@@ -2163,12 +2220,12 @@ Proof with eauto.
         apply IHt3.
         rewrite update_permute; auto.
   - (* tm_lcase *)
-    rename s into y1, s0 into y2.
-    eapply T_Lcase...
+    rename s into y1, s0 into y2. (* head binder, tail binder *)
+    eapply T_Lcase... (* uses H7 and H8 *)
     destruct (eqb_spec x y1); subst.
     + (* x=y1 *)
       destruct (eqb_spec y2 y1); subst.
-      * (* y2=y1 *)
+      * (* y2=y1 *) (* head binder type shadows tail binder type (this not influenced by substitution order in the rule [ST_LcaseCons], it's fixed by the rule T_Lcase; [t3] is typed using [T1]). *)
         repeat rewrite update_shadow in H9.
         rewrite update_shadow.
         assumption.
@@ -2187,8 +2244,20 @@ Proof with eauto.
         assumption.
 
   (* Complete the proof. *)
+  (* 5:28 min *)
 
-  (* FILL IN HERE *) Admitted.
+  - (* tm_let *)
+    rename s into y.
+    eapply T_Let.
+    + apply IHt1...
+    + destruct (eqb_spec x y); subst.
+      * (* x=y *)
+        rewrite update_shadow in H6...
+      * (* x<>y *)
+        apply IHt2.
+        rewrite update_permute in H6...
+Qed.
+
 
 (** [] *)
 
@@ -2198,6 +2267,8 @@ Proof with eauto.
 (** **** Exercise: 3 stars, standard (STLCExtended.preservation)
 
     Complete the proof of [preservation]. *)
+
+(* 56:57 min - got confused by the order of substitutions in Lcase; missing parts in ~10 min *)
 
 Theorem preservation : forall t t' T,
      empty |-- t \in T  ->
@@ -2211,9 +2282,9 @@ Proof with eauto.
      the interesting ones. Again, we refer the reader to
      StlcProp.v for explanations. *)
   induction HT;
-    intros t' HE; subst; inversion HE; subst...
+    intros t' HE; subst; inversion HE; subst; clear HE...
   - (* T_App *)
-    inversion HE; subst...
+    (* inversion HE; subst... utterly useless *)
     + (* ST_AppAbs *)
       apply substitution_preserves_typing with T2...
       inversion HT1...
@@ -2222,23 +2293,31 @@ Proof with eauto.
     inversion HT1; subst.
     eapply substitution_preserves_typing...
   - (* ST_CaseInr *)
-    inversion HT1; subst.
+    Print T_Inr.
+    inversion HT1; subst. (* gives us [empty |-- v0 \in T2] *)
     eapply substitution_preserves_typing...
   - (* T_Lcase *)
+    Print ST_LcaseCons.
     + (* ST_LcaseCons *)
-      inversion HT1; subst.
+      inversion HT1; subst. (* ([x1:=v1] t3) is reduced first in a computation, but here the substitution lemma applies from the outside-in  *)
       apply substitution_preserves_typing with <{{List T1}}>...
       apply substitution_preserves_typing with T1...
 
   (* Complete the proof. *)
 
   (* fst and snd *)
-  (* FILL IN HERE *)
+  - (* T_Fst *)
+    inversion HT; subst...
+  - (* T_Snd *)
+    inversion HT; subst...
   (* let *)
-  (* FILL IN HERE *)
+  - (* T_Let x ST_LetValue *)
+    apply substitution_preserves_typing with T1...
   (* fix *)
-  (* FILL IN HERE *)
-(* FILL IN HERE *) Admitted.
+  - (* T_Fix x ST_FixAbs *)
+    inversion HT; subst.
+    eapply substitution_preserves_typing with T1... (* the type of [fix (\xf:T,t)] *)
+Qed.
 
 (** [] *)
 

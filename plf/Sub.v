@@ -38,7 +38,7 @@ Set Default Goal Selector "!".
    from it: nothing else is allowed by the type, and the presence or
    absence of an extra [gpa] field makes no difference at all.  So,
    intuitively, it seems that this function should be applicable to
-   any record value that has at least an [age] field.
+   any record value that has at least an [age] field. (* note: even the parameter type is too strong, the body is typable with whatever record type specifying an [age] field *)
 
    More generally, a record with more fields is "at least as good in
    any context" as one with just a subset of these fields, in the
@@ -129,7 +129,7 @@ Set Default Goal Selector "!".
                                Gamma |-- t1 \in T2
 
     This rule says, intuitively, that it is OK to "forget" some of
-    what we know about a term. *)
+    what we know about a term. *) (* [T1] is weakened to [T2] *)
 
 (** For example, we may know that [t1] is a record with two
     fields (e.g., [T1 = {x:A->A, y:B->B}]), but choose to forget about
@@ -204,12 +204,48 @@ Set Default Goal Selector "!".
                               ----------------                     (S_Arrow_Co)
                             S1 -> S2 <: S1 -> T2
 
+
+    (*
+       f : Student -> C
+       g : (Person->C) -> D
+
+       Is the application [g f] safe? NO!
+
+       e.g. f := \s:Student, s.gpa : Student -> Nat
+            g := \fp:Person->Nat, fp {name="Xavier",age=33} + 3
+
+            g f --> (\s:Student, s.gpa) {name="Xavier",age=33} + 3
+                --> {name="Xavier",age=33}.gpa + 3
+                -/-> (* stuck *)
+
+            The argument of [f] is too strong for what [g] offers.
+
+       Instead:
+
+       f : Person -> C
+       g : (Student->C) -> D
+
+       Is the application [g f] safe? Yes!
+       Any [Student] [g] passes to [f] can be safely handled by [f], because
+       any [Student] is as good as a [Person].
+    *)
+
     We can generalize this to allow the arguments of the two arrow
     types to be in the subtype relation as well:
 
                             T1 <: S1    S2 <: T2
                             --------------------                      (S_Arrow)
                             S1 -> S2 <: T1 -> T2
+
+    (* paraphrase: the arrow type [S1 -> S2] is a subtype of [T1 -> T2] if
+       the argument type of [T1 -> T2] is a subtype of the argument type of
+       [S1 -> S2], and the return type of [S1 -> S2] is a subtype of the return
+       type of [T1 -> T2].
+
+       Notice the similarity with the [hoare_consequence] rule!
+       The subtype of the [<:] relation "inserts" itself inbetwixt the
+       arms of the supertype.
+    *)
 
     But notice that the argument types are subtypes "the other way round":
     in order to conclude that [S1->S2] to be a subtype of [T1->T2], it
@@ -235,7 +271,7 @@ Set Default Goal Selector "!".
     [f] also tells us that it returns elements of type [S2]; we can
     also view these results belonging to any supertype [T2] of
     [S2]. That is, any function [f] of type [S1->S2] can also be
-    viewed as having type [T1->T2]. *)
+    viewed as having type [T1->T2]. *)          (* under these conditions, the type [T1->T2] subsumes [S1->S2]. *)
 
 (* ----------------------------------------------------------------- *)
 (** *** Records *)
@@ -259,7 +295,7 @@ Set Default Goal Selector "!".
     of one of its fields with a subtype.  If some code is expecting a
     record with a field [x] of type [T], it will be happy with a record
     having a field [x] of type [S] as long as [S] is a subtype of
-    [T]. For example,
+    [T]. For example,                                                           (* note: whatever it may do with [T], it can also do with [S] *)
 
     {x:Student} <: {x:Person}
 
@@ -293,7 +329,7 @@ Set Default Goal Selector "!".
 
                                n > m
                  ---------------------------------                 (S_RcdWidth)
-                 {i1:T1...in:Tn} <: {i1:T1...im:Tm}
+                 {i1:T1...in:Tn} <: {i1:T1...im:Tm}                             (* same order, same types, different lengths *)
 
     We can use [S_RcdWidth] to drop later fields of a multi-field
     record while keeping earlier fields, showing for example that
@@ -304,7 +340,7 @@ Set Default Goal Selector "!".
 
                        S1 <: T1  ...  Sn <: Tn
                   ----------------------------------               (S_RcdDepth)
-                  {i1:S1...in:Sn} <: {i1:T1...in:Tn}
+                  {i1:S1...in:Sn} <: {i1:T1...in:Tn}                            (* same length, same order, different types. Each type of the left record type must be subsumed by the respective type in the right record type. *)
 
     For example, we can use [S_RcdDepth] and [S_RcdWidth] together to
     show that [{y:Student, x:Nat} <: {y:Person}]. *)
@@ -317,7 +353,7 @@ Set Default Goal Selector "!".
 
          {i1:S1...in:Sn} is a permutation of {j1:T1...jn:Tn}
          ---------------------------------------------------        (S_RcdPerm)
-                  {i1:S1...in:Sn} <: {j1:T1...jn:Tn}
+                  {i1:S1...in:Sn} <: {j1:T1...jn:Tn}                            (* same length, same types, different order. The permutation relation ensures that there are no unmatched types. *)
 *)
 
 (** It is worth noting that full-blown language designs may choose not
@@ -355,6 +391,17 @@ Set Default Goal Selector "!".
     execution.  (Use informal syntax.  No need to prove formally that
     the application gets stuck.)
 
+    (3:24 min - I anticipated the exercise for while reading)
+
+    Here it is:
+       e.g. f := \s:Student, s.gpa : Student -> Nat
+            g := \fp:Person->Nat, fp {name="Xavier",age=33} + 3
+
+            g f --> (\fp:Person->Nat, fp {name="Xavier",age=33} + 3)
+                      (\s:Student, s.gpa : Student -> Nat)
+                --> (\s:Student, s.gpa) {name="Xavier",age=33} + 3
+                --> {name="Xavier",age=33}.gpa + 3
+                -/-> (* stuck *)
 *)
 
 (* Do not modify the following line: *)
@@ -372,9 +419,11 @@ Definition manual_grade_for_arrow_sub_wrong : option (nat*string) := None.
     subtype relation:
 
                                    --------                             (S_Top)
-                                   S <: Top
+                                   S <: Top                                     (* much like [True] for propositions and the implication relation *)
 
     The [Top] type is an analog of the [Object] type in Java and C#. *)
+
+(* Is there a minimum element? The strongest type of them all? *)
 
 (* ----------------------------------------------------------------- *)
 (** *** Summary *)
@@ -388,7 +437,7 @@ Definition manual_grade_for_arrow_sub_wrong : option (nat*string) := None.
 
                          Gamma |-- t1 \in T1     T1 <: T2
                          --------------------------------            (T_Sub)
-                               Gamma |-- t1 \in T2
+                               Gamma |-- t1 \in T2                              (* wherever a term of type [T2] is expected, a term of type [T1], where [T1] is a subtype of [T2], will do just fine. *)
 
       to the typing relation, and
 
@@ -438,19 +487,67 @@ Definition manual_grade_for_arrow_sub_wrong : option (nat*string) := None.
     are then true?  Write _true_ or _false_ after each one.
     ([A], [B], and [C] here are base types like [Bool], [Nat], etc.)
 
+    (* 14:42 min + 13:47 min to do pretty trees *)
+    note: apply the rules and check if premises are satisfiable
+
     - [T->S <: T->S]
+      true by [S_Refl]
 
     - [Top->U <: S->Top]
+      true by [S_Arrow]
+
+        -------- [S_Top]    -------- [S_Top]
+        S <: Top            U <: Top
+        ---------------------------- [S_Arrow]
+              Top->U <: S->Top
 
     - [(C->C) -> (A*B)  <:  (C->C) -> (Top*B)]
+      true
+
+                                    --------    ------ [S_Top] [S_Refl]
+                                    A <: Top    B <: B
+      ---------------- [S_Refl]     ------------------ [S_Pair]
+      (C->C) <: (C->C)               (A*B) <: (Top*B)
+      ------------------------------------------------ [S_Arrow]
+          (C->C) -> (A*B)  <:  (C->C) -> (Top*B)
 
     - [T->T->U <: S->S->V]
+      true ([->] is right associative)
 
     - [(T->T)->U <: (S->S)->V]
+      false ([T <: S] is false)
+
+      ==//==
+      T <: S    S <: T (assumption)
+      ---------------- [S_Arrow]
+        S->S <: T->T             U <: V (assumption)
+      --------------------------------- [S_Arrow]
+            (T->T)->U <: (S->S)->V
 
     - [((T->S)->T)->U <: ((S->T)->S)->V]
+      false ([T <: S] is false)
+      ^^^ WRONG - did not keep track of shuffling ^^^
+
+      true
+
+      S <: T    S <: T (x2 assumption)
+      ---------------- [S_Arrow]
+        T->S <: S->T             S <: T (assumption)
+      --------------------------------- [S_Arrow]
+           (S->T)->S <: (T->S)->T                 U <: V (assumption)
+      -------------------------------------------------- [S_Arrow]
+                ((T->S)->T)->U <: ((S->T)->S)->V
+
+      Student (S) <: Person (T)
+      Person->Student <: Student->Person
 
     - [S*V <: T*U]
+      false ([V <: U] is false)
+
+                              ==//==
+      S <: T (assumption)     V <: U
+      ------------------------------ [S_Pair]
+                S*V <: T*U
 
     [] *)
 
@@ -463,11 +560,47 @@ Definition manual_grade_for_arrow_sub_wrong : option (nat*string) := None.
     - [Student -> Top]
     - [Person -> Student]
 
+(* 5:36 min *)
 Write these types in order from the most specific to the most general.
 
+    1. [Top]
+    2. [Student -> Top]
+    3. [Student -> Person]
+    4. [Person -> Student]
+    5. [Top -> Student]
+
+(* 21:50 min *)
 Where does the type [Top->Top->Student] fit into this order?
 That is, state how [Top -> (Top -> Student)] compares with each
-of the five types above. It may be unrelated to some of them.  
+of the five types above. It may be unrelated to some of them.                   (* [<:] is not a total relation! *)
+
+    1. [Top]
+    2. [Student->Top]
+    3. [Top->Top->Student]
+
+    [Top -> (Top -> Student)] is only comparable with [Top] and [Student->Top],
+    being stronger that both.
+    Since [Student->Top] ranks higher than the other three types, we can't
+    even use transitivity to compare [Top -> (Top -> Student)] to any of
+    the three other types .
+
+    --------------    -------------------
+    Student <: Top    Top->Student <: Top
+    -------------------------------------
+     Top->(Top->Student) <: Student->Top
+
+                      ==========//==========
+    Student <: Top    Person <: Top->Student
+    ----------------------------------------
+    Top->(Top->Student) <: Student -> Person (viceversa implies [Top <: Student])
+
+    ==============//========//==============
+    Top->(Top->Student) <: Person -> Student (neither viceversa)
+
+                     ===========//==========
+    Top <: Top       Top->Student <: Student (neither viceversa)
+    ----------------------------------------
+    Top->(Top->Student) <: Top->Student
 *)
 
 (* Do not modify the following line: *)
@@ -476,33 +609,57 @@ Definition manual_grade_for_subtype_order : option (nat*string) := None.
 
 (** **** Exercise: 1 star, standard (subtype_instances_tf_2)
 
+(* 22:41 min *)
+
     Which of the following statements are true?  Write _true_ or
     _false_ after each one.
 
       forall S T,
           S <: T  ->
           S->S   <:  T->T
+      >> Absolutely false
 
       forall S,
            S <: A->A ->
            exists T,
               S = T->T  /\  T <: A
+      >> false: [S] need not necessarily be of the form [T->T]
+         
+         X := {age:Nat}
+         A := Person
+         Y := Student
+         S = X->Y
+
+         A <: X    Y <: A
+         ----------------
+           X->Y <: A->A
 
       forall S T1 T2,
            (S <: T1 -> T2) ->
            exists S1 S2,
               S = S1 -> S2  /\  T1 <: S1  /\  S2 <: T2 
+      >> true
 
       exists S,
            S <: S->S 
+      >> false: [S->S] is necessarily stronger than [S]
+
+      [Top <: Top->Top] nope
+      [Top->Top <: (Top->Top)->(Top->Top)] nope
+      ...
 
       exists S,
            S->S <: S  
+      >> true (witness: [Top])
+
+      --------------- [S_Top]
+      Top->Top <: Top
 
       forall S T1 T2,
            S <: T1*T2 ->
            exists S1 S2,
               S = S1*S2  /\  S1 <: T1  /\  S2 <: T2  
+      >> true
 *)
 
 (* Do not modify the following line: *)
@@ -511,32 +668,59 @@ Definition manual_grade_for_subtype_instances_tf_2 : option (nat*string) := None
 
 (** **** Exercise: 1 star, standard (subtype_concepts_tf)
 
+(* 23:28 min *)
+
     Which of the following statements are true, and which are false?
     - There exists a type that is a supertype of every other type.
 
+      true: [Top]
+
     - There exists a type that is a subtype of every other type.
+
+      false: unless defined, such type would be infinitely large,
+        combining all type constructors to make it as strong as possible.
 
     - There exists a pair type that is a supertype of every other
       pair type.
 
+      true: [Top*Top]
+
     - There exists a pair type that is a subtype of every other
       pair type.
+
+      false: for the same reason there isn't a minimum type.
 
     - There exists an arrow type that is a supertype of every other
       arrow type.
 
+      false: such arrow type would have [Top] as the result type and
+        the minimum as the argument type, but the minimum doesn't exist.
+
     - There exists an arrow type that is a subtype of every other
       arrow type.
+
+      false: flip the previous reason; [Top->Bot], but [Bot] doesn't exist.
 
     - There is an infinite descending chain of distinct types in the
       subtype relation---that is, an infinite sequence of types
       [S0], [S1], etc., such that all the [Si]'s are different and
       each [S(i+1)] is a subtype of [Si].
 
+      true: consider this chain:
+
+      Si = {a0:Nat,...,ai:Nat}
+           ...
+      S2 = {a0:Nat,a1:Nat,a2:Nat}
+      S1 = {a0:Nat,a1:Nat}
+      S0 = {a0:Nat}
+
     - There is an infinite _ascending_ chain of distinct types in
       the subtype relation---that is, an infinite sequence of types
       [S0], [S1], etc., such that all the [Si]'s are different and
       each [S(i+1)] is a supertype of [Si].
+
+      false: starting off such a sequence would require the strongest
+        type ever possible.
 
 *)
 

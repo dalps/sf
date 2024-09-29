@@ -735,10 +735,20 @@ Definition manual_grade_for_subtype_concepts_tf : option (nat*string) := None.
     a string standing for the name of the base type.  See the
     Syntax section below.)
 
+(* 14:47 min *)
+
     forall T,
-         ~(T = Bool \/ exists n, T = Base n) ->
+         ~(T = Bool \/ exists n, T = Base n) ->                                 (* [T] is neither a [Bool] nor a base type - could still be a [Unit]! *)
          exists S,
             S <: T  /\  S <> T
+
+    false: consider [T = Unit]. According to the below syntax, [Unit]
+      is a type, distinct from [Bool] and [Base n]. But [Unit] can't be
+      a supertype of anything.
+
+      [{}->{}] is not a compelling counterexample. There are many arrow types
+      [R->T] that satisfy [{}<:R] and [Q<:{}]. For example, [R] could be
+      [Top] and [Q] could be any record type.
 *)
 
 (* Do not modify the following line: *)
@@ -751,10 +761,50 @@ Definition manual_grade_for_proper_subtypes : option (nat*string) := None.
      have [Unit] among the base types and [unit] as a constant of this
      type.)
 
+(* 25:04 min + 30:41 min + 41:10 min + 28:43 min -
+   as if I didn't understand crap. I'm stuck in a mental loop in this one,
+   I can't convince myself that [A->A] is the only valid choice for both.
+   Isn't it!? I'm going nuts. So much for a well spent morning *)
+
        empty |-- (\p:T*Top, p.fst) ((\z:A,z), unit) \in A->A
+
+       A->A * Unit
+          T * Top  -> T
+
+       The smallest type [T] is [Top->A].
+
+       This can be generalized after the application to [A->A]
+       by the rule [T_Sub], giving us the assertion.
+       ^^^ WRONG ^^^
+
+       The smallest type is [A->A].
+       
+       The base for [T] is determined by the argument [((\z:A,z), unit)],
+       which has type [(A->A)*Unit] and may be weakened to [(A->Top)*Top] (but that is irrelevant).
+
+       It cannot be smaller than [A->A], such as [Top->A], otherwise it would
+       return a function [Top->A].       
 
    - What is the _largest_ type [T] that makes the same assertion true?
 
+       A <: Top    A <: A            A <: A    A <: Top
+       ------------------            ------------------
+         Top->A <: A->A                A->A <: A->Top
+        
+       The largest type [T] is yet [A->Top].
+
+       (p |-> (Top->A)*Top) p
+                                                                        (z |-> A) z = A 
+       ---------------------------------- [T_Var]                 ---------------------------    ----------------------
+       (p |-> (Top->A)*Top) |-- p \in (Top->A)*Top                         (z |-> A) |-- z \in A          empty |-- unit in Unit    Unit <: Top
+       ---------------------------------- [T_Fst]                 ---------------------------    ------------------------------------- [T_Sub]
+       (p |-> (Top->A)*Top) |-- p.fst \in Top->A                           empty |-- (\z:A,z) \in Top->A    empty |-- unit \in Top
+       ----------------------------------------------- [T_Abs]    -------------------------------------------------- [T_Pair]
+       empty |-- (\p:(Top->A)*Top, p.fst) \in (T*Top)->(Top->A)            empty |-- ((\z:A,z), unit) \in (Top->A)*Top
+       ----------------------------------------------------------------------------------------------- [T_App]
+              empty |-- (\p:(Top->A)*Top, p.fst) ((\z:A,z), unit) \in Top->A            Top->A <: A->A
+       ----------------------------------------------------------------------------------------------- [T_Sub]
+                            empty |-- (\p:(Top->A)*Top, p.fst) ((\z:A,z), unit) \in A->A
 *)
 
 (* Do not modify the following line: *)
@@ -765,9 +815,15 @@ Definition manual_grade_for_small_large_1 : option (nat*string) := None.
    - What is the _smallest_ type [T] that makes the following
      assertion true?
 
+(* ~5 min *)
+
        empty |-- (\p:(A->A * B->B), p) ((\z:A,z), (\z:B,z)) \in T
 
+     The smallest type is [A->A * B->B].
+
    - What is the _largest_ type [T] that makes the same assertion true?
+
+     The largest type is [A->Top * B->Top]
 
 *)
 

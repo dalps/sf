@@ -1533,6 +1533,8 @@ Proof with eauto.
   destruct (sub_inversion_arrow _ _ _ H) as [U1 [U2 [Heq _]]]...
 Qed.
 
+Print step.
+
 (** [] *)
 
 (** Similarly, the canonical forms of type [Bool] are the constants
@@ -1663,7 +1665,7 @@ Qed.
     such that [x|->S1; Gamma |-- t2 \in S2] and [S1 -> S2 <: T].
 
     Notice that the lemma does _not_ say, "then [T] itself is an arrow
-    type" -- this is tempting, but false!  (Why?) *)
+    type" -- this is tempting, but false!  (Why?) *)      (* [T] can be [Top], which is not an arrow type. Otherwise, it is an arrow type. *)
 
 (** _Proof_: Let [Gamma], [x], [S1], [t2] and [T] be given as
      described.  Proceed by induction on the derivation of [Gamma |--
@@ -1685,6 +1687,18 @@ Qed.
 
 (** Formally: *)
 
+(* note: as for the parameter type, we can't do better than [S1].
+   We can only weaken the type of the whole abstraction by leveraging on
+   covariance of the result type.
+   
+   Can you prove a similar theorem, that instead strengthens the argument type?
+   
+     Gamma |-- \x:T,t2 \in S2 ->
+     exists S1,
+       <{S1->S2}> <: T
+       /\ (x |-> S1 ; Gamma) |-- t2 \in S2.
+   *)
+
 Lemma typing_inversion_abs : forall Gamma x S1 t2 T,
      Gamma |-- \x:S1,t2 \in T ->
      exists S2,
@@ -1701,23 +1715,54 @@ Proof with eauto.
     destruct IHhas_type as [S2 [Hsub Hty]]...
   Qed.
 
+
+(* Person->A <: Student->A  *)
+
 (** **** Exercise: 3 stars, standard, optional (typing_inversion_var) *)
+
+(* ~15 min *)
 Lemma typing_inversion_var : forall Gamma (x:string) T,
   Gamma |-- x \in T ->
   exists S,
     Gamma x = Some S /\ S <: T.
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  intros Gamma x T H.
+  remember (x:tm) as t. (* Uncoerce!!! Took 10:17 mins to figure out the annotation. (Could have also achieved the correct equation using [tm_var x]) *)
+  induction H;
+    inversion Heqt; subst...
+
+  - (* T_Sub *)
+    clear H1.
+    destruct IHhas_type as [S [HGamma Hsub]]...
+    (* exists S... *)
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 3 stars, standard, optional (typing_inversion_app) *)
+
+(* 15:10 min *)
 Lemma typing_inversion_app : forall Gamma t1 t2 T2,
   Gamma |-- t1 t2 \in T2 ->
   exists T1,
     Gamma |-- t1 \in (T1->T2) /\
-    Gamma |-- t2 \in T1.
+    Gamma |-- t2 \in T1.      (* note: subtyping assertion missing *)
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  intros Gamma t1 t2 T2 H.
+  remember <{t1 t2}> as t.
+  induction H;
+    inversion Heqt; subst...
+
+  - (* T_Sub - return type has been weakened *)
+    clear H1 H.
+    destruct IHhas_type as [S1 [Hfun Harg]]...
+    (* + auto.
+    + exists S1. split; try assumption.
+      eapply T_Sub.
+      * apply Hfun.
+      * apply S_Arrow... *)
+Qed.
+
 (** [] *)
 
 Lemma typing_inversion_unit : forall Gamma T,

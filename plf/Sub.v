@@ -832,27 +832,45 @@ Definition manual_grade_for_small_large_2 : option (nat*string) := None.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (small_large_3)
+
+(* 7:48 min *)
+
    - What is the _smallest_ type [T] that makes the following
      assertion true?
 
        a:A |-- (\p:(A*T), (p.snd) (p.fst)) (a, \z:A,z) \in A
 
+     The smallest type is [Top->A].
+     ^^^ WRONG ^^^ A function [Top->A] accepts a [B<>A] as argument, upon
+     which [\z:A,z] would get stuck.
+
+     So smallest type is yet [A->A].
+     
+
    - What is the _largest_ type [T] that makes the same assertion true?
+
+     The largest type is [A->A].
 
     [] *)
 
 
 
 (** **** Exercise: 2 stars, standard (small_large_4)
+
+(* 6:06 min *)
+
    - What is the _smallest_ type [T] (if one exists) that makes the
      following assertion true?
 
        exists S,
          empty |-- (\p:(A*T), (p.snd) (p.fst)) \in S
 
+     The smallest type exist and it is [Top->S].
+
    - What is the _largest_ type [T] that makes the same
      assertion true?
 
+     The largest type is [A->S].
 *)
 
 (* Do not modify the following line: *)
@@ -861,11 +879,18 @@ Definition manual_grade_for_small_large_4 : option (nat*string) := None.
 
 (** **** Exercise: 2 stars, standard (smallest_1)
 
+(* 4:58 min *)
+
     What is the _smallest_ type [T] (if one exists) that makes
     the following assertion true?
 
       exists S t,
         empty |-- (\x:T, x x) t \in S
+
+    There's no such [T], as the term (\x:T, x x) notoriously gets stuck.
+    For [x x] to be typeable, [x] must have types [X -> Y] and [X] at the
+    same time (by the rule [T_App]). These types are inconcilable, and
+    since the typing relation is deterministic, this is impossible.
 *)
 
 (* Do not modify the following line: *)
@@ -874,10 +899,15 @@ Definition manual_grade_for_smallest_1 : option (nat*string) := None.
 
 (** **** Exercise: 2 stars, standard (smallest_2)
 
+(* ~5 min *)
+
     What is the _smallest_ type [T] that makes the following
     assertion true?
 
       empty |-- (\x:Top, x) ((\z:A,z) , (\z:B,z)) \in T
+
+    The smallest type possible is [Top]. There's no way to recover the
+    type of the argument after it has been fed to the left term.
 *)
 
 (* Do not modify the following line: *)
@@ -886,15 +916,45 @@ Definition manual_grade_for_smallest_2 : option (nat*string) := None.
 
 (** **** Exercise: 3 stars, standard, optional (count_supertypes)
 
+(* 16:30 min *)
+
     How many supertypes does the record type [{x:A, y:C->C}] have?  That is,
     how many different types [T] are there such that [{x:A, y:C->C} <:
     T]?  (We consider two types to be different if they are written
     differently, even if each is a subtype of the other.  For example,
     [{x:A,y:B}] and [{y:B,x:A}] are different.)
 
+    Trivial (1):
+      Top
+
+    By permutation (1):
+      {y:C->C, x:A}
+
+    By width (3):
+      {x:A}
+      {y:C->C}
+      {}
+
+    By depth (infinitely many?):
+      {x:A', y:C->C} forall A' such that A <: A'
+      {x:A, y:C->C'} forall C' such that C <: C'
+      {x:A', y:C->C'} forall A' C' such that A <: A' and C <: C'
+
+    By depth + permutation (infinitely many):
+      {y:C->C, x:A'} forall A' such that A <: A'
+      {y:C->C', x:A} forall C' such that C <: C'
+      {y:C->C', x:A'} forall A' C' such that A <: A' and C <: C'
+
+    By width + depth (infinitely many):
+      {x:A'} forall A' such that A <: A'
+      {y:C->C'} forall C' such that C <: C'
+
+    I think that's about it.
     [] *)
 
 (** **** Exercise: 2 stars, standard (pair_permutation)
+
+(* 16:12 min *)
 
     The subtyping rule for product types
 
@@ -910,6 +970,19 @@ Definition manual_grade_for_smallest_2 : option (nat*string) := None.
 
     for products.  Is this a good idea? Briefly explain why or why not.
 
+    No, it's not. Record access is invariant of field order, that's why a
+    permutation rule makes sense for record types. Access to values of 
+    product types, on the other hand, is sensible to component order.
+    
+    For example, the value [(a, \z:A,z)] would not be typaple.
+
+      (a:A) a = A->A ==> A = A->A (impossible!)
+    ------------------
+    a:A |-- a \in A->A      ...
+    --------------------------------    --------------------
+    a:A |-- (a, \z:A,z) \in (A->A)*A    (A->A)*A <: A*(A->A)
+    --------------------------------------------------------
+              a:A |-- (a, \z:A,z) \in A*(A->A)
 *)
 
 (* Do not modify the following line: *)
@@ -1117,7 +1190,7 @@ where "T '<:' U" := (subtype T U).
 
 (** Note that we don't need any special rules for base types ([Bool]
     and [Base]): they are automatically subtypes of themselves (by
-    [S_Refl]) and [Top] (by [S_Top]), and that's all we want. *)
+    [S_Refl]) and [Top] (by [S_Top]), and that's all we want. *)                (* NB: [subtype] is not total: neither [Bool <: Unit] or [Unit <: Bool] hold *)
 
 Hint Constructors subtype : core.
 
@@ -1180,17 +1253,24 @@ Proof.
     understand how to prove them on paper! *)
 
 (** **** Exercise: 1 star, standard, optional (subtyping_example_1) *)
+
+(* ~1 min *)
 Example subtyping_example_1 :
   <{Top->Student}> <:  <{(C->C)->Person}>.
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  apply S_Arrow...
+  apply sub_student_person.
+Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (subtyping_example_2) *)
+
+(* 1:28 min *)
 Example subtyping_example_2 :
   <{Top->Person}> <: <{Person->Top}>.
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  apply S_Arrow...
+Qed.
 (** [] *)
 
 End Examples.
@@ -1231,9 +1311,12 @@ Inductive has_type : context -> tm -> ty -> Prop :=
       Gamma |-- unit \in Unit
   (* New rule of subsumption: *)
   | T_Sub : forall Gamma t1 T1 T2,
-      Gamma |-- t1 \in T1 ->
-      T1 <: T2 ->
-      Gamma |-- t1 \in T2
+      Gamma |-- t1 \in T1 ->    (* If we know [t1:T1]... *)
+      T1 <: T2 ->               (* and we have a type [T2] weaker than [T1]... *)
+      Gamma |-- t1 \in T2       (* then we can weaken the type of [t1] to [T2]. *)
+
+(* NB: [T_Sub] makes [has_type] nondeterministic!!!
+   Inverting a typing statement to its causes is trickier now. *)
 
 where "Gamma '|--' t '\in' T" := (has_type Gamma t T).
 
@@ -1277,7 +1360,7 @@ End Examples2.
     the extension of the STLC with references (chapter [References]),
     we don't need to change the _statements_ of these properties to
     take subtyping into account.  However, their proofs do become a
-    little bit more involved. *)
+    little bit more involved. *)      (* note: subtyping is integrated seamlessly into these properties, but not their proofs. *)
 
 (* ================================================================= *)
 (** ** Inversion Lemmas for Subtyping *)
@@ -1291,22 +1374,33 @@ End Examples2.
 (** These are called _inversion lemmas_ because they play a
     similar role in proofs as the built-in [inversion] tactic: given a
     hypothesis that there exists a derivation of some subtyping
-    statement [S <: T] and some constraints on the shape of [S] and/or
+    statement [S <: T] and some constraints on the shape of [S] and/or          (* note: shape helps narrow down the set of rules that could have been used to derive the hypothesis *)
     [T], each inversion lemma reasons about what this derivation must
     look like to tell us something further about the shapes of [S] and
     [T] and the existence of subtype relations between their parts. *)
 
 (** **** Exercise: 2 stars, standard, optional (sub_inversion_Bool) *)
+
+(* 5:23 min *)
 Lemma sub_inversion_Bool : forall U,
      U <: <{Bool}> ->
      U = <{Bool}>.
 Proof with auto.
   intros U Hs.
   remember <{Bool}> as V.
-  (* FILL IN HERE *) Admitted.
+  induction Hs; subst;
+  try solve_by_invert...
+
+    (* S_Trans *)
+    rewrite IHHs2 in IHHs1...
+Qed.
 (** [] *)
 
+Print subtype.
+
 (** **** Exercise: 3 stars, standard (sub_inversion_arrow) *)
+
+(* 15:46 min *)
 Lemma sub_inversion_arrow : forall U V1 V2,
      U <: <{V1->V2}> ->
      exists U1 U2,
@@ -1315,7 +1409,22 @@ Proof with eauto.
   intros U V1 V2 Hs.
   remember <{V1->V2}> as V.
   generalize dependent V2. generalize dependent V1.
-  (* FILL IN HERE *) Admitted.
+  induction Hs as [| U S V HUS IHUS HSV IHSV | | ]; intros V1 V2 HeqV; subst...
+
+  - (* S_Trans *)
+    destruct (IHSV V1 V2) as [S1 [S2 [HeqS [HV1S1 HS2V2]]]];
+    subst; clear IHSV...
+    destruct (IHUS S1 S2) as [U1 [U2 [HeqU [HS1U1 HU2S2]]]];
+    subst; clear IHUS...
+    exists U1, U2...
+
+  - (* S_Top *)
+    solve_by_invert.
+
+  - (* S_Arrow *)
+    inversion HeqV; subst... (* [U] is already an arrow type, duh *)
+Qed.
+
 (** [] *)
 
 (** There are additional _inversion lemmas_ for the other types:
@@ -1324,33 +1433,48 @@ Proof with eauto.
        - [Top] is the only supertype of [Top]. *)
 
 (** **** Exercise: 2 stars, standard, optional (sub_inversion_Unit) *)
+
+(* 2:38 min *)
 Lemma sub_inversion_Unit : forall U,
      U <: <{Unit}> ->
      U = <{Unit}>.
 Proof with auto.
   intros U Hs.
   remember <{Unit}> as V.
-  (* FILL IN HERE *) Admitted.
+  induction Hs; subst;
+  try solve_by_invert...
+  rewrite IHHs2 in IHHs1...
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (sub_inversion_Base) *)
+
+(* ~1 min *)
 Lemma sub_inversion_Base : forall U s,
      U <: <{Base s}> ->
      U = <{Base s}>.
 Proof with auto.
   intros U s Hs.
   remember <{Base s}> as V.
-  (* FILL IN HERE *) Admitted.
+  induction Hs; subst;
+  try solve_by_invert...
+  rewrite IHHs2 in IHHs1...
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (sub_inversion_Top) *)
+
+(* ~1 min *)
 Lemma sub_inversion_Top : forall U,
      <{ Top }> <: U ->
      U = <{ Top }>.
 Proof with auto.
   intros U Hs.
   remember <{Top}> as V.
-  (* FILL IN HERE *) Admitted.
+  induction Hs; subst; try solve_by_invert...
+
+    (* S_Trans *)
+    rewrite IHHs1 in IHHs2...
+Qed.
 (** [] *)
 
 (* ================================================================= *)
@@ -1366,7 +1490,7 @@ Proof with auto.
     obvious: we know that [t1] has a function type [T11->T12], and
     there is only one rule that can be used to give a function type to
     a value -- rule [T_Abs] -- and the form of the conclusion of this
-    rule forces [t1] to be an abstraction.
+    rule forces [t1] to be an abstraction.                                      (* however we change the type of the abstraction, it must still be an arrow type in order to have a valid derivation for the overall application. *)
 
     In the STLC with subtyping, this reasoning doesn't quite work
     because there's another rule that can be used to show that a value
@@ -1381,13 +1505,34 @@ Proof with auto.
     type. *)
 
 (** **** Exercise: 3 stars, standard, optional (canonical_forms_of_arrow_types) *)
+
+(* ~30 min *)
+
+Print has_type.
 Lemma canonical_forms_of_arrow_types : forall Gamma s T1 T2,
   Gamma |-- s \in (T1->T2) ->
   value s ->
   exists x S1 s2,
      s = <{\x:S1,s2}>.
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  intros ? ? ? ? has_type.
+  remember <{T1->T2}> as A.
+  generalize dependent T2.
+  generalize dependent T1.
+
+  induction has_type;
+  intros A1 A2 HeqA Hvalue; subst;
+
+  (* Other base types *)
+  try (inversion HeqA; subst; clear HeqA);
+
+  (* T_Var, T_App, T_If *)
+  try (solve [inversion Hvalue])...
+
+  (* T_Sub *)
+  destruct (sub_inversion_arrow _ _ _ H) as [U1 [U2 [Heq _]]]...
+Qed.
+
 (** [] *)
 
 (** Similarly, the canonical forms of type [Bool] are the constants
@@ -1404,6 +1549,8 @@ Proof with eauto.
   - (* T_Sub *)
     subst. apply sub_inversion_Bool in H. subst...
 Qed.
+
+(* note: these two canonical lemmas suffice for proving [progress] *)
 
 (* ================================================================= *)
 (** ** Progress *)

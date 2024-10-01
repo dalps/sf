@@ -1992,7 +1992,7 @@ Proof with eauto.
     apply S_Trans with (T:=U) in H2... *)
 Abort.
 
-Example d1 : forall x, empty |-- (\x:(Bool->Top), x true) (\x:Bool, x) \in Top.
+Example d1 : forall x, empty |-- (\x:(Bool->Top), x true) (\x:Top, x) \in Top.
 Proof with auto.
   intros.
   eapply T_App.
@@ -2010,12 +2010,19 @@ Proof with auto.
     eapply T_Sub with <{Bool}>... *)
 Qed.
 
-
+Example d2 : forall x, empty |-- (\x:(Bool->Top), x true) (\x:Bool, x) \in Top.
+Proof with auto.
+  intros.
+  eapply T_App...
+  eapply T_Sub with <{(Bool->Top)->Top}>...
+  apply T_Abs...
+  eapply T_App...
+Qed.
 
 (** **** Exercise: 2 stars, standard (variations)
 
 (* 10:37 min  - stuck for a while trying to prove antisymmetricity
-   + 1:05 hour *)
+   + 1:05 hour + 2 hours (i'm slow. 2 stars uh :/) *)
     Each part of this problem suggests a different way of changing the
     definition of the STLC with Unit and subtyping.  (These changes
     are not cumulative: each part starts from the original language.)
@@ -2057,6 +2064,9 @@ Qed.
                                ----------------          (S_Funny3)
                                Unit <: Top->Top
 
+      This rule says: a value of type [Unit] can safely be used in any context 
+      where a value of type [Top->Top] is expected.
+
       Progress becomes false:
 
         empty |-- unit 1 \in Top
@@ -2074,10 +2084,19 @@ Qed.
                                ----------------          (S_Funny4)
                                Top->Top <: Unit
 
+      This rule says: wherever a [Unit] is expected, I can use a [Top->Top] 
+      safely.
+
+      Neither become false: there's not much to do when a value of [Unit]
+        is expected.
+      
     - Suppose we add the following reduction rule:
 
                              ---------------------      (ST_Funny5)
                              (unit t) --> (t unit)
+
+      Neither beocme false: [unit t] cannot be typed, because [unit] doesn't
+        have an arrow type nor it can be generalized to one.
 
     - Suppose we add the same reduction rule _and_ a new typing rule:
 
@@ -2087,12 +2106,42 @@ Qed.
                            ---------------------------     (T_Funny6)
                            empty |-- unit \in Top->Top
 
+      Progress remains true: now [unit t] can be typed.
+
+      Preservation becomes false:
+
+        empty |-- unit true \in Top
+        unit true --> true unit
+        [true unit] is ill-typed!
+      
     - Suppose we _change_ the arrow subtyping rule to:
 
                           S1 <: T1 S2 <: T2
                           -----------------              (S_Arrow')
                           S1->S2 <: T1->T2
 
+      Both the argument and the result type are covariant.
+
+      Normally, a function accepts a stronger argument that it expects.
+
+        empty |-- (\f:(Nat*Nat)->Nat, f (1,2) + 3) (\p:Top, 4) \in Nat
+
+      But [S_Arrow'] entails the opposite! A function now "works" with a weaker
+      argument, but this breaks stuff.
+
+      Progress remains true (abstraction are values,
+        substitution is always possible).
+
+      Preservation becomes false:
+
+        empty |-- (\f:Top->Bool, f unit) (\p:Bool, if p then true else false) \in Bool
+        (\f:Top->Bool, f unit) (\p:Bool, if p then true else false) -->
+          (\p:Bool, if p then true else false) unit.
+        [empty |-- (\p:Bool, if p then true else false) unit] is ill-typed!
+
+        empty |-- (\f:Top->Nat, f unit + 3) (\n:Nat, n + 4) \in Nat       
+        (\f:Top->Nat, f unit + 3) (\n:Nat, n + 4) --> (\n:Nat, n + 4) unit + 3
+        [(\n:Nat, n + 4) unit + 3] is ill typed!
 *)
 
 (* Do not modify the following line: *)
@@ -2146,7 +2195,7 @@ Definition manual_grade_for_products_preservation : option (nat*string) := None.
 (** ** Formalized "Thought Exercises" *)
 
 (** The following are formal exercises based on the previous "thought
-    exercises." *)
+    exercises." *) (* note: THANK YOU!!! *)
 
 Module FormalThoughtExercises.
 Import Examples.

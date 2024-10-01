@@ -1133,6 +1133,10 @@ Inductive value : tm -> Prop :=
       value <{false}>
   | v_unit :
       value <{unit}>
+  | v_pair : forall v1 v2,
+      value v1 ->
+      value v2 ->
+      value <{(v1,v2)}>
 .
 
 Hint Constructors value : core.
@@ -1157,6 +1161,27 @@ Inductive step : tm -> tm -> Prop :=
   | ST_If : forall t1 t1' t2 t3,
       t1 --> t1' ->
       <{if t1 then t2 else t3}> --> <{if t1' then t2 else t3}>
+  | ST_Pair1 : forall t1 t1' t2,
+      t1 --> t1' ->
+      <{(t1,t2)}> --> <{(t1',t2)}>
+  | ST_Pair2 : forall v1 t2 t2',
+      value v1 ->
+      t2 --> t2' ->
+      <{(v1,t2)}> --> <{(v1,t2')}>
+  | ST_Fst1 : forall t1 t1',
+      t1 --> t1' ->
+      <{t1.fst}> --> <{t1'.fst}>
+  | ST_FstPair : forall v1 v2,
+      value v1 ->
+      value v2 ->
+      <{(v1,v2).fst}> --> <{v1}>
+  | ST_Snd1 : forall t1 t1',
+      t1 --> t1' ->
+      <{t1.snd}> --> <{t1'.snd}>
+  | ST_SndPair : forall v1 v2,
+      value v1 ->
+      value v2 ->
+      <{(v1,v2).snd}> --> <{v2}>
 where "t '-->' t'" := (step t t').
 
 Hint Constructors step : core.
@@ -1186,6 +1211,10 @@ Inductive subtype : ty -> ty -> Prop :=
       T1 <: S1 ->
       S2 <: T2 ->
       <{S1->S2}> <: <{T1->T2}>
+  | S_Prod : forall S1 S2 T1 T2,
+      S1 <: T1 ->
+      S2 <: T2 ->
+      <{S1*S2}> <: <{T1*T2}>
 where "T '<:' U" := (subtype T U).
 
 (** Note that we don't need any special rules for base types ([Bool]
@@ -1215,6 +1244,8 @@ Proof. auto. Qed.
 
 (** **** Exercise: 2 stars, standard, optional (subtyping_judgements)
 
+(* 6:37 min *)
+
     (Leave this exercise [Admitted] until after you have finished adding product
     types to the language -- see exercise [products] -- at least up to
     this point in the file).
@@ -1228,24 +1259,24 @@ Proof. auto. Qed.
     Student := { name : String ; gpa : Float }
     Employee := { name : String ; ssn : Integer }
 *)
-Definition Person : ty
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
-Definition Student : ty
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
-Definition Employee : ty
-  (* REPLACE THIS LINE WITH ":= _your_definition_ ." *). Admitted.
+
+(* I'm going to adopt this naming convention: name := "a", gpa, ssn := "b" *)
+
+Definition Person : ty := <{String * Top}>. (* trailing [Top] for proper subtyping *)
+Definition Student : ty := <{String * (Float * Top)}>.
+Definition Employee : ty := <{String * (Integer * Top)}>.
 
 (** Now use the definition of the subtype relation to prove the following: *)
 
+Hint Unfold Person Student Employee : core.
+
 Example sub_student_person :
   Student <: Person.
-Proof.
-(* FILL IN HERE *) Admitted.
+Proof with auto. apply S_Prod...  Qed.
 
 Example sub_employee_person :
   Employee <: Person.
-Proof.
-(* FILL IN HERE *) Admitted.
+Proof with auto. apply S_Prod...  Qed.
 (** [] *)
 
 (** The following facts are mostly easy to prove in Coq.  To get
@@ -1315,6 +1346,18 @@ Inductive has_type : context -> tm -> ty -> Prop :=
       T1 <: T2 ->               (* and we have a type [T2] weaker than [T1]... *)
       Gamma |-- t1 \in T2       (* then we can weaken the type of [t1] to [T2]. *)
 
+  (* pairs *)
+  | T_Pair : forall Gamma t1 t2 T1 T2,
+      Gamma |-- t1 \in T1 ->
+      Gamma |-- t2 \in T2 ->
+      Gamma |-- (t1,t2) \in (T1 * T2)
+  | T_Fst : forall Gamma t1 T1 T2,
+      Gamma |-- t1 \in (T1 * T2) ->
+      Gamma |-- t1.fst \in T1
+  | T_Snd : forall Gamma t1 T1 T2,
+      Gamma |-- t1 \in (T1 * T2) ->
+      Gamma |-- t1.snd \in T2
+
 (* NB: [T_Sub] makes [has_type] nondeterministic!!!
    Inverting a typing statement to its causes is trickier now. *)
 
@@ -1329,26 +1372,51 @@ Import Examples.
     the language.  For each informal typing judgement, write it as a
     formal statement in Coq and prove it. *)
 
+(* 13:37 min all three *)
+
 (** **** Exercise: 1 star, standard, optional (typing_example_0) *)
 (* empty |-- ((\z:A,z), (\z:B,z)) \in (A->A * B->B) *)
-(* FILL IN HERE
 
-    [] *)
+Example typing_example_0 : forall z A B,
+  empty |-- ((\z:A,z), (\z:B,z)) \in ((A->A) * (B->B)).
+Proof. auto. Qed.
+
+(** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (typing_example_1) *)
 (* empty |-- (\x:(Top * B->B), x.snd) ((\z:A,z), (\z:B,z))
          \in B->B *)
-(* FILL IN HERE
 
-    [] *)
+Example typing_example_1 : forall x z A B,
+  empty |-- (\x:(Top * (B->B)), x.snd) ((\z:A,z), (\z:B,z))
+         \in (B->B).
+Proof with eauto.
+  intros.
+  apply T_App with <{Top * (B->B)}>...
+  apply T_Pair...
+Qed.
+
+(** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (typing_example_2) *)
 (* empty |-- (\z:(C->C)->(Top * B->B), (z (\x:C,x)).snd)
               (\z:C->C, ((\z:A,z), (\z:B,z)))
          \in B->B *)
-(* FILL IN HERE
 
-    [] *)
+Example typing_example_2 : forall x z A B C,
+  empty |-- (\z:(C->C)->(Top * (B->B)), (z (\x:C,x)).snd)
+              (\z:C->C, ((\z:A,z), (\z:B,z)))
+         \in (B->B).
+Proof with eauto.
+  intros.
+  eapply T_App...
+  - apply T_Abs...
+    eapply T_Snd...
+  - apply T_Abs...
+    apply T_Pair...
+Qed.
+
+(** [] *)
 
 End Examples2.
 
@@ -1409,7 +1477,7 @@ Proof with eauto.
   intros U V1 V2 Hs.
   remember <{V1->V2}> as V.
   generalize dependent V2. generalize dependent V1.
-  induction Hs as [| U S V HUS IHUS HSV IHSV | | ]; intros V1 V2 HeqV; subst...
+  induction Hs as [| U S V HUS IHUS HSV IHSV | | | ]; intros V1 V2 HeqV; subst...
 
   - (* S_Trans *)
     destruct (IHSV V1 V2) as [S1 [S2 [HeqS [HV1S1 HS2V2]]]];
@@ -1423,6 +1491,9 @@ Proof with eauto.
 
   - (* S_Arrow *)
     inversion HeqV; subst... (* [U] is already an arrow type, duh *)
+
+  - (* S_Prod *)
+    solve_by_invert.
 Qed.
 
 (** [] *)
@@ -1431,6 +1502,31 @@ Qed.
        - [Unit] is the only subtype of [Unit], and
        - [Base n] is the only subtype of [Base n], and
        - [Top] is the only supertype of [Top]. *)
+
+Print subtype.
+(* (Exercise: products)
+       - every subtype of a pair type is itself a pair type *)
+
+(* 11:54 min *)
+Lemma sub_inversion_product : forall U V1 V2,
+    U <: <{V1 * V2}> ->
+    exists U1 U2,
+    U = <{U1 * U2}> /\ U1 <: V1 /\ U2 <: V2.
+Proof with eauto.
+  intros ? ? ? Hs.
+  remember <{V1 * V2}> as V.
+  generalize dependent V2. generalize dependent V1.
+  induction Hs as [ | U S V | | | ]; intros ? ? Heq;
+    try solve_by_invert; subst...
+
+  - (* S_Trans *)
+    destruct (IHHs2 V1 V2) as [S1 [S2 [EqU [HS1V1 HS2V2]]]]; subst...
+    destruct (IHHs1 S1 S2) as [U1 [U2 [EqU [HU1S1 HU2S2]]]]; subst...
+    exists U1, U2...
+
+  - (* S_Pair *)
+    inversion Heq; subst...
+Qed.
 
 (** **** Exercise: 2 stars, standard, optional (sub_inversion_Unit) *)
 
@@ -1552,7 +1648,39 @@ Proof with eauto.
     subst. apply sub_inversion_Bool in H. subst...
 Qed.
 
-(* note: these two canonical lemmas suffice for proving [progress] *)
+(* note: these two canonical lemmas suffice for proving [progress]
+  (products exercise) Not anymore after adding pair values, operational semantics and typing rules for products.
+*)
+
+(* 21:23 min *)
+Lemma canonical_forms_of_product_types : forall Gamma s V1 V2,
+  Gamma |-- s \in (V1 * V2) ->
+  value s ->
+  exists v1 v2,
+    s = <{(v1,v2)}>
+    /\ value v1 /\ Gamma |-- v1 \in V1
+    /\ value v2 /\ Gamma |-- v2 \in V2.
+Proof with eauto.
+  intros ? ? ? ? Hty.
+  remember <{V1 * V2}> as T.
+  generalize dependent V2.
+  generalize dependent V1.
+  induction Hty;
+    intros ? ? Heq Hvalue;
+    try solve_by_invert; subst...
+
+  - (* T_Sub *)
+    destruct (sub_inversion_product _ _ _ H)
+      as [U1 [U2 [Heq [HU1V1 HU2V2]]]].
+    destruct (IHHty U1 U2 Heq Hvalue)
+      as [v1 [v2 [Heqv [Hvalue1 [Htv1 [Hvalue2 Htv2]]]]]]; subst...
+    exists v1, v2; intuition; eapply T_Sub...
+
+  - (* T_Pair *)
+    inversion Heq; subst; clear Heq;
+    inversion Hvalue; subst; clear Hvalue.
+    exists t1, t2...
+Qed.
 
 (* ================================================================= *)
 (** ** Progress *)
@@ -1642,6 +1770,26 @@ Proof with eauto.
     + apply canonical_forms_of_Bool in Ht1; [|assumption].
       destruct Ht1; subst...
     + destruct H. rename x into t1'. eauto. 
+
+  (* pairs *)
+  (* 14:05 min *)
+  - (* T_Pair *)
+    destruct IHHt1...
+    + (* t1 is a value *)
+      destruct IHHt2...
+      destruct H0 as [t2' Hstp]...
+    + (* t1 steps *)
+      destruct H...
+  - (* T_Fst *)
+    destruct IHHt...
+    + destruct (canonical_forms_of_product_types _ _ _ _ Ht H).
+      destruct H0 as [? [? [? [_ [? _]]]]]; subst...
+    + destruct H...
+  - (* T_Snd *)
+    destruct IHHt...
+    + destruct (canonical_forms_of_product_types _ _ _ _ Ht H).
+      destruct H0 as [? [? [? [_ [? _]]]]]; subst...
+    + destruct H...
 Qed.
 
 (* ================================================================= *)
@@ -1790,6 +1938,25 @@ Proof with eauto.
   destruct Hsub as [U1 [U2 [Heq [Hsub1 Hsub2]]]].
   injection Heq as Heq; subst...  Qed.
 
+(** products exercise
+    ~5 min *)
+
+Lemma typing_inversion_product : forall Gamma t1 t2 T,
+  Gamma |-- (t1, t2) \in T ->
+  exists T1 T2,
+    <{T1*T2}> <: T /\
+    Gamma |-- t1 \in T1 /\ Gamma |-- t2 \in T2.
+Proof with eauto.
+  intros ? ? ? ? Ht.
+  remember <{(t1,t2)}> as t.
+  induction Ht;
+    inversion Heqt; subst...
+
+  - (* T_Sub *)
+    destruct IHHt as [S1 [S2 [Hsub [Ht1 Ht2]]]]...
+    eapply S_Trans with (T:=T2) in Hsub...
+Qed.
+
 (* ================================================================= *)
 (** ** Weakening *)
 
@@ -1925,7 +2092,15 @@ Proof with eauto.
   remember empty as Gamma.
   induction HT;
        intros t' HE; subst;
-       try solve [inversion HE; subst; eauto].
+       try solve [inversion HE; subst; eauto];
+
+       try (inversion HE; subst; eauto;
+            apply typing_inversion_product in HT;
+            destruct HT as [S1 [S2 [Hsub [? ?]]]];
+            apply sub_inversion_product in Hsub;
+            destruct Hsub as [U1 [U2 [Heq [? ?]]]];
+            inversion Heq; subst; eauto).
+
   - (* T_App *)
     inversion HE; subst...
     (* Most of the cases are immediate by induction,
@@ -2178,8 +2353,6 @@ Definition manual_grade_for_variations : option (nat*string) := None.
     - Extend the proofs of progress, preservation, and all their
       supporting lemmas to deal with the new constructs.  (You'll also
       need to add a couple of completely new lemmas.) *)
-
-(* FILL IN HERE *)
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_products_value_step : option (nat*string) := None.

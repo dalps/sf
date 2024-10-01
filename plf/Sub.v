@@ -1803,6 +1803,9 @@ Proof.
   intros Gamma Gamma' t T H Ht.
   generalize dependent Gamma'.
   induction Ht; eauto using includedin_update.
+
+  (* 8: (* T_Sub*)
+        intros; apply IHHt in H0; eapply T_Sub; eassumption. *)
 Qed.
 
 Corollary weakening_empty : forall Gamma t T,
@@ -1823,6 +1826,9 @@ Qed.
     induction on the typing derivation this time (see Exercise
     substitution_preserves_typing_from_typing_ind in StlcProp.v). *)
 
+Print has_type.
+
+(* 2:15 min - copy-pasted my solution *)
 Lemma substitution_preserves_typing : forall Gamma x U t v T,
    (x |-> U ; Gamma) |-- t \in T ->
    empty |-- v \in U   ->
@@ -1832,7 +1838,24 @@ Proof.
   remember (x |-> U; Gamma) as Gamma'.
   generalize dependent Gamma.
   induction Ht; intros Gamma' G; simpl; eauto.
- (* FILL IN HERE *) Admitted.
+ 
+  - (* T_Var *)
+    destruct (eqb_spec x x0); subst.
+    + rewrite update_eq in H.
+      injection H as H; subst.
+      apply weakening_empty; auto.
+
+    + rewrite update_neq in H; auto.
+
+  - (* T_Abs *)
+    destruct (eqb_spec x x0); subst.
+
+    + rewrite update_shadow in Ht; auto.
+
+    + constructor.
+      apply IHHt with (Gamma := x0 |-> T2; Gamma').
+      rewrite update_permute; auto.
+Qed.
 
 (* ================================================================= *)
 (** ** Preservation *)
@@ -1912,6 +1935,8 @@ Proof with eauto.
       apply substitution_preserves_typing with T0... 
 Qed.
 
+(* ~1:10 hours for preservation *)
+
 (* ================================================================= *)
 (** ** Records, via Products and Top *)
 
@@ -1942,8 +1967,55 @@ Qed.
 (* ================================================================= *)
 (** ** Exercises *)
 
+
+(* Is subtype antisymmetric? *)
+
+(* I tried... *)
+Theorem subtype_antisym : forall S T, S <: T -> T <: S -> S = T.
+Proof with eauto.
+  induction S; intros T HST HTS.
+
+  - apply sub_inversion_Top in HST; subst...
+  - apply sub_inversion_Bool in HTS; subst...
+  - admit.
+  - apply sub_inversion_arrow in HTS.
+    destruct HTS as [U1 [U2 [EqT [HS1U1 HU2S2]]]]; subst.
+    assert (<{U1->U2}> <: <{S1->S2}>) by auto.
+    inversion HST; subst; clear HST;
+    inversion H; subst; clear H...
+
+  (* intros S T H1.
+  induction H1...
+
+  - (* S_Trans *)
+    intros H2.
+    apply S_Trans with (T:=U) in H2... *)
+Abort.
+
+Example d1 : forall x, empty |-- (\x:(Bool->Top), x true) (\x:Bool, x) \in Top.
+Proof with auto.
+  intros.
+  eapply T_App.
+  - apply T_Abs.
+    eapply T_App.
+    + apply T_Var.
+      rewrite update_eq...
+    + eapply T_Sub...
+  - eapply T_Sub.
+    + apply T_Abs...
+    + apply S_Arrow... 
+
+    (* or
+    eapply T_Abs...
+    eapply T_Sub with <{Bool}>... *)
+Qed.
+
+
+
 (** **** Exercise: 2 stars, standard (variations)
 
+(* 10:37 min  - stuck for a while trying to prove antisymmetricity
+   + 1:05 hour *)
     Each part of this problem suggests a different way of changing the
     definition of the STLC with Unit and subtyping.  (These changes
     are not cumulative: each part starts from the original language.)
@@ -1958,15 +2030,44 @@ Qed.
                     -----------------------------------    (T_Funny1)
                            Gamma |-- t \in T1->T2
 
+       Neither become false: this rule is equivalent to [T_Sub] where [T]
+       is the arrow type [T1->T2] was obtained by weakening the result type of
+       [S1->S2]. The assumption that both [S1 <: T1] and [T1 <: S1] hold
+       is difficult, if not impossible, to meet in our calculus if
+       [S1] and [T1] aren't the same type, rendering the addition
+       of this rule innocuous.
+
     - Suppose we add the following reduction rule:
 
                              --------------------         (ST_Funny21)
                              unit --> (\x:Top. x)
 
+      Progress remains true, because a term where such step had already
+      happened will (most likely) be ill-typed, otherwise the term can
+      take a step by [ST_Funny21].
+
+      Preservation becomes false:
+
+        empty |-- unit \in Unit =>
+        unit --> (\x:Top. x)    =>
+        empty |-- (\x:Top. x) \in Unit (* impossible! [unit] is the only member of [Unit] *)
+
     - Suppose we add the following subtyping rule:
 
                                ----------------          (S_Funny3)
                                Unit <: Top->Top
+
+      Progress becomes false:
+
+        empty |-- unit 1 \in Top
+        [unit 1] is stuck!
+
+         [T_Sub + S_Funny3]   [T_Sub + S_Top]
+        |-- unit : Top->Top    |-- 1 : Top
+        -----------------------------------
+                |-- unit 1 : Top
+
+      Preservation remains true (can't think of anything well typed that steps!)
 
     - Suppose we add the following subtyping rule:
 

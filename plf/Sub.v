@@ -1555,6 +1555,7 @@ Proof with auto.
   induction Hs; subst;
   try solve_by_invert...
   rewrite IHHs2 in IHHs1...
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (sub_inversion_Top) *)
@@ -2368,7 +2369,15 @@ Definition manual_grade_for_products_preservation : option (nat*string) := None.
 (** ** Formalized "Thought Exercises" *)
 
 (** The following are formal exercises based on the previous "thought
-    exercises." *) (* note: THANK YOU!!! *)
+    exercises." *)
+
+Ltac invert_arrow :=
+  match goal with
+  | H : _ <: <{_ -> _}> |- _ =>
+      apply sub_inversion_arrow in H; auto;
+      destruct H as [U1 [U2 [Heq [H1 H2]]]]; subst;
+      inversion Heq; subst
+  end.
 
 Module FormalThoughtExercises.
 Import Examples.
@@ -2378,43 +2387,86 @@ Notation a := "a".
 Definition TF P := P \/ ~P.
 
 (** **** Exercise: 1 star, standard, optional (formal_subtype_instances_tf_1a) *)
+
+(* ~1 min *)
 Theorem formal_subtype_instances_tf_1a:
   TF (forall S T U V, S <: T -> U <: V ->
          <{T->S}> <: <{T->S}>).
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof with eauto.
+  left...  Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (formal_subtype_instances_tf_1b) *)
 Theorem formal_subtype_instances_tf_1b:
   TF (forall S T U V, S <: T -> U <: V ->
          <{Top->U}> <: <{S->Top}>).
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof with eauto.
+  left...  Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (formal_subtype_instances_tf_1c) *)
 Theorem formal_subtype_instances_tf_1c:
   TF (forall S T U V, S <: T -> U <: V ->
          <{(C->C)->(A*B)}> <: <{(C->C)->(Top*B)}>).
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof with eauto.
+  left...  Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (formal_subtype_instances_tf_1d) *)
 Theorem formal_subtype_instances_tf_1d:
   TF (forall S T U V, S <: T -> U <: V ->
          <{T->(T->U)}> <: <{S->(S->V)}>).
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof with eauto.
+  left...  Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (formal_subtype_instances_tf_1e) *)
+
+(* +35 min - forgot about the inversion lemmas... *)
 Theorem formal_subtype_instances_tf_1e:
   TF (forall S T U V, S <: T -> U <: V ->
          <{(T->T)->U}> <: <{(S->S)->V}>).
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof with eauto.
+  right. intro Bad.
+  specialize (Bad <{Unit}> <{Top}> <{Unit}> <{Top}>)...
+  
+  (* haven't learned anything have ya *)
+  apply sub_inversion_arrow in Bad...
+  decompose record Bad.
+  inversion H; subst.
+
+  apply sub_inversion_arrow in H0.
+  decompose record H0.
+  inversion H1; subst.
+
+  apply sub_inversion_Unit in H3.
+  discriminate.
+Qed.
+
+(*
+  assert (H : <{Unit}> <: <{Top}>)...
+  specialize (Bad H H).
+  remember <{ (Top -> Top) -> Unit }> as S1.
+  remember <{ (Unit -> Unit) -> Top }> as S2.
+
+  induction Bad; subst; try solve_by_invert...
+  - apply IHBad1...
+    exfalso.
+    apply IHBad2...
+  
+   apply sub_inversion_arrow in Bad2.
+    destruct Bad2 as [U1 [U2 [Heq [H1 H2]]]]; subst.
+    apply sub_inversion_arrow in Bad1.
+    destruct Bad1 as [S1 [S2 [Heq' [H1' H2']]]]; subst.
+    inversion Heq'; subst; clear Heq'.
+    admit.
+
+    (* stuck: how do I deal with transitivity? *)
+  - inversion H3; subst...
+    + admit.
+    + inversion H4; subst...
+Abort. *)
+  
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (formal_subtype_instances_tf_1f) *)
@@ -2422,46 +2474,124 @@ Theorem formal_subtype_instances_tf_1f:
   TF (forall S T U V, S <: T -> U <: V ->
          <{((T->S)->T)->U}> <: <{((S->T)->S)->V}>).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  left. intros.
+  repeat (apply S_Arrow; auto).
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (formal_subtype_instances_tf_1g) *)
+
+(* ~5 min *)
 Theorem formal_subtype_instances_tf_1g:
   TF (forall S T U V, S <: T -> U <: V ->
          <{S*V}> <: <{T*U}>).
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof with eauto.
+  right. intro Bad.
+  specialize (Bad <{Unit}> <{Top}> <{Unit}> <{Top}>).
+
+  apply sub_inversion_product in Bad...
+  destruct Bad as [U1 [U2 [Eq [H1 H2]]]].
+  inversion Eq; subst.
+  apply sub_inversion_Unit in H2. discriminate.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (formal_subtype_instances_tf_2a) *)
+
+(* 9:07 min - wasting time trying to automate the proof, Ltac
+   refuses to collaborate *)
 Theorem formal_subtype_instances_tf_2a:
   TF (forall S T,
          S <: T ->
          <{S->S}> <: <{T->T}>).
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof with auto.
+  right. intros Bad.
+  specialize (Bad <{Unit}> <{Top}>).
+  apply sub_inversion_arrow in Bad...
+  decompose record Bad.
+  inversion H; subst.
+  apply sub_inversion_Unit in H0.
+  discriminate.
+Qed.
+
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (formal_subtype_instances_tf_2b) *)
+
+(* 6:37 min *)
 Theorem formal_subtype_instances_tf_2b:
   TF (forall S,
          S <: <{A->A}> ->
          exists T,
            S = <{T->T}> /\ T <: A).
-Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+Proof with auto.
+  right. intro Bad.
+  assert (<{Top->A}> <: <{A->A}>) by auto.
+  decompose record (Bad _ H).
+  solve_by_inverts 2.
+Qed.
 
+Lemma neq_nat : forall n, n <> S n.
+Proof. induction n.
+  - discriminate.
+  - intro Bad.
+    injection Bad. contradiction.
+Qed.
+
+(** [] *)
+Print ty_ind.
 (** **** Exercise: 2 stars, standard, optional (formal_subtype_instances_tf_2d)
 
     Hint: Assert a generalization of the statement to be proved and
     use induction on a type (rather than on a subtyping
     derviation). *)
+
+(* 37:14 min + *)
+
+Lemma sub_arrow_silly : forall S T, ~ S <: <{S->T}>.
+Proof with eauto.
+  intros S T Bad.
+  generalize dependent T.
+  induction S; intros T H;
+  apply sub_inversion_arrow in H;
+        destruct H as [U1 [U2 [Heq [H1 H2]]]];
+  try discriminate.
+  inversion Heq; subst; clear Heq.
+  apply IHS1 with U2.
+Abort.
+  
 Theorem formal_subtype_instances_tf_2d:
   TF (exists S,
          S <: <{S->S}>).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  right. intros [S].
+
+  specialize (sub_arrow_silly H).
+  (* 28:51 min *)
+  assert (neq_arrow : forall T, T <> <{T->T}>).
+  { induction T; intro Bad; try discriminate.
+    injection Bad; intros; clear Bad.
+    rewrite H1 in IHT1.
+    apply IHT1.
+    f_equal; assumption. }
+
+  induction S;
+
+  try (apply sub_inversion_arrow in H;
+       decompose record H;
+       discriminate).
+
+  apply sub_inversion_arrow in H.
+  destruct H as [U1 [U2 [Eq [H1 H2]]]].
+  inversion Eq; subst; clear Eq.
+
+  
+
+
+  (* remember <{S->S}> as A.
+  induction H; subst. *)
+
 (** [] *)
 
 (** **** Exercise: 2 stars, standard, optional (formal_subtype_instances_tf_2e) *)

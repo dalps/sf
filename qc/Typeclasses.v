@@ -155,9 +155,18 @@ Compute (show 42).
 
     Write a [Show] instance for pairs of a nat and a bool. *)
 
-(* FILL IN HERE
+(* ~5 min*)
+#[export] Instance showNatBool : Show (nat * bool) :=
+  {
+    show :=
+      fun pair:nat * bool =>
+        "(" ++ show (fst pair) ++ ", " ++ show (snd pair) ++ ")"
+  }.
 
-    [] *)
+Compute show (42,true).
+
+(** [] *)
+
 
 (** Next, we can define functions that use the overloaded function
     [show] like this: *)
@@ -197,6 +206,10 @@ Compute (showTwo Red Green).
     What happens if we forget the class constraints in the definitions
     of [showOne] or [showTwo]?  Try deleting them and see what
     happens.
+
+    Coq complains it couldn't find the instance of [Show] for the
+    type whose implicit argument we removed. It also prints the 
+    proof context lacking evidence of [Show] for that type.
 
     [] *)
 
@@ -249,9 +262,20 @@ Notation "x =? y" := (eqb x y) (at level 70).
     checking equality makes perfect sense.  Write an [Eq] instance for
     this type. *)
 
-(* FILL IN HERE
+(* 9 min *)
 
-    [] *)
+#[export] Instance eqBoolArrowBool : Eq (bool -> bool) :=
+  {
+    eqb := fun (p q : bool -> bool) =>
+      (p true =? q true) && (p false =? q false)
+  }.
+
+Compute (fun b:bool => b) =? (fun b:bool => true).
+Compute (fun b:bool => true) =? (fun b:bool => true).
+Compute (fun b:bool => false) =? (fun b:bool => true).
+Compute negb =? (fun b:bool => negb (negb b)).
+
+(** [] *)
 
 (* ================================================================= *)
 (** ** Parameterized Instances: New Typeclasses from Old *)
@@ -300,9 +324,52 @@ Fixpoint showListAux {A : Type} (s : A -> string) (l : list A) : string :=
     Write an [Eq] instance for lists and [Show] and [Eq] instances for
     the [option] type constructor. *)
 
-(* FILL IN HERE
+(* 6:35 + 5:38 min *)
+Fixpoint eqListAux {A : Type} (eq : A -> A -> bool) (xs ys : list A) : bool :=
+  match xs, ys with
+  | nil, nil => true
+  | nil, _ | _, nil => false
+  | cons x xs', cons y ys' => andb (eq x y) (eqListAux eq xs' ys')
+  end.
 
-    [] *)
+#[export] Instance eqList {A : Type} `{Eq A} : Eq (list A) :=
+  {
+    eqb := eqListAux eqb
+  }.
+
+Compute [1;2;3] =? [1;2;3].
+Compute [1;2;3] =? [2;1;3].
+Compute [1;2;3] =? [].
+Compute [] =? [].
+
+#[export] Instance showOption {A : Type} `{Show A} : Show (option A) :=
+  {
+    show o :=
+      match o with
+      | None => "None"
+      | Some x => "Some " ++ show x
+      end
+  }.
+
+Compute show (Some 2).
+Compute show (Some true).
+Compute show (Some "b"%string).
+
+#[export] Instance eqOption {A : Type} `{Eq A} : Eq (option A) :=
+  {
+    eqb o1 o2 :=
+      match o1, o2 with
+      | None, None => true
+      | Some x, Some y => x =? y
+      | _,_ => false
+      end
+  }.
+
+Compute Some 2 =? Some (2 + 2).
+Compute Some 2 =? None.
+Compute None =? None.
+
+(** [] *)
 
 (** **** Exercise: 3 stars, standard, optional (boolArrowA)
 
@@ -310,9 +377,27 @@ Fixpoint showListAux {A : Type} (s : A -> string) (l : list A) : string :=
     an equality instance for any type of the form [bool->A], where [A]
     itself is an [Eq] type.  Show that it works for [bool->bool->nat]. *)
 
-(* FILL IN HERE
+(* ~11 min *)
+#[export] Instance eqBoolArrowA {A : Type} `{Eq A} : Eq (bool -> A) :=
+  {
+    eqb p q :=
+      (p true =? q true) && (p false =? q false)
+      (* Now [=?] comes from [A]'s instance of [Eq], rather than [bool]'s *)
+  }.
 
-    [] *)
+Compute (fun b:bool => 2) =? (fun b:bool => 4).
+Compute (fun b:bool => 2) =? (fun b:bool => if b then 2 else 4).
+Compute (fun b c:bool => if b && c then 2 else 42) =? (fun b c:bool => if b || c then 2 else 42).
+Compute (fun b c:bool => if b && c then 2 else 42) =? (fun b c:bool =>
+  if b then
+    if c then 2 else 42
+  else 42).
+Compute (fun b c:bool => if b || c then 2 else 42) =? (fun b c:bool =>
+  if b then
+    2
+  else if c then 2 else 42).
+
+(** [] *)
 
 (* ================================================================= *)
 (** ** Class Hierarchies *)

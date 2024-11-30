@@ -35,7 +35,7 @@ Conjecture removeP : forall x l,  ~ (In x (remove x l)).
     the discrepancy between the definition and specification is
     to _test_ it: *)
 
-(* QuickChick removeP. *)
+QuickChick removeP.
 
 (** (Try uncommenting and evaluating the previous line.) *)
 
@@ -74,9 +74,17 @@ Fixpoint insert x l :=
     always yields a list containing [x]."  Make sure QuickChick finds
     a counterexample. *)
 
-(* FILL IN HERE
+(* 3 mins *)
+Conjecture insertP : forall x l, In x (insert x l).
 
-    [] *)
+Compute insert 3 [1;2;4;5].
+
+QuickChick insertP.
+
+Compute insert 0 [1].
+
+(** [] *)
+
 
 (** **** Exercise: 2 stars, standard (insertP2)
 
@@ -86,9 +94,13 @@ Fixpoint insert x l :=
     inserting [x] into [l]" (i.e., [insert] preserves all the elements
     already in [l]). Make sure QuickChick finds a counterexample. *)
 
-(* FILL IN HERE
+(* 4:17 min *)
+Conjecture insertP2 : forall x y l, In y l -> In y (insert x l).
 
-    [] *)
+Compute insert 1 [0]. (* After inserting 1 (x) in [0] (l), 0 (y) disappears *)
+QuickChick insertP2.
+
+(** [] *)
 
 (* ################################################################# *)
 (** * Overview *)

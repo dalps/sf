@@ -451,7 +451,7 @@ Check Ord.
     now have two class constraints, one witnessing that they have an
     associated [eqb] operation, and one for [le]. *)
 
-Definition max {A: Type} `{Eq A} `{Ord A} (x y : A) : A :=
+Definition max {A: Type} `{Ord A} (x y : A) : A :=
   if le x y then y else x.
 
 (** **** Exercise: 1 star, standard (missingConstraintAgain)
@@ -459,23 +459,74 @@ Definition max {A: Type} `{Eq A} `{Ord A} (x y : A) : A :=
     What does Coq say if the [Ord] class constraint is left out of the
     definition of [max]?  What about the [Eq] class constraint?
 
+    Omitting [`{Ord A}] breaks the definition because there is no [le]
+    in scope for the type [A].
+
+    On the other hand, it's fine omitting [`{Eq A}] because [`{Ord A}]
+    already calls for an instance of [Eq] for [A].
+
     [] *)
 
 (** **** Exercise: 3 stars, standard (ordMisc)
 
     Define [Ord] instances for options and pairs. *)
 
-(* FILL IN HERE
+(* 11:40 min *)
 
-    [] *)
+Instance ordOption {A : Type} `{Ord A} : Ord (option A) :=
+  {
+    le a b :=
+      match a, b with
+      | None, _ => true
+      | Some a, Some b => a <=? b
+      | _,_ => false
+      end
+  }.
+
+Compute le None (Some 1).
+Compute le (Some false) (Some true). (* looking for [Ord bool] *)
+
+Instance ordPair {A B : Type} `{Ord A} `{Ord B} : Ord (A * B) :=
+  {
+    le p1 p2 :=
+      let (p1a,p1b) := p1 in
+      let (p2a,p2b) := p2 in
+      if p1a =? p2a then p1b <=? p2b else p1a <=? p2a
+  }.
+
+Compute (None, 42) <=? (Some 1, 0).
+Compute (Some 2, 42) <=? (Some 1, 0).
+Compute (Some 1, 42) <=? (Some 1, 0).
+Compute (Some 1, 0) <=? (Some 1, 42).
+
+(** [] *)
 
 (** **** Exercise: 3 stars, standard (ordList)
 
     For a little more practice, define an [Ord] instance for lists. *)
 
-(* FILL IN HERE
+(* 14:14 min *)
 
-    [] *)
+Fixpoint leListAux {A : Type} `{Ord A} (l1 l2 : list A) :=
+  match l1, l2 with
+  | [], _ => true
+  | x :: xs, y :: ys =>
+    (x <=? y) && (negb (x =? y) || leListAux xs ys)
+  | _,_ => false
+  end.
+
+Instance ordList {A : Type} `{Ord A} : Ord (list A) :=
+  {
+    le := leListAux
+  }.
+
+Compute [2;1;1;1] <=? [1].
+Compute [2;1;1;1] <=? [2].
+Compute [2;1;1;1] <=? [3].
+Compute [3;1;1;1] <=? [2].
+Compute [1;3;1;1] <=? [2].
+
+(** [] *)
 
 (* ################################################################# *)
 (** * How It Works *)

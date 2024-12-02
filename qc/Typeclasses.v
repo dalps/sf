@@ -973,7 +973,7 @@ Class EqDec (A : Type) {H : Eq A} :=
     proof mode and ask the user to use tactics to construct
     inhabitants for the fields. *)
 
-#[export] Instance eqdecBool' : EqDec bool.
+#[export] Instance eqdecBool' : EqDec bool. (* abstact*)
 Proof.
   constructor.
   intros x y. destruct x; destruct y; simpl; unfold iff; auto.
@@ -1032,11 +1032,11 @@ Class PreOrder (A : Type) (R : relation A) :=
 
 (** The syntax [:>] indicates that each [PreOrder] can be seen as a
     [Reflexive] and [Transitive] relation, so that, any time a
-    reflexive relation is needed, a preorder can be used instead. *)
+    reflexive relation is needed, a preorder can be used instead. *) (* It's basically a coercion! *)
 
-Lemma trans3_pre : forall `{PreOrder A R},
+Lemma trans3_pre : forall `{PreOrder A R}, (* We have the same if not more information to prove it! *)
     `{R x y -> R y z -> R z w -> R x w}.
-Proof. intros. eapply trans3; eassumption. Defined.
+Proof. intros. destruct H. eapply trans3; eassumption. Defined.
 
 (* ################################################################# *)
 (** * Some Useful Typeclasses *)
@@ -1053,6 +1053,8 @@ Print decidable.
 (* ==>
      decidable = fun P : Prop => {P} + {~ P}
 *)
+
+(* note: [P] is inhabited (x)or [~ P] is inhabited *)
 
 (** ... where [{P} + {~ P}] is an "informative disjunction" of [P] and
     [~P].  *)
@@ -1076,7 +1078,7 @@ Proof.
   constructor.
   unfold decidable.
   destruct (x =? y) eqn:E.
-  - left. rewrite <- eqb_eq. assumption.
+  - left. rewrite <- eqb_eq. assumption. (* Recall that [rewrite] works on equivalences *)
   - right. intros C. rewrite <- eqb_eq in C. rewrite E in C. inversion C.
 Defined.
 
@@ -1088,7 +1090,7 @@ Proof.
   constructor. unfold decidable.
   destruct H as [D]; destruct D;
     destruct I as [D]; destruct D; auto;
-      right; intro; destruct H; contradiction.
+      right; intro; destruct H; contradiction. (* 3 cases *)
 Defined.
 
 (** **** Exercise: 3 stars, standard (dec_neg_disj)
@@ -1096,15 +1098,33 @@ Defined.
     Give instance declarations showing that, if [P] and [Q] are
     decidable propositions, then so are [~P] and [P\/Q]. *)
 
-(* FILL IN HERE
+(* 3:15 + 2:02 min *)
 
-    [] *)
+#[export] Instance Dec_neg {P : Prop} {H : Dec P} : Dec (~P).
+Proof.
+  constructor. unfold decidable.
+  destruct H as [D]. destruct D.
+  * right. intuition.
+  * left. assumption.
+Defined.
+
+#[export] Instance Dec_disj {P Q : Prop} {H : Dec P} {I : Dec Q} : Dec (P\/Q).
+Proof.
+  constructor. unfold decidable.
+  destruct H as [D]; destruct D;
+    destruct I as [D]; destruct D;
+      intuition.
+Defined.
+
+(** [] *)
 
 (** **** Exercise: 4 stars, standard (Dec_All)
 
     The following function converts a list into a proposition claiming
     that every element of that list satiesfies some proposition
     [P]: *)
+
+(* ~30 min *)
 
 Fixpoint All {T : Type} (P : T -> Prop) (l : list T) : Prop :=
   match l with
@@ -1115,9 +1135,50 @@ Fixpoint All {T : Type} (P : T -> Prop) (l : list T) : Prop :=
 (** Create an instance of [Dec] for [All P l], given that [P a] is
     decidable for every [a]. *)
 
-(* FILL IN HERE
+(* Naive attempt (only one [A]!?):
 
-    [] *)
+#[export] Instance Dec_All
+  {A : Type} {P : A -> Prop} (a : A) `{Dec (forall a, P a)} (l : list A) : Dec (All P l).
+Proof.
+  constructor. unfold decidable.
+    generalize dependent a.
+    induction l as [ | x xs IH];
+    intros a H.
+    * clear H. left. unfold All. apply I.
+    * destruct IH as [Hall1 | Hall1];
+        destruct H as [D]; destruct D as [Ha1 | Ha2].
+          (* stuck... what about [Dec x]? *)
+*)
+
+(* Second naive attempt: I'm allowing some [a]s to violate [P].
+
+#[export] Instance Dec_All
+  {A : Type} {P : A -> Prop} `{Dec (forall a, P a)} (l : list A) : Dec (All P l).
+Proof.
+  constructor. unfold decidable.
+  induction l as [ | x xs IH].
+  * clear H. left. unfold All. apply I.
+  * destruct IH as [Hall1 | Hall2];
+    destruct H as [D]; destruct D as [Ha1 | Ha2];
+    unfold All.
+    - left. specialize (Ha1 x); auto.
+    - right. unfold not in *.
+      split. *)
+
+#[export] Instance Dec_All
+  {A : Type} {P : A -> Prop} `{H : forall a : A, Dec (P a)} (l : list A) : Dec (All P l).
+Proof.
+  constructor. unfold decidable.
+  induction l as [ | x xs IH].
+  * clear H. left. unfold All. apply I.
+  * specialize (H x).
+    destruct IH as [Hall1 | Hall2];
+    destruct H as [D]; destruct D as [Hx1 | Hx2];
+    unfold All; auto;
+    right; intuition.
+Defined.
+
+(** [] *)
 
 (** One reason for doing all this is that it makes it easy to move
     back and forth between the boolean and propositional worlds,

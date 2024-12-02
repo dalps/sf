@@ -784,6 +784,9 @@ Check {| lx:=2; ly:=4; label:="hello" |}.
     Note that the [A] parameter in the definition of [LabeledPoint] is
     bound with parens, not curly braces. Why is this a better choice?
 
+    It helps type inference and the users of the record type know
+    that they're dealing with a record with "holes" in its fields.
+
     [] *)
 
 (* ================================================================= *)
@@ -877,15 +880,15 @@ Unset Printing Implicit.
     Show" in the output and have a look at the entries for [showNat]
     and [showPair]. *)
 
-(* Print HintDb typeclass_instances.
+Print HintDb typeclass_instances.
 
-    [] *)
+(* [] *)
 
 (** We can see what's happening during the instance inference process
     if we issue the [Set Typeclasses Debug] command. *)
 
 Set Typeclasses Debug.
-Check (show 42).
+Check (show 42). (* can't see it :/ *)
 (* ==>
      Debug: 1: looking for (Show nat) without backtracking
      Debug: 1.1: exact showNat on (Show nat), 0 subgoal(s)

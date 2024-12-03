@@ -1266,6 +1266,8 @@ Open Scope monad_scope.
     [Polymorphic] part refers to Coq's "universe polymorphism," which
     does not concern us here.) *)
 
+Print Monad.
+
 (** For example, we can define a monad instance for [option] like
     this: *)
 
@@ -1339,6 +1341,7 @@ Definition liftM2
             {T U V : Type} (f : T -> U -> V)
           : m T -> m U -> m V :=
     fun x y => bind x (fun x => liftM (f x) y).
+    (* [f x : U -> V ], [liftM (f x) : m U -> m V], [liftM (f x) y : m V] *)
 
 Definition liftM3
             {m : Type -> Type}
@@ -1360,6 +1363,9 @@ Definition sum3opt (n1 n2 : option nat) :=
 
 Definition sum3opt' (n1 n2 : option nat) :=
   liftM2 plus n1 n2.
+
+Compute sum3opt' (Some 3) None.
+Compute sum3opt' (Some 3) (Some 42).
 
 (** The [/examples] directory in the [ext-lib] Github
     repository ({https://github.com/coq-community/coq-ext-lib/blob/master/}) includes
